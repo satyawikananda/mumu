@@ -176,16 +176,15 @@ func (p Policy) control(network, address string, _ syscall.RawConn) error {
 		return nil
 	}
 
-	host, _, err := net.SplitHostPort(address)
-	if err != nil {
-		return nil
-	}
-	parsed, err := netip.ParseAddr(host)
-	if err != nil {
-		return nil
+	host, _, splitErr := net.SplitHostPort(address)
+	if splitErr == nil {
+		parsed, parseErr := netip.ParseAddr(host)
+		if parseErr == nil {
+			return p.CheckAddress(parsed)
+		}
 	}
 
-	return p.CheckAddress(parsed)
+	return nil
 }
 
 func acceptOr(value string) string {

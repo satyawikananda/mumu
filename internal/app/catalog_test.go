@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"path/filepath"
 	"testing"
 )
@@ -8,7 +9,7 @@ import (
 func TestOpenCatalogWithoutStore(t *testing.T) {
 	a := New()
 
-	if _, err := a.Catalog(); err != ErrCatalogNotReady {
+	if _, err := a.Catalog(); !errors.Is(err, ErrCatalogNotReady) {
 		t.Fatalf("Catalog error %v, want ErrCatalogNotReady", err)
 	}
 }

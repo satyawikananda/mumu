@@ -236,7 +236,7 @@ func (l *Library) View(c *ui.Context, theme *ui.Theme) {
 }
 
 // header draws the page heading and Add Playlist.
-func (l *Library) header(c *ui.Context, theme *ui.Theme) {
+func (l *Library) header(c *ui.Context, _ *ui.Theme) {
 	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(12).Children(func() {
 		pageHeading(c, "Library").Grow(1)
 		ui.Button(c, "Add Playlist").OnClick(l.OpenAddPlaylist)
@@ -350,7 +350,7 @@ func (l *Library) row(c *ui.Context, theme *ui.Theme, i int) {
 			}
 		})
 		if source.Busy {
-			refresh = refresh.Disabled(true)
+			refresh.Disabled(true)
 		}
 
 		remove := ui.Button(c, "Remove…").OnClick(func() {
@@ -358,7 +358,7 @@ func (l *Library) row(c *ui.Context, theme *ui.Theme, i int) {
 			l.confirmOpen = true
 		})
 		if source.Busy {
-			remove = remove.Disabled(true)
+			remove.Disabled(true)
 		}
 
 		enabled := source.Enabled
@@ -468,7 +468,7 @@ func (l *Library) sheetBody(c *ui.Context, theme *ui.Theme) {
 						}
 					})
 					if l.pickBusy {
-						choose = choose.Disabled(true)
+						choose.Disabled(true)
 					}
 				})
 			})
@@ -484,7 +484,7 @@ func (l *Library) sheetBody(c *ui.Context, theme *ui.Theme) {
 	ui.Row(c).AlignItems(ui.Center).Gap(10).Children(func() {
 		validate := ui.Button(c, "Validate and Preview").OnClick(l.validate)
 		if l.previewBusy || l.importBusy {
-			validate = validate.Disabled(true)
+			validate.Disabled(true)
 		}
 		if l.previewBusy {
 			ui.Spinner(c).Size(14, 14).Label("Validating")
@@ -509,7 +509,7 @@ func (l *Library) sheetBody(c *ui.Context, theme *ui.Theme) {
 
 		importButton := ui.PrimaryButton(c, "Import").OnClick(l.importDraft)
 		if l.preview == nil || l.previewBusy || l.importBusy {
-			importButton = importButton.Disabled(true)
+			importButton.Disabled(true)
 		}
 	})
 }
@@ -568,7 +568,7 @@ func (l *Library) previewPanel(c *ui.Context, theme *ui.Theme) {
 }
 
 // confirm draws the remove confirmation, naming the source.
-func (l *Library) confirm(c *ui.Context, theme *ui.Theme) {
+func (l *Library) confirm(c *ui.Context, _ *ui.Theme) {
 	if !l.confirmOpen {
 		return
 	}

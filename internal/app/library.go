@@ -384,7 +384,7 @@ func (a *App) removeLibrarySource(id string) {
 // pickLibraryFile opens the native file dialog off the UI thread and
 // publishes the chosen path back.
 func (a *App) pickLibraryFile() {
-	a.Go(func(context.Context) error {
+	a.GoQuiet(func(context.Context) {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
 			Title:       "Choose an M3U playlist",
 			ButtonLabel: "Choose",
@@ -400,7 +400,7 @@ func (a *App) pickLibraryFile() {
 				a.shell.Library().SetFilePathError("The file dialog could not open. Try again.")
 			})
 
-			return nil
+			return
 		}
 
 		path := ""
@@ -408,8 +408,6 @@ func (a *App) pickLibraryFile() {
 			path = paths[0]
 		}
 		a.publish(func() { a.shell.Library().SetFilePath(path) })
-
-		return nil
 	})
 }
 
@@ -417,22 +415,22 @@ func (a *App) pickLibraryFile() {
 func (a *App) previewLibrarySource(req ui.LibraryRequest) {
 	gen, ctx := a.library.begin(a.ctx)
 
-	a.Go(func(context.Context) error {
+	a.GoQuiet(func(context.Context) {
 		service, err := a.Catalog()
 		if err != nil {
 			a.publishPreview(gen, nil, "mumu could not open its local library. Try again.")
 
-			return nil
+			return
 		}
 
 		preview, err := libraryPreviewRequest(ctx, service, req)
 		if ctx.Err() != nil || !a.library.current(gen) {
-			return nil
+			return
 		}
 		if err != nil {
 			a.publishPreview(gen, nil, libraryErrorText(err))
 
-			return nil
+			return
 		}
 
 		a.publish(func() {
@@ -442,8 +440,6 @@ func (a *App) previewLibrarySource(req ui.LibraryRequest) {
 			a.libraryData.setPending(req, preview)
 			a.shell.Library().SetPreview(libraryPreview(preview), "")
 		})
-
-		return nil
 	})
 }
 
@@ -460,12 +456,12 @@ func (a *App) importLibrarySource(req ui.LibraryRequest) {
 
 	gen, ctx := a.library.begin(a.ctx)
 
-	a.Go(func(context.Context) error {
+	a.GoQuiet(func(context.Context) {
 		service, err := a.Catalog()
 		if err != nil {
 			a.publishImport(gen, "mumu could not open its local library. Try again.")
 
-			return nil
+			return
 		}
 
 		opCtx, cancel := context.WithTimeout(ctx, libraryTimeout)
@@ -477,7 +473,7 @@ func (a *App) importLibrarySource(req ui.LibraryRequest) {
 				a.publishImport(gen, libraryErrorText(err))
 			}
 
-			return nil
+			return
 		}
 
 		a.libraryData.clearPending()
@@ -491,8 +487,6 @@ func (a *App) importLibrarySource(req ui.LibraryRequest) {
 			}
 		})
 		a.refreshDiscoverFromCache()
-
-		return nil
 	})
 }
 
@@ -530,10 +524,10 @@ func (a *App) refreshDiscoverFromCache() {
 		return
 	}
 
-	a.Go(func(ctx context.Context) error {
+	a.GoQuiet(func(ctx context.Context) {
 		service, err := a.Catalog()
 		if err != nil {
-			return nil
+			return
 		}
 
 		readCtx, cancel := context.WithTimeout(ctx, libraryTimeout)
@@ -541,7 +535,7 @@ func (a *App) refreshDiscoverFromCache() {
 		if err != nil {
 			cancel()
 
-			return nil
+			return
 		}
 
 		community, settingErr := service.BuiltinEnabled(readCtx)
@@ -554,7 +548,7 @@ func (a *App) refreshDiscoverFromCache() {
 
 		channels := mergeDiscoverChannels(builtin, users)
 		if !a.discover.current(gen) {
-			return nil
+			return
 		}
 
 		a.publish(func() {
@@ -570,13 +564,11 @@ func (a *App) refreshDiscoverFromCache() {
 			}
 			a.publishDiscover(gen, state)
 
-			return nil
+			return
 		}
 
 		a.publishDiscover(gen, discoverState(ui.DiscoverReady, region, channels))
 		a.prefetchLogos(ctx, gen, channels)
-
-		return nil
 	})
 }
 

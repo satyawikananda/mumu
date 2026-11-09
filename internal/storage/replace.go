@@ -361,7 +361,7 @@ func encodeHeaders(headers map[string]string) (any, error) {
 
 	data, err := json.Marshal(headers)
 	if err != nil {
-		return nil, fmt.Errorf("%w: encode stream headers: %v", ErrInvalid, err)
+		return nil, fmt.Errorf("%w: encode stream headers: %w", ErrInvalid, err)
 	}
 	if len(data) > maxStreamHeaderBytes {
 		return nil, fmt.Errorf("%w: stream headers are too large", ErrInvalid)

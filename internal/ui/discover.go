@@ -125,7 +125,7 @@ func (d *Discover) View(c *ui.Context, theme *ui.Theme) {
 }
 
 // header draws the page heading, region selector and Add Playlist.
-func (d *Discover) header(c *ui.Context, theme *ui.Theme) {
+func (d *Discover) header(c *ui.Context, _ *ui.Theme) {
 	labels := d.regionLabels()
 
 	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(12).Children(func() {

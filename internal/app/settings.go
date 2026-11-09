@@ -83,12 +83,12 @@ func (a *App) loadSettings(ctx context.Context) {
 func (a *App) setCommunityCatalog(enabled bool) {
 	gen, ctx := a.settings.begin(a.ctx)
 
-	a.Go(func(context.Context) error {
+	a.GoQuiet(func(context.Context) {
 		service, err := a.Catalog()
 		if err != nil {
 			a.revertCommunity(gen, "mumu could not open its local library.")
 
-			return nil
+			return
 		}
 
 		writeCtx, cancel := context.WithTimeout(ctx, settingsTimeout)
@@ -96,12 +96,12 @@ func (a *App) setCommunityCatalog(enabled bool) {
 		cancel()
 
 		if !a.settings.current(gen) {
-			return nil
+			return
 		}
 		if err != nil {
 			a.revertCommunity(gen, "mumu could not save the setting. Try again.")
 
-			return nil
+			return
 		}
 
 		a.settingsData.setCommunity(enabled)
@@ -113,8 +113,6 @@ func (a *App) setCommunityCatalog(enabled bool) {
 			a.shell.Settings().SetCommunityError("")
 		})
 		a.refreshDiscoverFromCache()
-
-		return nil
 	})
 }
 

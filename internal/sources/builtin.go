@@ -28,11 +28,11 @@ func (s *Service) Region(ctx context.Context) (string, error) {
 	}
 
 	region := strings.ToUpper(strings.TrimSpace(value))
-	if _, err := s.provider.PlaylistURL(region); err != nil {
-		return DefaultRegion, nil
+	if _, err := s.provider.PlaylistURL(region); err == nil {
+		return region, nil
 	}
 
-	return region, nil
+	return DefaultRegion, nil
 }
 
 // SetRegion stores a validated region code.
@@ -55,12 +55,11 @@ func (s *Service) BuiltinEnabled(ctx context.Context) (bool, error) {
 		return true, nil
 	}
 
-	enabled, err := strconv.ParseBool(value)
-	if err != nil {
-		return true, nil
+	if enabled, parseErr := strconv.ParseBool(value); parseErr == nil {
+		return enabled, nil
 	}
 
-	return enabled, nil
+	return true, nil
 }
 
 // SetBuiltinEnabled shows or hides the community catalog.

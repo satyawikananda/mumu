@@ -95,6 +95,20 @@ func (a *App) Go(fn func(context.Context) error) {
 	})
 }
 
+// GoQuiet runs fn with the app context without reporting its outcome as a
+// global error. Use it when the caller publishes failures inline.
+func (a *App) GoQuiet(fn func(context.Context)) {
+	if fn == nil {
+		return
+	}
+
+	a.Go(func(ctx context.Context) error {
+		fn(ctx)
+
+		return nil
+	})
+}
+
 // Fail reports err to the user; safe from any goroutine.
 func (a *App) Fail(err error) {
 	if err == nil {

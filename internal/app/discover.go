@@ -306,7 +306,7 @@ func (a *App) setDiscoverRegion(code string) {
 	gen, ctx := a.discover.begin(a.ctx)
 	a.shell.Discover().SetState(ui.DiscoverState{Kind: ui.DiscoverLoading, Region: region})
 
-	a.Go(func(context.Context) error {
+	a.GoQuiet(func(context.Context) {
 		service, err := a.Catalog()
 		if err != nil {
 			a.publishDiscover(gen, ui.DiscoverState{
@@ -315,7 +315,7 @@ func (a *App) setDiscoverRegion(code string) {
 				Message: "mumu could not open its local library. Retry, or add your own playlist.",
 			})
 
-			return nil
+			return
 		}
 
 		saveCtx, cancel := context.WithTimeout(ctx, catalogRefreshTimeout)
@@ -329,12 +329,10 @@ func (a *App) setDiscoverRegion(code string) {
 				Message: "mumu could not change the catalog region. Retry, or add your own playlist.",
 			})
 
-			return nil
+			return
 		}
 
 		a.loadDiscover(ctx, gen)
-
-		return nil
 	})
 }
 
