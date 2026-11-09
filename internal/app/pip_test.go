@@ -14,11 +14,12 @@ import (
 
 // fakeSurface records attachment calls without native objects.
 type fakeSurface struct {
-	attaches int
-	frames   []video.Rect
-	fail     error
-	errors   chan error
-	closed   bool
+	attaches  int
+	setFrames int
+	frames    []video.Rect
+	fail      error
+	errors    chan error
+	closed    bool
 }
 
 func (f *fakeSurface) Attach(_ uintptr, frame video.Rect) error {
@@ -32,6 +33,7 @@ func (f *fakeSurface) Attach(_ uintptr, frame video.Rect) error {
 }
 
 func (f *fakeSurface) SetFrame(frame video.Rect) error {
+	f.setFrames++
 	f.frames = append(f.frames, frame)
 
 	return nil

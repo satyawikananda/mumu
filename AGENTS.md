@@ -72,7 +72,8 @@ The spike commands live in [its README](experiments/nativeplayback/README.md). T
 | UI | MyGo native `ui` | Decided |
 | MyGo | `github.com/egoist/mygo` 0.8.3 | Pinned; latest release at bootstrap |
 | Playback engine | libmpv | Conditional native child-surface path proven in M0 |
-| Go mpv binding | `gen2brain/go-mpv` 0.4.0 | Pinned/tested in standalone spike; native runtime required |
+| Go mpv binding | `gen2brain/go-mpv` 0.4.0, patched in `third_party/go-mpv` | Default darwin/arm64 adapter; the runtime is opened explicitly, never in a package init |
+| libmpv runtime | Discovered at runtime: `MUMU_MPV_LIBRARY`, the loader's own search path (`DYLD_LIBRARY_PATH`), `/opt/homebrew/lib`, `/usr/local/lib`, then `Contents/Resources` | Implemented; a missing runtime is an actionable error, not a panic |
 | Renderer on macOS | MyGo Metal UI + separate native OpenGL video view | Conditional M0 result; no direct Metal interop claim |
 | PiP | Floating native window with one retained view/session | Conditional M0 result; lifecycle/Spaces/stacking observed on tested Mac |
 | Persistence | SQLite via the MyGo plugin, local only | Implemented (#6, refactor) |
@@ -82,6 +83,38 @@ The spike commands live in [its README](experiments/nativeplayback/README.md). T
 | Go toolchain | Follow **pinned MyGo requirement**: Go 1.27.3, the minimum MyGo 0.8.3 accepts | Verified at bootstrap (#3) |
 
 **Important:** MyGo uses Metal on macOS, while common libmpv integration approaches expose OpenGL or software-render paths. Do not assume they are directly compatible. A PureGo/nocgo binding does **not** eliminate the dynamic native libmpv runtime dependency. Hardware decoding and zero-copy rendering are *goals*, not verified facts.
+
+### libmpv runtime and the default build
+
+The real adapter is compiled by the default `darwin/arm64` build; every other
+target compiles a stub, so cross-builds need no native runtime. There is no
+build tag to remember, and the old `mumu_mpv` tag is no longer used (passing it
+is harmless). CGO is not required: the binding is purego.
+
+The runtime is opened on the first Play, not at launch, so starting mumu on a
+machine without mpv stays silent and the Watch page only reports a missing
+runtime when the viewer asks to play. The search order is:
+
+1. `MUMU_MPV_LIBRARY` (a dylib file or `:`-separated directories);
+2. the dynamic loader's own search path, which honours `DYLD_LIBRARY_PATH`;
+3. `/opt/homebrew/lib/libmpv.dylib`, then `/usr/local/lib/libmpv.dylib`
+   (and the `.2.dylib` variant of each);
+4. `Contents/Resources` next to the executable, when it already exists.
+
+`MUMU_MPV_LIBRARY` exists because the `go` command removes `DYLD_LIBRARY_PATH`
+from the environment of the binaries it runs, so `go test` cannot use the
+loader's own search path. Packaging and redistribution stay #14's decision.
+
+```sh
+# Run the app with a libmpv runtime in a non-standard directory. The go
+# command drops DYLD_* from the binaries it runs, so MUMU_MPV_LIBRARY is the
+# reliable choice for `go run` and `go test`.
+MUMU_MPV_LIBRARY=/private/tmp/mumu-runtime/lib go run ./cmd/mumu
+
+# Run the gated integration tests.
+MUMU_MPV_LIBRARY=/private/tmp/mumu-runtime/lib MUMU_MPV_TEST=1 \
+  go test -run TestIntegration -v ./internal/player/libmpv
+```
 
 ## 5. Phases and implementation gates
 
@@ -103,7 +136,9 @@ cmd/mumu/             # Application entry point: wiring and Run only
 internal/app/         # Composition root, window, cancellation, background jobs
 internal/ui/          # Native shell, theme and shared views
 internal/player/      # Playback controller, state machine and Engine port (#5)
-internal/player/libmpv/  # libmpv adapter behind the mumu_mpv build tag
+internal/player/libmpv/  # libmpv adapter (default on darwin/arm64) and runtime discovery
+internal/player/libmpv/library/  # libmpv search order, testable without a dylib
+third_party/go-mpv/   # pinned binding, patched for an explicit runtime loader
 internal/video/       # Native surface presentation boundary; adapter in #11
 internal/catalog/     # Channel domain, identity, validation and provider boundary; #7/#8
 internal/netguard/    # Bounded HTTP client and untrusted-URL policy; #7
@@ -189,6 +224,7 @@ Before claiming completion:
   - `gofmt -l ./cmd ./internal` (must print nothing).
   - `golangci-lint run ./cmd/... ./internal/...` when the tool is installed, or `make lint`.
   - `go tool mygo build` for a packaged macOS app.
+  - On a machine with libmpv, `MUMU_MPV_LIBRARY=<dir>` plus `MUMU_MPV_TEST=1`/`MUMU_MPV_HEADER_TEST=1` for the gated `internal/player/libmpv` integration tests. A skip is not a pass.
 - For native media work, record **OS, architecture, MyGo/libmpv versions, command, observable output, and tested stream type**.
 - Report a clear summary: changed files, tests actually run, constraints met, unverified items, and follow-up risks.
 - Do not mark acceptance criteria complete based solely on static code review or compilation if runtime video/PiP is required.
@@ -215,7 +251,7 @@ Before claiming completion:
 - **After #1/#2:** M0 feasibility reports and evidence are recorded under `docs/architecture/`.
 - **After #3:** Completed: `cmd/mumu`, `internal/app`, native shell, CI, README and ADRs.
 - **After #4:** Reconcile UI conventions with the implemented theme and update `DESIGN.md`; replace the placeholder shell. Implemented in this change: tokens, Dark/Light/System themes, wide sidebar, 72 pt rail and shared status views.
-- **After #5/#6:** Implemented: local SQLite repositories and migrations, the playback controller/state machine, and the libmpv adapter behind the `mumu_mpv` build tag. The app wires the local library at launch; Watch/PiP surface and UI wiring remain #11/#12.
+- **After #5/#6:** Implemented: local SQLite repositories and migrations, the playback controller/state machine, and the libmpv adapter. The app wires the local library at launch; Watch/PiP surface and UI wiring remain #11/#12. The adapter is now the default `darwin/arm64` build with an explicit, lazy runtime loader (`third_party/go-mpv`), so no build tag and no launch-time playback error.
 - **After #7/#8/#9:** Implemented: M3U domain/parser with bounded network policy, variant streams, the iptv-org community catalog with cache/blocklist/attribution, source management (import, preview, atomic refresh, toggle, remove), and native Discover/Library source UI. See `docs/architecture/sources.md` and ADR 0006.
 - **After #10/#11a/#11b:** Implemented: Discover search, category/source filters and channel selection; per-source private-host consent and scheme allowlist (ADR 0007); Watch with one shared controller, native video surface, resume, favorites, volume/mute and explicit error states. See `docs/architecture/watch.md` and `docs/architecture/video-surface.md`.
 - **After #12:** Implemented: PiP as a presentation change of the same surface and session, with a native floating panel, rollback on a failed attach, Return/Close behavior and unit-tested rapid toggles. The manual macOS Watch and PiP smoke tests are still pending. See `docs/architecture/pip.md`.

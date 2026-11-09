@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -153,9 +155,13 @@ func TestStreamHeaders(t *testing.T) {
 	}
 }
 
-// A failed playback keeps the channel and reports an actionable error.
+// A failed playback keeps the channel and reports an actionable error. The
+// engine factory fails, so the result does not depend on a native runtime.
 func TestPlayChannelWithoutEngineReportsError(t *testing.T) {
 	a, _ := discoverTestApp(t)
+	a.newEngine = func(string) (player.Engine, error) {
+		return nil, fmt.Errorf("%w: test runtime", player.ErrRuntimeUnavailable)
+	}
 
 	channel := catalog.Channel{
 		SourceID:   "source-a",
@@ -179,6 +185,125 @@ func TestPlayChannelWithoutEngineReportsError(t *testing.T) {
 	if a.shell.Destination() != "/watch" {
 		t.Fatalf("destination %q, want Watch", a.shell.Destination())
 	}
+}
+
+// A launch without playback must not open the engine, log or report an error.
+func TestStartWatchDoesNotOpenPlayback(t *testing.T) {
+	a, _ := discoverTestApp(t)
+
+	attempts := 0
+	a.newEngine = func(string) (player.Engine, error) {
+		attempts++
+
+		return nil, fmt.Errorf("%w: test runtime", player.ErrRuntimeUnavailable)
+	}
+
+	a.startWatch()
+
+	if attempts != 0 {
+		t.Fatalf("engine created %d times before a Play", attempts)
+	}
+	if a.controller != nil {
+		t.Fatal("startWatch created a controller")
+	}
+	got := a.shell.Watch().State()
+	if got.Kind == ui.WatchError || got.Error != "" {
+		t.Fatalf("watch state %+v, want no playback error before a Play", got)
+	}
+}
+
+// The engine, controller and stream load are created on the first Play.
+func TestPlayOpensPlayerOnFirstPlay(t *testing.T) {
+	a, _ := discoverTestApp(t)
+	engine := newFakeEngine(t)
+	a.newEngine = func(string) (player.Engine, error) { return engine, nil }
+
+	if a.controller != nil {
+		t.Fatal("controller exists before a Play")
+	}
+
+	a.playChannel(playbackTestChannel(), "My list")
+
+	a.mu.Lock()
+	controller := a.controller
+	a.mu.Unlock()
+	if controller == nil {
+		t.Fatalf("no controller after a Play; watch state %+v", a.shell.Watch().State())
+	}
+
+	waitForLoads(t, engine, 1)
+	if source := engine.loadSource(); source.URL != "https://example.com/live.m3u8" {
+		t.Fatalf("loaded %q, want the channel stream", source.URL)
+	}
+}
+
+// A missing runtime is reported only when the viewer asks to play, and a
+// later attempt works once the runtime is available.
+func TestPlayRetriesAfterRuntimeAppears(t *testing.T) {
+	a, _ := discoverTestApp(t)
+	engine := newFakeEngine(t)
+
+	available := false
+	a.newEngine = func(string) (player.Engine, error) {
+		if !available {
+			return nil, fmt.Errorf("%w: test runtime", player.ErrRuntimeUnavailable)
+		}
+
+		return engine, nil
+	}
+
+	a.playChannel(playbackTestChannel(), "My list")
+
+	got := a.shell.Watch().State()
+	if got.Kind != ui.WatchError {
+		t.Fatalf("watch kind %v, want Error", got.Kind)
+	}
+	if !strings.Contains(got.Error, "libmpv") {
+		t.Fatalf("error %q, want an actionable libmpv message", got.Error)
+	}
+	if strings.Contains(got.Error, "example.com") || strings.Contains(got.Error, "http") {
+		t.Fatalf("error %q leaks the stream URL", got.Error)
+	}
+	if a.controller != nil {
+		t.Fatal("a failed engine creation left a controller")
+	}
+
+	available = true
+	a.playChannel(playbackTestChannel(), "My list")
+
+	a.mu.Lock()
+	controller := a.controller
+	a.mu.Unlock()
+	if controller == nil {
+		t.Fatalf("no controller after the runtime appeared; watch state %+v", a.shell.Watch().State())
+	}
+
+	waitForLoads(t, engine, 1)
+}
+
+// playbackTestChannel is a live channel with one supported stream.
+func playbackTestChannel() catalog.Channel {
+	return catalog.Channel{
+		SourceID:   "source-a",
+		ProviderID: "provider-a",
+		Name:       "News",
+		Streams:    []catalog.Stream{{URL: "https://example.com/live.m3u8", Live: true}},
+	}
+}
+
+// waitForLoads waits until the fake engine saw want Load calls.
+func waitForLoads(t *testing.T, engine *fakeEngine, want int) {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if engine.loadCount() >= want {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	t.Fatalf("engine loads = %d, want %d", engine.loadCount(), want)
 }
 
 // markPlayingRecent records only real playback, once per generation.

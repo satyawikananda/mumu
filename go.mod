@@ -12,6 +12,12 @@ require (
 	golang.org/x/text v0.43.0
 )
 
+// The pinned binding opens libmpv in a package init and panics when the dylib
+// is missing, which makes playback impossible in the default build and unsafe
+// on machines without mpv. third_party/go-mpv is v0.4.0 with an explicit,
+// retryable loader; see its README.
+replace github.com/gen2brain/go-mpv => ./third_party/go-mpv
+
 require (
 	github.com/go-text/typesetting v0.3.5 // indirect
 	golang.org/x/net v0.59.0 // indirect

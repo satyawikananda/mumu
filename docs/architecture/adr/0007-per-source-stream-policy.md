@@ -86,18 +86,19 @@ verified on a real libmpv runtime:
 - Command that passed:
 
   ```sh
-  CGO_ENABLED=0 go test -tags mumu_mpv -c -o /tmp/mumu-libmpv.test \
-    ./internal/player/libmpv
-  DYLD_LIBRARY_PATH=/private/tmp/mumu-runtime/lib MUMU_MPV_HEADER_TEST=1 \
-    /tmp/mumu-libmpv.test -test.run TestIntegrationPlaybackHeaders -test.v
+  MUMU_MPV_LIBRARY=/private/tmp/mumu-runtime/lib MUMU_MPV_HEADER_TEST=1 \
+    go test ./internal/player/libmpv -run TestIntegrationPlaybackHeaders -v
   ```
 
 - Observed: `--- PASS: TestIntegrationPlaybackHeaders (0.30s)`. The local HTTP
   server received `User-Agent: mumu-header-test/0.1` and the expected
   `Referer`; the `Cookie` header in the source was not forwarded.
-- `go test` run directly (without building the test binary first) failed to
-  `dlopen` libmpv in this shell, so the recorded run uses the built binary
-  above. That is an environment detail, not a passing `go test` result.
+- `go test` removes `DYLD_LIBRARY_PATH` from the binaries it runs in this
+  shell, so the run above uses `MUMU_MPV_LIBRARY` instead; building the test
+  binary with `go test -c` and exporting `DYLD_LIBRARY_PATH` also works. Before
+  10 November 2026 the adapter needed the `mumu_mpv` tag and panicked at init
+  without a dylib; it is now the default `darwin/arm64` build with a lazy
+  loader (ADR 0005 amendment).
 - Log: [header-forwarding.log](../evidence/header-forwarding.log).
 
 The M0 findings in [native-playback-feasibility.md](../native-playback-feasibility.md)

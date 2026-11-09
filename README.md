@@ -14,8 +14,8 @@ JavaScript frontend, and no hosted backend.
 
 - macOS 12 or later. M0 was verified on macOS 27.0.1, Apple Silicon.
 - Go 1.27.3 or later, as pinned in `go.mod`. MyGo 0.8.3 requires it.
-- No Bun, Node.js or libmpv for the bootstrap shell. libmpv becomes a
-  runtime requirement when playback lands in issue #5.
+- libmpv for playback (`brew install mpv`, or `MUMU_MPV_LIBRARY=<dir>`). The
+  app and every non-playback screen start without it.
 
 Check the toolchain with:
 
@@ -35,6 +35,31 @@ go tool mygo vet .          # MyGo native UI lifetime checks
 `mygo dev` creates a development bundle named `Mumu Dev` with the
 identifier `dev.satyawikananda.mumu.dev`, separate from an installed app.
 
+### Watching with libmpv
+
+The default build includes the libmpv adapter. Playback opens the runtime on the
+first Play, in this order: `MUMU_MPV_LIBRARY`, the loader's own search path
+(`DYLD_LIBRARY_PATH`), `/opt/homebrew/lib`, `/usr/local/lib`, then
+`Contents/Resources` next to the executable.
+
+```sh
+brew install mpv                                        # the usual install
+go build -o /tmp/mumu ./cmd/mumu                        # go run drops DYLD_*
+DYLD_LIBRARY_PATH=/path/to/lib /tmp/mumu                # a runtime elsewhere
+MUMU_MPV_LIBRARY=/path/to/lib go run ./cmd/mumu         # same, survives go run
+```
+
+The `go` command removes `DYLD_LIBRARY_PATH` from the binaries it runs, so use
+`MUMU_MPV_LIBRARY` for `go test`:
+
+```sh
+MUMU_MPV_LIBRARY=/private/tmp/mumu-runtime/lib MUMU_MPV_TEST=1 \
+  go test -run TestIntegration -v ./internal/player/libmpv
+```
+
+Without a runtime, mumu starts normally and Watch reports the missing runtime
+when you press Play, with a Retry action after you install it.
+
 ## Build
 
 ```sh
@@ -50,7 +75,9 @@ cmd/mumu/             application entry point
 internal/app/         composition root: window, cancellation, background jobs, local library
 internal/ui/          native MyGo shell, theme and shared views
 internal/player/      playback controller, state machine and Engine port
-internal/player/libmpv/  libmpv adapter behind the mumu_mpv build tag
+internal/player/libmpv/  libmpv adapter, the default darwin/arm64 build
+internal/player/libmpv/library/  libmpv runtime search order
+third_party/go-mpv/   pinned go-mpv, patched for an explicit runtime loader
 internal/video/       native video surface boundary; adapter with #11
 internal/catalog/     channel domain and provider boundary (#7, #8)
 internal/catalog/iptvorg/  per-country community catalog and blocklist
@@ -65,8 +92,9 @@ experiments/          M0 playback/PiP spikes and the test stream fixture
 ```
 
 Only `cmd/mumu` is packaged into the application. The local library lives at
-`~/Library/Application Support/Mumu/mumu.db`. The libmpv adapter requires the
-`mumu_mpv` build tag and an external runtime; see
+`~/Library/Application Support/Mumu/mumu.db`. The libmpv adapter is part of the
+default `darwin/arm64` build and needs an installed libmpv runtime; it is
+opened on the first Play and reports an actionable error when missing. See
 [playback controller](docs/architecture/player-controller.md).
 
 Native-only rules and the engineering workflow are in

@@ -14,4 +14,8 @@ var (
 	// and https are enabled; file, udp, rtp, multicast, rtsp, rtmp and srt
 	// stay rejected until a recorded macOS libmpv smoke test proves them.
 	ErrUnsupportedScheme = errors.New("unsupported stream scheme")
+	// ErrRuntimeUnavailable reports a build or a machine without the native
+	// media runtime, so a caller can show an actionable message instead of
+	// retrying. It never carries a URL, a header or a user path.
+	ErrRuntimeUnavailable = errors.New("native playback runtime is unavailable")
 )

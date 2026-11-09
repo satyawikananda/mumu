@@ -15,9 +15,13 @@ type config struct {
 	fullscreen     func()
 }
 
+// DefaultVolume is the starting volume when the viewer has no saved choice.
+// The app shows it before any controller exists.
+const DefaultVolume = 30
+
 func defaultConfig() config {
 	return config{
-		initialVolume:  30,
+		initialVolume:  DefaultVolume,
 		initialMuted:   false,
 		loadingTimeout: 20 * time.Second,
 		commandTimeout: 2 * time.Second,
