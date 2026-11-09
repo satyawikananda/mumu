@@ -1,0 +1,175 @@
+{
+  "complete": true,
+  "environment": {
+    "CGO_ENABLED": "0",
+    "GOCACHE": "/private/tmp/mumu-go-cache",
+    "DYLD_LIBRARY_PATH": "/private/tmp/mumu-libmpv-modern/lib"
+  },
+  "checks": [
+    {
+      "name": "gofmt",
+      "command": [
+        "gofmt",
+        "-l",
+        "experiments"
+      ],
+      "exit_code": 0,
+      "pass": true,
+      "seconds": 0.106,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "go test",
+      "command": [
+        "go",
+        "test",
+        "./..."
+      ],
+      "exit_code": 0,
+      "pass": true,
+      "seconds": 0.55,
+      "stdout": "ok  \tmumu\t(cached)\nok  \tmumu/experiments/hlsfixture\t(cached)\nok  \tmumu/experiments/nativeplayback\t(cached)\n",
+      "stderr": ""
+    },
+    {
+      "name": "go vet",
+      "command": [
+        "go",
+        "vet",
+        "./..."
+      ],
+      "exit_code": 0,
+      "pass": true,
+      "seconds": 0.221,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "native go vet",
+      "command": [
+        "go",
+        "vet",
+        "-tags",
+        "mumu_spike",
+        "./..."
+      ],
+      "exit_code": 0,
+      "pass": true,
+      "seconds": 0.267,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "mygo vet",
+      "command": [
+        "go",
+        "tool",
+        "mygo",
+        "vet",
+        "."
+      ],
+      "exit_code": 0,
+      "pass": true,
+      "seconds": 0.619,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "native build",
+      "command": [
+        "go",
+        "build",
+        "-tags",
+        "mumu_spike",
+        "-o",
+        "/private/tmp/mumu-followup-final-build",
+        "./experiments/nativeplayback"
+      ],
+      "exit_code": 0,
+      "pass": true,
+      "seconds": 1.614,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "native test compile",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-tags",
+        "mumu_spike",
+        "-o",
+        "/private/tmp/mumu-followup-final-tests",
+        "./experiments/nativeplayback"
+      ],
+      "exit_code": 0,
+      "pass": true,
+      "seconds": 0.535,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "native tests",
+      "command": [
+        "/private/tmp/mumu-followup-final-tests",
+        "-test.v"
+      ],
+      "exit_code": 0,
+      "pass": true,
+      "seconds": 1.291,
+      "stdout": "=== RUN   TestTransfer\n=== RUN   TestTransfer/enter\n=== RUN   TestTransfer/return\n=== RUN   TestTransfer/rollback\n=== RUN   TestTransfer/duplicate\n=== RUN   TestTransfer/stopped\n=== RUN   TestTransfer/busy\n=== RUN   TestTransfer/invalid\n--- PASS: TestTransfer (0.00s)\n    --- PASS: TestTransfer/enter (0.00s)\n    --- PASS: TestTransfer/return (0.00s)\n    --- PASS: TestTransfer/rollback (0.00s)\n    --- PASS: TestTransfer/duplicate (0.00s)\n    --- PASS: TestTransfer/stopped (0.00s)\n    --- PASS: TestTransfer/busy (0.00s)\n    --- PASS: TestTransfer/invalid (0.00s)\nPASS\n",
+      "stderr": ""
+    },
+    {
+      "name": "Python compile",
+      "command": [
+        "python3",
+        "-m",
+        "py_compile",
+        "experiments/nativeplayback/test_capture_analysis.py",
+        "experiments/nativeplayback/measure.py",
+        "experiments/nativeplayback/observe_gpu.py",
+        "experiments/nativeplayback/analyze_capture.py"
+      ],
+      "exit_code": 0,
+      "pass": true,
+      "seconds": 0.155,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "capture calibration",
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "experiments/nativeplayback",
+        "-p",
+        "test_capture_analysis.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "pass": true,
+      "seconds": 1.757,
+      "stdout": "",
+      "stderr": "test_known_delay_mute_and_black_interval (test_capture_analysis.CaptureCalibrationTest.test_known_delay_mute_and_black_interval) ... ok\n\n----------------------------------------------------------------------\nRan 1 test in 1.404s\n\nOK\n"
+    },
+    {
+      "name": "module verify",
+      "command": [
+        "go",
+        "mod",
+        "verify"
+      ],
+      "exit_code": 0,
+      "pass": true,
+      "seconds": 2.205,
+      "stdout": "all modules verified\n",
+      "stderr": ""
+    }
+  ]
+}

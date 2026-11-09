@@ -1,0 +1,17 @@
+=== RUN   TestTransfer
+=== RUN   TestTransfer/enter
+=== RUN   TestTransfer/return
+=== RUN   TestTransfer/rollback
+=== RUN   TestTransfer/duplicate
+=== RUN   TestTransfer/stopped
+=== RUN   TestTransfer/busy
+=== RUN   TestTransfer/invalid
+--- PASS: TestTransfer (0.00s)
+    --- PASS: TestTransfer/enter (0.00s)
+    --- PASS: TestTransfer/return (0.00s)
+    --- PASS: TestTransfer/rollback (0.00s)
+    --- PASS: TestTransfer/duplicate (0.00s)
+    --- PASS: TestTransfer/stopped (0.00s)
+    --- PASS: TestTransfer/busy (0.00s)
+    --- PASS: TestTransfer/invalid (0.00s)
+PASS

@@ -1,0 +1,437 @@
+2026/11/09 03:47:12.298460 native-attachment view=7ab688ef80 context=7ab6efcae0 window=7ab688d680 actual_window=7ab688d680 pixels=1920x1080
+2026/11/09 03:47:12.385348 session-created id=1 api=20005 mpv=mpv v0.41.0 ffmpeg=9.0.2
+2026/11/09 03:47:14.308071 exercise=play
+2026/11/09 03:47:14.319773 event=start-file session=1 loads=1
+2026/11/09 03:47:14.403122 event=file-loaded session=1 loads=1
+2026/11/09 03:47:14.755209 render-gap-ms=2308.983
+2026/11/09 03:47:14.769697 event=playback-restart session=1 loads=1
+2026/11/09 03:47:14.962864 volume=37.495117
+2026/11/09 03:47:15.116831 render-gap-ms=361.572
+2026/11/09 03:47:15.213300 volume=37.589516
+2026/11/09 03:47:15.227954 volume=38.504230
+2026/11/09 03:47:15.244593 volume=41.040039
+2026/11/09 03:47:15.262655 volume=44.923504
+2026/11/09 03:47:15.277950 volume=49.422203
+2026/11/09 03:47:15.296140 volume=53.966469
+2026/11/09 03:47:15.311216 volume=57.934570
+2026/11/09 03:47:15.327995 volume=60.727535
+2026/11/09 03:47:15.344550 volume=62.280273
+2026/11/09 03:47:15.361245 volume=63.012695
+2026/11/09 03:47:15.377858 volume=63.452148
+2026/11/09 03:47:15.385641 stats session=1 loads=1 rendered=13 time=0.666667 avsync=-0.003400 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1280x720 drops=0 buffering=false
+2026/11/09 03:47:15.395386 volume=63.894855
+2026/11/09 03:47:15.411203 volume=64.223633
+2026/11/09 03:47:15.427852 volume=64.552406
+2026/11/09 03:47:15.444573 volume=64.881187
+2026/11/09 03:47:15.462932 volume=65.330406
+2026/11/09 03:47:15.477906 volume=66.157227
+2026/11/09 03:47:15.498056 volume=67.351891
+2026/11/09 03:47:15.511322 volume=68.946938
+2026/11/09 03:47:15.527969 volume=70.616859
+2026/11/09 03:47:15.544682 volume=71.866867
+2026/11/09 03:47:15.561725 volume=72.687172
+2026/11/09 03:47:15.578058 volume=73.253578
+2026/11/09 03:47:15.594617 volume=73.670250
+2026/11/09 03:47:15.611273 volume=73.999023
+2026/11/09 03:47:15.627926 volume=74.243164
+2026/11/09 03:47:15.644563 volume=74.575195
+2026/11/09 03:47:15.661232 volume=75.138351
+2026/11/09 03:47:15.677871 volume=75.711266
+2026/11/09 03:47:15.694553 volume=76.153969
+2026/11/09 03:47:15.711198 volume=76.593422
+2026/11/09 03:47:15.727865 volume=76.850586
+2026/11/09 03:47:16.051332 volume=77.065430
+2026/11/09 03:47:16.078268 volume=77.377930
+2026/11/09 03:47:16.094870 volume=78.012695
+2026/11/09 03:47:16.111352 volume=78.995773
+2026/11/09 03:47:16.128091 volume=80.128578
+2026/11/09 03:47:16.144759 volume=81.417641
+2026/11/09 03:47:16.161825 volume=82.491859
+2026/11/09 03:47:16.178130 volume=83.273109
+2026/11/09 03:47:16.194822 volume=83.849281
+2026/11/09 03:47:16.211430 volume=84.226891
+2026/11/09 03:47:16.228085 volume=84.379883
+2026/11/09 03:47:16.261292 volume=84.471031
+2026/11/09 03:47:16.344873 volume=84.383133
+2026/11/09 03:47:16.386527 stats session=1 loads=1 rendered=43 time=1.633333 avsync=-0.000153 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1280x720 drops=0 buffering=false
+2026/11/09 03:47:17.308101 exercise=resize
+2026/11/09 03:47:17.386131 stats session=1 loads=1 rendered=72 time=2.633333 avsync=0.000000 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1280x720 drops=0 buffering=false
+2026/11/09 03:47:18.386795 stats session=1 loads=1 rendered=98 time=3.600000 avsync=0.000001 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1280x720 drops=0 buffering=false
+2026/11/09 03:47:19.371179 render-gap-ms=122.494
+2026/11/09 03:47:19.389327 stats session=1 loads=1 rendered=123 time=4.666667 avsync=0.000004 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1280x720 drops=0 buffering=false
+2026/11/09 03:47:19.696368 render-gap-ms=130.476
+2026/11/09 03:47:20.153476 render-gap-ms=282.356
+2026/11/09 03:47:20.346686 exercise=pip
+2026/11/09 03:47:20.399987 stats session=1 loads=1 rendered=137 time=5.233333 avsync=0.397762 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1280x720 drops=0 buffering=false
+2026/11/09 03:47:20.440859 render-gap-ms=286.171
+2026/11/09 03:47:20.482048 native-attachment view=7ab688ef80 context=7ab6efcae0 window=7ab676e300 actual_window=7ab676e300 pixels=960x540
+2026/11/09 03:47:20.482171 transfer target=pip state=pip attachment_ms=135.107 err=<nil>
+2026/11/09 03:47:20.482236 pip-window visible=true always_on_top=true
+SIGSEGV: segmentation violation
+PC=0x134e73ba4 m=9 sigcode=2 addr=0x28
+signal arrived during cgo execution
+
+goroutine 50 gp=0x2e7ceff02780 m=9 mp=0x2e7cefe00808 [syscall, locked to thread]:
+runtime.cgocall(0x102ecc070, 0x2e7cefdfe000)
+	/usr/local/go/src/runtime/cgocall.go:167 +0x44 fp=0x2e7ceff73010 sp=0x2e7ceff72fd0 pc=0x102dfff94
+github.com/ebitengine/purego.syscall_SyscallN(0x1315d9dbc, {0x2e7ceff73310, 0x20, 0x0?}, {0x2e7ceff73440, 0x20, 0x2e7ceff73778?}, 0x0)
+	/Users/phidev0x/go/pkg/mod/github.com/ebitengine/purego@v0.11.1/syscall.go:50 +0x350 fp=0x2e7ceff73190 sp=0x2e7ceff73010 pc=0x102ec9150
+github.com/ebitengine/purego.RegisterFunc.func4({0x2e7ceffe2930, 0x2, 0x2})
+	/Users/phidev0x/go/pkg/mod/github.com/ebitengine/purego@v0.11.1/func.go:375 +0x414 fp=0x2e7ceff73820 sp=0x2e7ceff73190 pc=0x102eca844
+reflect.callReflect(0x2e7cefec2000, 0x2e7ceff73d58, 0x2e7ceff73bb8, 0x2e7ceff73bc0)
+	/usr/local/go/src/reflect/value.go:772 +0x3f8 fp=0x2e7ceff73b60 sp=0x2e7ceff73820 pc=0x102e42af8
+reflect.callReflect(0x2e7cefec2000, 0x2e7ceff73d58, 0x2e7ceff73bb8, 0x2e7ceff73bc0)
+	<autogenerated>:1 +0x20 fp=0x2e7ceff73b90 sp=0x2e7ceff73b60 pc=0x102e4bfd0
+reflect.makeFuncStub()
+	/usr/local/go/src/reflect/asm_arm64.s:48 +0x50 fp=0x2e7ceff73d50 sp=0x2e7ceff73b90 pc=0x102e4b9d0
+github.com/gen2brain/go-mpv.(*RenderContext).RenderGL(0x2e7ceff1f6e0, 0x0, 0x3c0, 0x21c, 0x1)
+	/Users/phidev0x/go/pkg/mod/github.com/gen2brain/go-mpv@v0.4.0/render_nocgo.go:159 +0xec fp=0x2e7ceff73da0 sp=0x2e7ceff73d50 pc=0x10317345c
+main.runRenderer({0x10369f130, 0x2e7cefe50730}, 0x2e7ceff1e930, 0x2e7cf003c960, 0x2e7cefe27728, 0x2e7cefe1a070, 0x2e7cefe1a0e0)
+	/Users/phidev0x/Documents/Project Next Generation/mumu/experiments/nativeplayback/session_darwin.go:173 +0x474 fp=0x2e7ceff73f60 sp=0x2e7ceff73da0 pc=0x103176b74
+main.runSession.func1()
+	/Users/phidev0x/Documents/Project Next Generation/mumu/experiments/nativeplayback/session_darwin.go:56 +0x50 fp=0x2e7ceff73fd0 sp=0x2e7ceff73f60 pc=0x10317aba0
+runtime.goexit({})
+	/usr/local/go/src/runtime/asm_arm64.s:1039 +0x4 fp=0x2e7ceff73fd0 sp=0x2e7ceff73fd0 pc=0x102e09be4
+created by main.runSession in goroutine 23
+	/Users/phidev0x/Documents/Project Next Generation/mumu/experiments/nativeplayback/session_darwin.go:54 +0x728
+
+goroutine 1 gp=0x2e7cefd741e0 m=0 mp=0x103725020 [syscall, locked to thread]:
+runtime.cgocall(0x102ecc070, 0x2e7cefea4000)
+	/usr/local/go/src/runtime/cgocall.go:167 +0x44 fp=0x2e7cf03377f0 sp=0x2e7cf03377b0 pc=0x102dfff94
+github.com/ebitengine/purego.syscall_SyscallN(0x1886ac800, {0x2e7cefdab9c8, 0x20, 0x0?}, {0x2e7cefdabad8, 0x20, 0x1?}, 0x0)
+	/Users/phidev0x/go/pkg/mod/github.com/ebitengine/purego@v0.11.1/syscall.go:50 +0x350 fp=0x2e7cf0337970 sp=0x2e7cf03377f0 pc=0x102ec9150
+github.com/ebitengine/purego.SyscallN(0x1886ac800?, {0x2e7cf0012cc0?, 0x0?, 0x0?})
+	/Users/phidev0x/go/pkg/mod/github.com/ebitengine/purego@v0.11.1/syscall.go:92 +0xf0 fp=0x2e7cf0337c10 sp=0x2e7cf0337970 pc=0x102ec9330
+github.com/egoist/mygo/internal/darwin.sendSel(0x106083ed0, 0x1f5335780, {0x0, 0x0, 0x2e7cefea4000?})
+	/Users/phidev0x/go/pkg/mod/github.com/egoist/mygo@v0.8.3/internal/darwin/objc.go:238 +0x9c fp=0x2e7cf0337c50 sp=0x2e7cf0337c10 pc=0x102f95e6c
+github.com/egoist/mygo/internal/darwin.send(0x106083ed0, {0x1031b81cb?, 0x1031f1eb0?}, {0x0, 0x0, 0x0})
+	/Users/phidev0x/go/pkg/mod/github.com/egoist/mygo@v0.8.3/internal/darwin/objc.go:230 +0x50 fp=0x2e7cf0337c90 sp=0x2e7cf0337c50 pc=0x102f95da0
+github.com/egoist/mygo/internal/darwin.(*Backend).Run(0x2e7cf0084000?)
+	/Users/phidev0x/go/pkg/mod/github.com/egoist/mygo@v0.8.3/internal/darwin/app.go:170 +0x38 fp=0x2e7cf0337cd0 sp=0x2e7cf0337c90 pc=0x102f8f178
+github.com/egoist/mygo.(*Application).Run(0x103717a68)
+	/Users/phidev0x/go/pkg/mod/github.com/egoist/mygo@v0.8.3/app.go:146 +0x2c4 fp=0x2e7cf0337da0 sp=0x2e7cf0337cd0 pc=0x102ff5244
+main.main()
+	/Users/phidev0x/Documents/Project Next Generation/mumu/experiments/nativeplayback/main_darwin.go:255 +0x420 fp=0x2e7cf0337ea0 sp=0x2e7cf0337da0 pc=0x103174820
+runtime.main()
+	/usr/local/go/src/runtime/proc.go:302 +0x380 fp=0x2e7cf0337fd0 sp=0x2e7cf0337ea0 pc=0x102dcd4a0
+runtime.goexit({})
+	/usr/local/go/src/runtime/asm_arm64.s:1039 +0x4 fp=0x2e7cf0337fd0 sp=0x2e7cf0337fd0 pc=0x102e09be4
+
+goroutine 2 gp=0x2e7cefd74d20 m=nil [force gc (idle)]:
+runtime.gopark(0x0?, 0x0?, 0x0?, 0x0?, 0x0?)
+	/usr/local/go/src/runtime/proc.go:474 +0xb8 fp=0x2e7cefdd2f90 sp=0x2e7cefdd2f70 pc=0x102e02ae8
+runtime.goparkunlock(...)
+	/usr/local/go/src/runtime/proc.go:480
+runtime.forcegchelper()
+	/usr/local/go/src/runtime/proc.go:387 +0xb4 fp=0x2e7cefdd2fd0 sp=0x2e7cefdd2f90 pc=0x102dcd784
+runtime.goexit({})
+	/usr/local/go/src/runtime/asm_arm64.s:1039 +0x4 fp=0x2e7cefdd2fd0 sp=0x2e7cefdd2fd0 pc=0x102e09be4
+created by runtime.init.7 in goroutine 1
+	/usr/local/go/src/runtime/proc.go:375 +0x24
+
+goroutine 3 gp=0x2e7cefd752c0 m=nil [GC sweep wait]:
+runtime.gopark(0x1?, 0x0?, 0x0?, 0x0?, 0x0?)
+	/usr/local/go/src/runtime/proc.go:474 +0xb8 fp=0x2e7cefdd3770 sp=0x2e7cefdd3750 pc=0x102e02ae8
+runtime.goparkunlock(...)
+	/usr/local/go/src/runtime/proc.go:480
+runtime.bgsweep(0x2e7cefd9e100)
+	/usr/local/go/src/runtime/mgcsweep.go:324 +0x178 fp=0x2e7cefdd37b0 sp=0x2e7cefdd3770 pc=0x102db9068
+runtime.gcenable.gowrap1()
+	/usr/local/go/src/runtime/mgc.go:214 +0x20 fp=0x2e7cefdd37d0 sp=0x2e7cefdd37b0 pc=0x102df9c00
+runtime.goexit({})
+	/usr/local/go/src/runtime/asm_arm64.s:1039 +0x4 fp=0x2e7cefdd37d0 sp=0x2e7cefdd37d0 pc=0x102e09be4
+created by runtime.gcenable in goroutine 1
+	/usr/local/go/src/runtime/mgc.go:214 +0x6c
+
+goroutine 18 gp=0x2e7cefe8c3c0 m=nil [GC scavenge wait]:
+runtime.gopark(0x10000?, 0x1031f1dc8?, 0x0?, 0x0?, 0x0?)
+	/usr/local/go/src/runtime/proc.go:474 +0xb8 fp=0x2e7cefdce760 sp=0x2e7cefdce740 pc=0x102e02ae8
+runtime.goparkunlock(...)
+	/usr/local/go/src/runtime/proc.go:480
+runtime.(*scavengerState).park(0x103723c60)
+	/usr/local/go/src/runtime/mgcscavenge.go:425 +0x5c fp=0x2e7cefdce790 sp=0x2e7cefdce760 pc=0x102db6bdc
+runtime.bgscavenge(0x2e7cefd9e100)
+	/usr/local/go/src/runtime/mgcscavenge.go:658 +0xac fp=0x2e7cefdce7b0 sp=0x2e7cefdce790 pc=0x102db716c
+runtime.gcenable.gowrap2()
+	/usr/local/go/src/runtime/mgc.go:215 +0x20 fp=0x2e7cefdce7d0 sp=0x2e7cefdce7b0 pc=0x102df9bc0
+runtime.goexit({})
+	/usr/local/go/src/runtime/asm_arm64.s:1039 +0x4 fp=0x2e7cefdce7d0 sp=0x2e7cefdce7d0 pc=0x102e09be4
+created by runtime.gcenable in goroutine 1
+	/usr/local/go/src/runtime/mgc.go:215 +0xac
+
+goroutine 34 gp=0x2e7ceff02000 m=nil [GOMAXPROCS updater (idle)]:
+runtime.gopark(0x0?, 0x0?, 0x0?, 0x0?, 0x0?)
+	/usr/local/go/src/runtime/proc.go:474 +0xb8 fp=0x2e7ceff08770 sp=0x2e7ceff08750 pc=0x102e02ae8
+runtime.goparkunlock(...)
+	/usr/local/go/src/runtime/proc.go:480
+runtime.updateMaxProcsGoroutine()
+	/usr/local/go/src/runtime/proc.go:7146 +0xf4 fp=0x2e7ceff087d0 sp=0x2e7ceff08770 pc=0x102ddafd4
+runtime.goexit({})
+	/usr/local/go/src/runtime/asm_arm64.s:1039 +0x4 fp=0x2e7ceff087d0 sp=0x2e7ceff087d0 pc=0x102e09be4
+created by runtime.defaultGOMAXPROCSUpdateEnable in goroutine 1
+	/usr/local/go/src/runtime/proc.go:7134 +0x48
+
+goroutine 35 gp=0x2e7ceff025a0 m=nil [finalizer wait]:
+runtime.gopark(0x0?, 0x0?, 0x0?, 0x0?, 0x0?)
+	/usr/local/go/src/runtime/proc.go:474 +0xb8 fp=0x2e7ceff08d80 sp=0x2e7ceff08d60 pc=0x102e02ae8
+runtime.runFinalizers()
+	/usr/local/go/src/runtime/mfinal.go:210 +0x100 fp=0x2e7ceff08fd0 sp=0x2e7ceff08d80 pc=0x102daa170
+runtime.goexit({})
+	/usr/local/go/src/runtime/asm_arm64.s:1039 +0x4 fp=0x2e7ceff08fd0 sp=0x2e7ceff08fd0 pc=0x102e09be4
+created by runtime.createfing in goroutine 1
+	/usr/local/go/src/runtime/mfinal.go:172 +0x78
+
+goroutine 19 gp=0x2e7cefe8c5a0 m=nil [cleanup wait]:
+runtime.gopark(0x0?, 0x0?, 0x0?, 0x0?, 0x0?)
+	/usr/local/go/src/runtime/proc.go:474 +0xb8 fp=0x2e7cefdd2750 sp=0x2e7cefdd2730 pc=0x102e02ae8
+runtime.goparkunlock(...)
+	/usr/local/go/src/runtime/proc.go:480
+runtime.(*cleanupQueue).dequeue(0x103724120)
+	/usr/local/go/src/runtime/mcleanup.go:522 +0x160 fp=0x2e7cefdd2790 sp=0x2e7cefdd2750 pc=0x102da6970
+runtime.runCleanups()
+	/usr/local/go/src/runtime/mcleanup.go:718 +0x40 fp=0x2e7cefdd27d0 sp=0x2e7cefdd2790 pc=0x102da70c0
+runtime.goexit({})
+	/usr/local/go/src/runtime/asm_arm64.s:1039 +0x4 fp=0x2e7cefdd27d0 sp=0x2e7cefdd27d0 pc=0x102e09be4
+created by runtime.(*cleanupQueue).createGs in goroutine 1
+	/usr/local/go/src/runtime/mcleanup.go:672 +0x108
+
+goroutine 20 gp=0x2e7cefd75860 m=nil [select, locked to thread]:
+runtime.gopark(0x2e7cefdd3fa0?, 0x2?, 0xa8?, 0x3e?, 0x2e7cefdd3f90?)
+	/usr/local/go/src/runtime/proc.go:474 +0xb8 fp=0x2e7cefe16e10 sp=0x2e7cefe16df0 pc=0x102e02ae8
+runtime.selectgo(0x2e7cefe16fa0, 0x2e7cefdd3f8c, 0x0?, 0x0, 0x0?, 0x1)
+	/usr/local/go/src/runtime/select.go:351 +0x838 fp=0x2e7cefe16f50 sp=0x2e7cefe16e10 pc=0x102ddfbf8
+runtime.ensureSigM.func1()
+	/usr/local/go/src/runtime/signal_unix.go:1093 +0x144 fp=0x2e7cefe16fd0 sp=0x2e7cefe16f50 pc=0x102dfd764
+runtime.goexit({})
+	/usr/local/go/src/runtime/asm_arm64.s:1039 +0x4 fp=0x2e7cefe16fd0 sp=0x2e7cefe16fd0 pc=0x102e09be4
+created by runtime.ensureSigM in goroutine 1
+	/usr/local/go/src/runtime/signal_unix.go:1076 +0xcc
+
+goroutine 21 gp=0x2e7cefe8c960 m=6 mp=0x2e7cefe88008 [syscall]:
+runtime.sigNoteSleep(0x0?)
+	/usr/local/go/src/runtime/os_darwin.go:133 +0x20 fp=0x2e7cefdcef90 sp=0x2e7cefdcef50 pc=0x102dc8200
+os/signal.signal_recv()
+	/usr/local/go/src/runtime/sigqueue.go:149 +0x104 fp=0x2e7cefdcefb0 sp=0x2e7cefdcef90 pc=0x102e04e24
+os/signal.loop()
+	/usr/local/go/src/os/signal/signal_unix.go:23 +0x1c fp=0x2e7cefdcefd0 sp=0x2e7cefdcefb0 pc=0x102ff32ac
+runtime.goexit({})
+	/usr/local/go/src/runtime/asm_arm64.s:1039 +0x4 fp=0x2e7cefdcefd0 sp=0x2e7cefdcefd0 pc=0x102e09be4
+created by os/signal.Notify.func2.1 in goroutine 1
+	/usr/local/go/src/os/signal/signal.go:164 +0x28
+
+goroutine 22 gp=0x2e7cefe8cb40 m=nil [chan receive]:
+runtime.gopark(0x0?, 0x0?, 0x0?, 0x0?, 0x0?)
+	/usr/local/go/src/runtime/proc.go:474 +0xb8 fp=0x2e7cefdcf6c0 sp=0x2e7cefdcf6a0 pc=0x102e02ae8
+runtime.chanrecv(0x2e7cefe9e3f0, 0x0, 0x1)
+	/usr/local/go/src/runtime/chan.go:667 +0x470 fp=0x2e7cefdcf740 sp=0x2e7cefdcf6c0 pc=0x102d97370
+runtime.chanrecv1(0x0?, 0x0?)
+	/usr/local/go/src/runtime/chan.go:509 +0x14 fp=0x2e7cefdcf770 sp=0x2e7cefdcf740 pc=0x102d96ec4
+github.com/egoist/mygo.quitOnSignals.func1()
+	/Users/phidev0x/go/pkg/mod/github.com/egoist/mygo@v0.8.3/signal_unix.go:22 +0x28 fp=0x2e7cefdcf7d0 sp=0x2e7cefdcf770 pc=0x103019238
+runtime.goexit({})
+	/usr/local/go/src/runtime/asm_arm64.s:1039 +0x4 fp=0x2e7cefdcf7d0 sp=0x2e7cefdcf7d0 pc=0x102e09be4
+created by github.com/egoist/mygo.quitOnSignals in goroutine 1
+	/Users/phidev0x/go/pkg/mod/github.com/egoist/mygo@v0.8.3/signal_unix.go:21 +0x100
+
+goroutine 23 gp=0x2e7cefe8cf00 m=nil [select]:
+runtime.gopark(0x2e7ceff79e38?, 0x5?, 0x0?, 0x0?, 0x2e7ceff7991a?)
+	/usr/local/go/src/runtime/proc.go:474 +0xb8 fp=0x2e7ceff79790 sp=0x2e7ceff79770 pc=0x102e02ae8
+runtime.selectgo(0x2e7ceff79e38, 0x2e7ceff79910, 0x1031b9e31?, 0x0, 0x0?, 0x1)
+	/usr/local/go/src/runtime/select.go:351 +0x838 fp=0x2e7ceff798d0 sp=0x2e7ceff79790 pc=0x102ddfbf8
+main.runSession({0x10369f130, 0x2e7cefef00a0}, 0x2e7cf003c960, {0x16d07a2c2, 0x21}, 0x2e7cefe9e380, 0x2e7ceff79fb0)
+	/Users/phidev0x/Documents/Project Next Generation/mumu/experiments/nativeplayback/session_darwin.go:71 +0xa5c fp=0x2e7ceff79f50 sp=0x2e7ceff798d0 pc=0x103175b4c
+main.main.func1.1()
+	/Users/phidev0x/Documents/Project Next Generation/mumu/experiments/nativeplayback/main_darwin.go:227 +0x6c fp=0x2e7ceff79fd0 sp=0x2e7ceff79f50 pc=0x10317a01c
+runtime.goexit({})
+	/usr/local/go/src/runtime/asm_arm64.s:1039 +0x4 fp=0x2e7ceff79fd0 sp=0x2e7ceff79fd0 pc=0x102e09be4
+created by main.main.func1 in goroutine 1
+	/Users/phidev0x/Documents/Project Next Generation/mumu/experiments/nativeplayback/main_darwin.go:225 +0x2a0
+
+goroutine 24 gp=0x2e7cefe8d0e0 m=nil [select]:
+runtime.gopark(0x2e7cefde1cf8?, 0x2?, 0x68?, 0x1b?, 0x2e7cefde1ca4?)
+	/usr/local/go/src/runtime/proc.go:474 +0xb8 fp=0x2e7cefde1b20 sp=0x2e7cefde1b00 pc=0x102e02ae8
+runtime.selectgo(0x2e7cefde1cf8, 0x2e7cefde1ca0, 0x103723be0?, 0x0, 0x0?, 0x1)
+	/usr/local/go/src/runtime/select.go:351 +0x838 fp=0x2e7cefde1c60 sp=0x2e7cefde1b20 pc=0x102ddfbf8
+main.(*spike).exercise(0x2e7cefefe240, {0x10369f130, 0x2e7cefef00a0})
+	/Users/phidev0x/Documents/Project Next Generation/mumu/experiments/nativeplayback/main_darwin.go:302 +0x6c8 fp=0x2e7cefde1fa0 sp=0x2e7cefde1c60 pc=0x103175058
+main.main.func1.gowrap1()
+	/Users/phidev0x/Documents/Project Next Generation/mumu/experiments/nativeplayback/main_darwin.go:237 +0x24 fp=0x2e7cefde1fd0 sp=0x2e7cefde1fa0 pc=0x103179f94
+runtime.goexit({})
+	/usr/local/go/src/runtime/asm_arm64.s:1039 +0x4 fp=0x2e7cefde1fd0 sp=0x2e7cefde1fd0 pc=0x102e09be4
+created by main.main.func1 in goroutine 1
+	/Users/phidev0x/Documents/Project Next Generation/mumu/experiments/nativeplayback/main_darwin.go:237 +0x304
+
+goroutine 25 gp=0x2e7cefe8d2c0 m=nil [select]:
+runtime.gopark(0x2e7cefdd0fa0?, 0x2?, 0x58?, 0xe?, 0x2e7cefdd0f8c?)
+	/usr/local/go/src/runtime/proc.go:474 +0xb8 fp=0x2e7cefdd0e10 sp=0x2e7cefdd0df0 pc=0x102e02ae8
+runtime.selectgo(0x2e7cefdd0fa0, 0x2e7cefdd0f88, 0x0?, 0x0, 0x0?, 0x1)
+	/usr/local/go/src/runtime/select.go:351 +0x838 fp=0x2e7cefdd0f50 sp=0x2e7cefdd0e10 pc=0x102ddfbf8
+main.main.func1.2()
+	/Users/phidev0x/Documents/Project Next Generation/mumu/experiments/nativeplayback/main_darwin.go:241 +0x78 fp=0x2e7cefdd0fd0 sp=0x2e7cefdd0f50 pc=0x103179f08
+runtime.goexit({})
+	/usr/local/go/src/runtime/asm_arm64.s:1039 +0x4 fp=0x2e7cefdd0fd0 sp=0x2e7cefdd0fd0 pc=0x102e09be4
+created by main.main.func1 in goroutine 1
+	/Users/phidev0x/Documents/Project Next Generation/mumu/experiments/nativeplayback/main_darwin.go:240 +0x378
+
+goroutine 26 gp=0x2e7cefe8d4a0 m=nil [chan receive]:
+runtime.gopark(0x180aba78c?, 0x2e7cf0201580?, 0x98?, 0x3e?, 0x10308b188?)
+	/usr/local/go/src/runtime/proc.go:474 +0xb8 fp=0x2e7cefe17e50 sp=0x2e7cefe17e30 pc=0x102e02ae8
+runtime.chanrecv(0x2e7cf01cc000, 0x2e7ceff73f38, 0x1)
+	/usr/local/go/src/runtime/chan.go:667 +0x470 fp=0x2e7cefe17ed0 sp=0x2e7cefe17e50 pc=0x102d97370
+runtime.chanrecv2(0x2e7ceff73f78?, 0x2e7cf0035200?)
+	/usr/local/go/src/runtime/chan.go:514 +0x14 fp=0x2e7cefe17f00 sp=0x2e7cefe17ed0 pc=0x102d96ee4
+github.com/egoist/mygo/internal/gpu/metal.(*Renderer).pipelineWorker(0x2e7cefec7b08)
+	/Users/phidev0x/go/pkg/mod/github.com/egoist/mygo@v0.8.3/internal/gpu/metal/pipelines.go:152 +0x98 fp=0x2e7cefe17fb0 sp=0x2e7cefe17f00 pc=0x103094398
+github.com/egoist/mygo/internal/gpu/metal.(*Renderer).startPipelines.gowrap2()
+	/Users/phidev0x/go/pkg/mod/github.com/egoist/mygo@v0.8.3/internal/gpu/metal/pipelines.go:119 +0x20 fp=0x2e7cefe17fd0 sp=0x2e7cefe17fb0 pc=0x103098280
+runtime.goexit({})
+	/usr/local/go/src/runtime/asm_arm64.s:1039 +0x4 fp=0x2e7cefe17fd0 sp=0x2e7cefe17fd0 pc=0x102e09be4
+created by github.com/egoist/mygo/internal/gpu/metal.(*Renderer).startPipelines in goroutine 1
+	/Users/phidev0x/go/pkg/mod/github.com/egoist/mygo@v0.8.3/internal/gpu/metal/pipelines.go:119 +0x194
+
+goroutine 37 gp=0x2e7ceff02960 m=nil [chan receive, locked to thread]:
+runtime.gopark(0x0?, 0x0?, 0x0?, 0x0?, 0x0?)
+	/usr/local/go/src/runtime/proc.go:474 +0xb8 fp=0x2e7cefde0e90 sp=0x2e7cefde0e70 pc=0x102e02ae8
+runtime.chanrecv(0x2e7ceff0c380, 0x2e7cefde0f78, 0x1)
+	/usr/local/go/src/runtime/chan.go:667 +0x470 fp=0x2e7cefde0f10 sp=0x2e7cefde0e90 pc=0x102d97370
+runtime.chanrecv2(0x180aba78c?, 0x2e7cefe27220?)
+	/usr/local/go/src/runtime/chan.go:514 +0x14 fp=0x2e7cefde0f40 sp=0x2e7cefde0f10 pc=0x102d96ee4
+github.com/egoist/mygo/internal/gpu/metal.(*presenter).run(0x2e7cefec7d90)
+	/Users/phidev0x/go/pkg/mod/github.com/egoist/mygo@v0.8.3/internal/gpu/metal/present.go:87 +0x80 fp=0x2e7cefde0fb0 sp=0x2e7cefde0f40 pc=0x103095870
+github.com/egoist/mygo/internal/gpu/metal.(*presenter).start.gowrap1()
+	/Users/phidev0x/go/pkg/mod/github.com/egoist/mygo@v0.8.3/internal/gpu/metal/present.go:70 +0x20 fp=0x2e7cefde0fd0 sp=0x2e7cefde0fb0 pc=0x103098430
+runtime.goexit({})
+	/usr/local/go/src/runtime/asm_arm64.s:1039 +0x4 fp=0x2e7cefde0fd0 sp=0x2e7cefde0fd0 pc=0x102e09be4
+created by github.com/egoist/mygo/internal/gpu/metal.(*presenter).start in goroutine 1
+	/Users/phidev0x/go/pkg/mod/github.com/egoist/mygo@v0.8.3/internal/gpu/metal/present.go:70 +0x1b4
+
+goroutine 52 gp=0x2e7cefe052c0 m=nil [GC worker (idle)]:
+runtime.gopark(0x6285d78d65616?, 0x105a2ee00?, 0x30?, 0x6?, 0x2e7cefe01808?)
+	/usr/local/go/src/runtime/proc.go:474 +0xb8 fp=0x2e7cefdd0720 sp=0x2e7cefdd0700 pc=0x102e02ae8
+runtime.gcBgMarkWorker(0x2e7cf0306000)
+	/usr/local/go/src/runtime/mgc.go:1807 +0xe0 fp=0x2e7cefdd07b0 sp=0x2e7cefdd0720 pc=0x102dad450
+runtime.gcBgMarkStartWorkers.gowrap1()
+	/usr/local/go/src/runtime/mgc.go:1711 +0x20 fp=0x2e7cefdd07d0 sp=0x2e7cefdd07b0 pc=0x102dfa130
+runtime.goexit({})
+	/usr/local/go/src/runtime/asm_arm64.s:1039 +0x4 fp=0x2e7cefdd07d0 sp=0x2e7cefdd07d0 pc=0x102e09be4
+created by runtime.gcBgMarkStartWorkers in goroutine 1
+	/usr/local/go/src/runtime/mgc.go:1711 +0x130
+
+goroutine 67 gp=0x2e7cf0308000 m=nil [GC worker (idle)]:
+runtime.gopark(0x0?, 0x0?, 0x0?, 0x0?, 0x0?)
+	/usr/local/go/src/runtime/proc.go:474 +0xb8 fp=0x2e7ceff04720 sp=0x2e7ceff04700 pc=0x102e02ae8
+runtime.gcBgMarkWorker(0x2e7cf0306000)
+	/usr/local/go/src/runtime/mgc.go:1807 +0xe0 fp=0x2e7ceff047b0 sp=0x2e7ceff04720 pc=0x102dad450
+runtime.gcBgMarkStartWorkers.gowrap1()
+	/usr/local/go/src/runtime/mgc.go:1711 +0x20 fp=0x2e7ceff047d0 sp=0x2e7ceff047b0 pc=0x102dfa130
+runtime.goexit({})
+	/usr/local/go/src/runtime/asm_arm64.s:1039 +0x4 fp=0x2e7ceff047d0 sp=0x2e7ceff047d0 pc=0x102e09be4
+created by runtime.gcBgMarkStartWorkers in goroutine 1
+	/usr/local/go/src/runtime/mgc.go:1711 +0x130
+
+goroutine 38 gp=0x2e7ceff02f00 m=nil [GC worker (idle)]:
+runtime.gopark(0x6285d78d48498?, 0x0?, 0x0?, 0x0?, 0x0?)
+	/usr/local/go/src/runtime/proc.go:474 +0xb8 fp=0x2e7cefdcff20 sp=0x2e7cefdcff00 pc=0x102e02ae8
+runtime.gcBgMarkWorker(0x2e7cf0306000)
+	/usr/local/go/src/runtime/mgc.go:1807 +0xe0 fp=0x2e7cefdcffb0 sp=0x2e7cefdcff20 pc=0x102dad450
+runtime.gcBgMarkStartWorkers.gowrap1()
+	/usr/local/go/src/runtime/mgc.go:1711 +0x20 fp=0x2e7cefdcffd0 sp=0x2e7cefdcffb0 pc=0x102dfa130
+runtime.goexit({})
+	/usr/local/go/src/runtime/asm_arm64.s:1039 +0x4 fp=0x2e7cefdcffd0 sp=0x2e7cefdcffd0 pc=0x102e09be4
+created by runtime.gcBgMarkStartWorkers in goroutine 1
+	/usr/local/go/src/runtime/mgc.go:1711 +0x130
+
+goroutine 68 gp=0x2e7cf03081e0 m=nil [GC worker (idle)]:
+runtime.gopark(0x6285d78d94fce?, 0x3?, 0xfb?, 0xa4?, 0x0?)
+	/usr/local/go/src/runtime/proc.go:474 +0xb8 fp=0x2e7cefe12f20 sp=0x2e7cefe12f00 pc=0x102e02ae8
+runtime.gcBgMarkWorker(0x2e7cf0306000)
+	/usr/local/go/src/runtime/mgc.go:1807 +0xe0 fp=0x2e7cefe12fb0 sp=0x2e7cefe12f20 pc=0x102dad450
+runtime.gcBgMarkStartWorkers.gowrap1()
+	/usr/local/go/src/runtime/mgc.go:1711 +0x20 fp=0x2e7cefe12fd0 sp=0x2e7cefe12fb0 pc=0x102dfa130
+runtime.goexit({})
+	/usr/local/go/src/runtime/asm_arm64.s:1039 +0x4 fp=0x2e7cefe12fd0 sp=0x2e7cefe12fd0 pc=0x102e09be4
+created by runtime.gcBgMarkStartWorkers in goroutine 1
+	/usr/local/go/src/runtime/mgc.go:1711 +0x130
+
+goroutine 53 gp=0x2e7cefe05860 m=nil [GC worker (idle)]:
+runtime.gopark(0x6285d78cd0d22?, 0x1036a1050?, 0x0?, 0x0?, 0x0?)
+	/usr/local/go/src/runtime/proc.go:474 +0xb8 fp=0x2e7ceff09720 sp=0x2e7ceff09700 pc=0x102e02ae8
+runtime.gcBgMarkWorker(0x2e7cf0306000)
+	/usr/local/go/src/runtime/mgc.go:1807 +0xe0 fp=0x2e7ceff097b0 sp=0x2e7ceff09720 pc=0x102dad450
+runtime.gcBgMarkStartWorkers.gowrap1()
+	/usr/local/go/src/runtime/mgc.go:1711 +0x20 fp=0x2e7ceff097d0 sp=0x2e7ceff097b0 pc=0x102dfa130
+runtime.goexit({})
+	/usr/local/go/src/runtime/asm_arm64.s:1039 +0x4 fp=0x2e7ceff097d0 sp=0x2e7ceff097d0 pc=0x102e09be4
+created by runtime.gcBgMarkStartWorkers in goroutine 1
+	/usr/local/go/src/runtime/mgc.go:1711 +0x130
+
+goroutine 69 gp=0x2e7cf03083c0 m=nil [GC worker (idle)]:
+runtime.gopark(0x6285d78d90325?, 0x3?, 0x6f?, 0x50?, 0x0?)
+	/usr/local/go/src/runtime/proc.go:474 +0xb8 fp=0x2e7ceff05720 sp=0x2e7ceff05700 pc=0x102e02ae8
+runtime.gcBgMarkWorker(0x2e7cf0306000)
+	/usr/local/go/src/runtime/mgc.go:1807 +0xe0 fp=0x2e7ceff057b0 sp=0x2e7ceff05720 pc=0x102dad450
+runtime.gcBgMarkStartWorkers.gowrap1()
+	/usr/local/go/src/runtime/mgc.go:1711 +0x20 fp=0x2e7ceff057d0 sp=0x2e7ceff057b0 pc=0x102dfa130
+runtime.goexit({})
+	/usr/local/go/src/runtime/asm_arm64.s:1039 +0x4 fp=0x2e7ceff057d0 sp=0x2e7ceff057d0 pc=0x102e09be4
+created by runtime.gcBgMarkStartWorkers in goroutine 1
+	/usr/local/go/src/runtime/mgc.go:1711 +0x130
+
+goroutine 39 gp=0x2e7ceff030e0 m=nil [GC worker (idle)]:
+runtime.gopark(0x6285d78d26382?, 0x0?, 0x0?, 0x0?, 0x0?)
+	/usr/local/go/src/runtime/proc.go:474 +0xb8 fp=0x2e7ceff09f20 sp=0x2e7ceff09f00 pc=0x102e02ae8
+runtime.gcBgMarkWorker(0x2e7cf0306000)
+	/usr/local/go/src/runtime/mgc.go:1807 +0xe0 fp=0x2e7ceff09fb0 sp=0x2e7ceff09f20 pc=0x102dad450
+runtime.gcBgMarkStartWorkers.gowrap1()
+	/usr/local/go/src/runtime/mgc.go:1711 +0x20 fp=0x2e7ceff09fd0 sp=0x2e7ceff09fb0 pc=0x102dfa130
+runtime.goexit({})
+	/usr/local/go/src/runtime/asm_arm64.s:1039 +0x4 fp=0x2e7ceff09fd0 sp=0x2e7ceff09fd0 pc=0x102e09be4
+created by runtime.gcBgMarkStartWorkers in goroutine 1
+	/usr/local/go/src/runtime/mgc.go:1711 +0x130
+
+goroutine 54 gp=0x2e7cefe05a40 m=nil [GC worker (idle)]:
+runtime.gopark(0x103759dc0?, 0x1?, 0x2e?, 0xe?, 0x2?)
+	/usr/local/go/src/runtime/proc.go:474 +0xb8 fp=0x2e7cefdd3f20 sp=0x2e7cefdd3f00 pc=0x102e02ae8
+runtime.gcBgMarkWorker(0x2e7cf0306000)
+	/usr/local/go/src/runtime/mgc.go:1807 +0xe0 fp=0x2e7cefdd3fb0 sp=0x2e7cefdd3f20 pc=0x102dad450
+runtime.gcBgMarkStartWorkers.gowrap1()
+	/usr/local/go/src/runtime/mgc.go:1711 +0x20 fp=0x2e7cefdd3fd0 sp=0x2e7cefdd3fb0 pc=0x102dfa130
+runtime.goexit({})
+	/usr/local/go/src/runtime/asm_arm64.s:1039 +0x4 fp=0x2e7cefdd3fd0 sp=0x2e7cefdd3fd0 pc=0x102e09be4
+created by runtime.gcBgMarkStartWorkers in goroutine 1
+	/usr/local/go/src/runtime/mgc.go:1711 +0x130
+
+r0      0x7ab5e65900
+r1      0x4000002792c2afd
+r2      0x2792c2af8
+r3      0x0
+r4      0x7ab656b880
+r5      0x0
+r6      0x1
+r7      0xffffffffb00007ff
+r8      0x0
+r9      0x100
+r10     0x134ebca00
+r11     0x7f
+r12     0x11
+r13     0x7ab6686900
+r14     0x4000002792c2afd
+r15     0x2792c2af8
+r16     0x4000002792c2afd
+r17     0x6
+r18     0x0
+r19     0x0
+r20     0x7ab5efb780
+r21     0x7ab5e65900
+r22     0x0
+r23     0x7ab5efb7a0
+r24     0x7ab7c26ab0
+r25     0xa
+r26     0x7ab78566b0
+r27     0x7ab78545f8
+r28     0x7ab7853598
+r29     0x1712fde10
+lr      0x134e739e8
+sp      0x1712fddc0
+pc      0x134e73ba4
+fault   0x28

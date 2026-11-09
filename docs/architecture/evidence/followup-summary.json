@@ -1,0 +1,92 @@
+{
+  "date": "2026-11-09",
+  "timezone": "Asia/Makassar",
+  "python": "3.12.6",
+  "numpy": "2.1.2",
+  "runs": {
+    "continuous720-cgl": {
+      "capture_local_path": "/Users/phidev0x/Documents/Project Next Generation/mumu/build/spike-captures/continuous720-cgl/capture.mov",
+      "capture_sha256": "d70535191c8d01128bc731aa5bfeb836b8e8906eaff8e482c71d8fab1d3c1c86",
+      "sync_pairs": 16,
+      "audio_minus_video_ms": {
+        "median": -15.313,
+        "min": -131.98,
+        "max": -15.313
+      },
+      "gpu_scope": "whole-system, includes capture and other applications",
+      "gpu_device_utilization_percent": {
+        "prelaunch": {
+          "samples": 6,
+          "median": 2.0,
+          "max": 21
+        },
+        "exercise": {
+          "samples": 54,
+          "median": 29.0,
+          "max": 48
+        },
+        "postexit": {
+          "samples": 3,
+          "median": 27,
+          "max": 35
+        }
+      },
+      "low_audio_intervals": [
+        [
+          0.034687,
+          1.524687
+        ],
+        [
+          9.204687,
+          10.194687
+        ],
+        [
+          27.114687,
+          27.124687
+        ]
+      ]
+    },
+    "continuous1080-cgl": {
+      "capture_local_path": "/Users/phidev0x/Documents/Project Next Generation/mumu/build/spike-captures/continuous1080-cgl/capture.mov",
+      "capture_sha256": "6e1436516d20d67373f1b5cd50e07ae17e10cae390d1873c17b583514c9f0b92",
+      "sync_pairs": 14,
+      "audio_minus_video_ms": {
+        "median": -44.188,
+        "min": -60.855,
+        "max": -27.521
+      },
+      "gpu_scope": "whole-system, includes capture and other applications",
+      "gpu_device_utilization_percent": {
+        "prelaunch": {
+          "samples": 6,
+          "median": 20.0,
+          "max": 28
+        },
+        "exercise": {
+          "samples": 57,
+          "median": 35,
+          "max": 56
+        },
+        "postexit": {
+          "samples": 3,
+          "median": 28,
+          "max": 37
+        }
+      },
+      "low_audio_intervals": [
+        [
+          0.035812,
+          1.545812
+        ],
+        [
+          9.225812,
+          10.215812
+        ],
+        [
+          27.135812,
+          27.145812
+        ]
+      ]
+    }
+  }
+}

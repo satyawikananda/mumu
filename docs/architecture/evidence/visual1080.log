@@ -1,0 +1,118 @@
+2026/11/09 03:12:36 native-attachment view=7c91186f80 context=7c90e6ad20 window=7c91185680 actual_window=7c91185680 pixels=1920x1080
+2026/11/09 03:12:36 session-created id=1 api=20005 mpv=mpv v0.41.0 ffmpeg=9.0.2
+2026/11/09 03:13:01 event=start-file session=1 loads=1
+2026/11/09 03:13:01 event=file-loaded session=1 loads=1
+2026/11/09 03:13:02 event=playback-restart session=1 loads=1
+2026/11/09 03:13:02 render-gap-ms=25177.086
+2026/11/09 03:13:02 stats session=1 loads=1 rendered=16 time=0.633333 avsync=-0.004661 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:13:03 stats session=1 loads=1 rendered=46 time=1.633333 avsync=-0.000193 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:13:04 render-gap-ms=101.748
+2026/11/09 03:13:04 stats session=1 loads=1 rendered=73 time=2.600000 avsync=0.000000 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:13:04 render-gap-ms=128.269
+2026/11/09 03:13:05 stats session=1 loads=1 rendered=104 time=3.633333 avsync=0.000000 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:13:06 stats session=1 loads=1 rendered=134 time=4.633333 avsync=0.000000 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:13:07 stats session=1 loads=1 rendered=164 time=5.633333 avsync=0.000000 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:13:08 event=end-file reason=eof error=<nil>
+2026/11/09 03:13:11 native-attachment view=7c91186f80 context=7c90e6ad20 window=7c91c28500 actual_window=7c91c28500 pixels=960x540
+2026/11/09 03:13:11 transfer target=pip state=pip attachment_ms=249.804 err=<nil>
+2026/11/09 03:13:11 render-gap-ms=3270.457
+2026/11/09 03:13:35 native-attachment view=7c91186f80 context=7c90e6ad20 window=7c91185680 actual_window=7c91185680 pixels=1920x1080
+2026/11/09 03:13:35 transfer target=main state=main attachment_ms=109.476 err=<nil>
+2026/11/09 03:13:35 render-gap-ms=24153.732
+2026/11/09 03:13:39 event=start-file session=1 loads=2
+2026/11/09 03:13:39 event=file-loaded session=1 loads=2
+2026/11/09 03:13:39 render-gap-ms=3783.804
+2026/11/09 03:13:39 event=playback-restart session=1 loads=2
+2026/11/09 03:13:39 render-gap-ms=176.554
+2026/11/09 03:13:39 stats session=1 loads=2 rendered=187 time=0.433333 avsync=-0.008780 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:13:40 stats session=1 loads=2 rendered=217 time=1.433333 avsync=-0.000369 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:13:41 stats session=1 loads=2 rendered=247 time=2.433333 avsync=-0.000010 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:13:42 stats session=1 loads=2 rendered=277 time=3.433333 avsync=0.000003 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:13:43 stats session=1 loads=2 rendered=307 time=4.466667 avsync=0.000002 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:13:44 stats session=1 loads=2 rendered=337 time=5.433333 avsync=0.000004 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:13:45 stats session=1 loads=2 rendered=367 time=6.433333 avsync=0.000006 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:13:46 stats session=1 loads=2 rendered=397 time=7.433333 avsync=0.000007 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:13:47 stats session=1 loads=2 rendered=427 time=8.433333 avsync=0.000007 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:13:48 stats session=1 loads=2 rendered=457 time=9.433333 avsync=0.000004 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:13:49 stats session=1 loads=2 rendered=487 time=10.433333 avsync=0.000004 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:13:50 stats session=1 loads=2 rendered=517 time=11.433333 avsync=0.000003 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:13:51 stats session=1 loads=2 rendered=547 time=12.433333 avsync=0.000007 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:13:52 stats session=1 loads=2 rendered=577 time=13.433333 avsync=0.000002 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:13:53 stats session=1 loads=2 rendered=607 time=14.433333 avsync=0.000003 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:13:54 stats session=1 loads=2 rendered=637 time=15.433333 avsync=0.000007 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:13:55 stats session=1 loads=2 rendered=667 time=16.433333 avsync=0.000002 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:13:56 stats session=1 loads=2 rendered=697 time=17.433333 avsync=0.000007 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:13:57 render-gap-ms=114.012
+2026/11/09 03:13:57 stats session=1 loads=2 rendered=726 time=18.466667 avsync=0.000006 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:13:58 stats session=1 loads=2 rendered=756 time=19.433333 avsync=0.000004 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:13:59 stats session=1 loads=2 rendered=786 time=20.433333 avsync=0.000009 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:14:00 stats session=1 loads=2 rendered=816 time=21.433333 avsync=0.000005 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:14:01 stats session=1 loads=2 rendered=846 time=22.433333 avsync=0.000005 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:14:02 stats session=1 loads=2 rendered=876 time=23.466667 avsync=0.000022 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:14:03 stats session=1 loads=2 rendered=906 time=24.433333 avsync=0.000004 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:14:04 stats session=1 loads=2 rendered=936 time=25.433333 avsync=0.000004 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:14:05 stats session=1 loads=2 rendered=966 time=26.466667 avsync=0.000003 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:14:06 stats session=1 loads=2 rendered=996 time=27.433333 avsync=0.000006 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:14:07 stats session=1 loads=2 rendered=1026 time=28.433333 avsync=0.000004 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:14:08 stats session=1 loads=2 rendered=1056 time=29.433333 avsync=0.000004 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:14:09 stats session=1 loads=2 rendered=1085 time=30.433333 avsync=0.000016 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:14:10 render-gap-ms=615.170
+2026/11/09 03:14:11 stats session=1 loads=2 rendered=1100 time=31.033333 avsync=0.232926 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:14:11 render-gap-ms=269.835
+2026/11/09 03:14:11 render-gap-ms=171.689
+2026/11/09 03:14:11 stats session=1 loads=2 rendered=1102 time=31.366667 avsync=1.082934 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:14:11 render-gap-ms=144.218
+2026/11/09 03:14:12 render-gap-ms=149.561
+2026/11/09 03:14:12 render-gap-ms=129.561
+2026/11/09 03:14:12 render-gap-ms=115.301
+2026/11/09 03:14:12 render-gap-ms=272.685
+2026/11/09 03:14:12 stats session=1 loads=2 rendered=1110 time=33.433333 avsync=0.000008 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:14:13 stats session=1 loads=2 rendered=1140 time=34.466667 avsync=0.000004 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:14:14 stats session=1 loads=2 rendered=1170 time=35.466667 avsync=0.000006 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:14:15 render-gap-ms=107.189
+2026/11/09 03:14:15 stats session=1 loads=2 rendered=1194 time=36.300000 avsync=0.057240 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:14:15 render-gap-ms=174.549
+2026/11/09 03:14:16 render-gap-ms=1075.535
+2026/11/09 03:14:16 stats session=1 loads=2 rendered=1196 time=36.500000 avsync=0.000004 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=true
+2026/11/09 03:14:17 render-gap-ms=132.889
+2026/11/09 03:14:17 render-gap-ms=116.576
+2026/11/09 03:14:17 render-gap-ms=129.435
+2026/11/09 03:14:17 render-gap-ms=111.257
+2026/11/09 03:14:17 stats session=1 loads=2 rendered=1207 time=38.133333 avsync=0.174478 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:14:18 render-gap-ms=454.722
+2026/11/09 03:14:18 render-gap-ms=233.196
+2026/11/09 03:14:18 render-gap-ms=111.492
+2026/11/09 03:14:18 render-gap-ms=118.871
+2026/11/09 03:14:18 render-gap-ms=142.412
+2026/11/09 03:14:18 stats session=1 loads=2 rendered=1212 time=39.200000 avsync=0.000003 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:14:18 render-gap-ms=151.408
+2026/11/09 03:14:19 render-gap-ms=138.007
+2026/11/09 03:14:19 stats session=1 loads=2 rendered=1232 time=40.200000 avsync=0.009697 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:14:20 render-gap-ms=157.981
+2026/11/09 03:14:20 stats session=1 loads=2 rendered=1259 time=41.233333 avsync=0.000009 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:14:21 render-gap-ms=116.688
+2026/11/09 03:14:21 render-gap-ms=118.779
+2026/11/09 03:14:22 stats session=1 loads=2 rendered=1278 time=42.033333 avsync=0.320047 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:14:22 render-gap-ms=909.547
+2026/11/09 03:14:22 stats session=1 loads=2 rendered=1279 time=42.066667 avsync=0.511000 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=true
+2026/11/09 03:14:22 render-gap-ms=465.488
+2026/11/09 03:14:24 stats session=1 loads=2 rendered=1281 time=42.066667 avsync=0.511000 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=true
+2026/11/09 03:14:24 stats session=1 loads=2 rendered=1281 time=42.066667 avsync=0.511000 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=true
+2026/11/09 03:14:25 stats session=1 loads=2 rendered=1281 time=42.066667 avsync=0.511000 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=true
+2026/11/09 03:14:26 render-gap-ms=3079.024
+2026/11/09 03:14:26 render-gap-ms=185.669
+2026/11/09 03:14:26 render-gap-ms=129.053
+2026/11/09 03:14:26 stats session=1 loads=2 rendered=1292 time=43.900000 avsync=0.000004 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:14:26 render-gap-ms=140.336
+2026/11/09 03:14:27 stats session=1 loads=2 rendered=1321 time=44.933333 avsync=0.000006 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:14:28 stats session=1 loads=2 rendered=1351 time=45.933333 avsync=0.000004 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:14:29 stats session=1 loads=2 rendered=1381 time=46.933333 avsync=0.000005 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:14:30 stats session=1 loads=2 rendered=1411 time=47.933333 avsync=0.000005 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:14:31 stats session=1 loads=2 rendered=1441 time=48.933333 avsync=0.000004 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:14:32 stats session=1 loads=2 rendered=1471 time=49.933333 avsync=0.000005 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:14:33 stats session=1 loads=2 rendered=1501 time=50.933333 avsync=0.000003 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:14:34 stats session=1 loads=2 rendered=1531 time=51.933333 avsync=0.000004 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:14:35 stats session=1 loads=2 rendered=1561 time=52.933333 avsync=0.000003 hwdec=videotoolbox vo=libmpv ao=avfoundation audio=aac video=1920x1080 drops=0 buffering=false
+2026/11/09 03:14:36 stopping session=1 loads=2 frames=1588
+2026/11/09 03:14:37 teardown-complete
+2026/11/09 03:14:37 main-closed

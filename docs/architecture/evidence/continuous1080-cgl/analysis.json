@@ -1,0 +1,307 @@
+{
+  "capture_sha256": "6e1436516d20d67373f1b5cd50e07ae17e10cae390d1873c17b583514c9f0b92",
+  "video_sampling_hz": 60,
+  "audio_rms_window_ms": 10,
+  "continuous_tone_rms": 0.0003876705886796117,
+  "beep_intervals": [
+    [
+      2.405812,
+      2.465812
+    ],
+    [
+      3.405812,
+      3.465812
+    ],
+    [
+      4.405812,
+      4.465812
+    ],
+    [
+      5.405812,
+      5.465812
+    ],
+    [
+      6.405812,
+      6.465812
+    ],
+    [
+      7.405812,
+      7.465812
+    ],
+    [
+      8.405812,
+      8.465812
+    ],
+    [
+      10.405812,
+      10.465812
+    ],
+    [
+      11.405812,
+      11.465812
+    ],
+    [
+      12.405812,
+      12.465812
+    ],
+    [
+      13.405812,
+      13.465812
+    ],
+    [
+      14.405812,
+      14.465812
+    ],
+    [
+      15.405812,
+      15.465812
+    ],
+    [
+      16.405812,
+      16.465812
+    ],
+    [
+      17.405812,
+      17.465812
+    ],
+    [
+      18.405812,
+      18.465812
+    ],
+    [
+      19.405812,
+      19.465812
+    ],
+    [
+      20.405812,
+      20.465812
+    ],
+    [
+      21.405812,
+      21.465812
+    ],
+    [
+      22.405812,
+      22.465812
+    ],
+    [
+      23.405812,
+      23.465812
+    ],
+    [
+      24.405812,
+      24.465812
+    ],
+    [
+      25.405812,
+      25.465812
+    ],
+    [
+      26.405812,
+      26.465812
+    ]
+  ],
+  "low_audio_intervals": [
+    [
+      0.035812,
+      1.545812
+    ],
+    [
+      9.225812,
+      10.215812
+    ],
+    [
+      27.135812,
+      27.145812
+    ]
+  ],
+  "duration_seconds": 27.2,
+  "flash_intervals": [
+    [
+      1.433333,
+      1.5
+    ],
+    [
+      2.433333,
+      2.533333
+    ],
+    [
+      3.45,
+      3.516667
+    ],
+    [
+      4.45,
+      4.516667
+    ],
+    [
+      5.45,
+      5.533333
+    ],
+    [
+      12.466667,
+      12.516667
+    ],
+    [
+      15.45,
+      15.516667
+    ],
+    [
+      17.466667,
+      17.516667
+    ],
+    [
+      18.45,
+      18.516667
+    ],
+    [
+      20.45,
+      20.583333
+    ],
+    [
+      21.45,
+      21.516667
+    ],
+    [
+      23.45,
+      23.516667
+    ],
+    [
+      24.45,
+      24.516667
+    ],
+    [
+      25.45,
+      25.516667
+    ],
+    [
+      26.45,
+      26.516667
+    ]
+  ],
+  "video_absent_intervals": [
+    [
+      0.0,
+      1.433333
+    ],
+    [
+      5.65,
+      7.133333
+    ],
+    [
+      10.983333,
+      11.25
+    ],
+    [
+      12.95,
+      13.0
+    ],
+    [
+      25.95,
+      25.983333
+    ]
+  ],
+  "repeated_image_intervals_over_100ms": [
+    [
+      10.716667,
+      10.816667
+    ],
+    [
+      11.4,
+      11.8
+    ],
+    [
+      11.85,
+      11.966667
+    ],
+    [
+      12.7,
+      12.833333
+    ],
+    [
+      16.666667,
+      16.783333
+    ],
+    [
+      19.65,
+      19.916667
+    ]
+  ],
+  "paired_sync": [
+    {
+      "flash_seconds": 2.433333,
+      "beep_seconds": 2.405812,
+      "audio_minus_video_ms": -27.521
+    },
+    {
+      "flash_seconds": 3.45,
+      "beep_seconds": 3.405812,
+      "audio_minus_video_ms": -44.188
+    },
+    {
+      "flash_seconds": 4.45,
+      "beep_seconds": 4.405812,
+      "audio_minus_video_ms": -44.188
+    },
+    {
+      "flash_seconds": 5.45,
+      "beep_seconds": 5.405812,
+      "audio_minus_video_ms": -44.188
+    },
+    {
+      "flash_seconds": 12.466667,
+      "beep_seconds": 12.405812,
+      "audio_minus_video_ms": -60.855
+    },
+    {
+      "flash_seconds": 15.45,
+      "beep_seconds": 15.405812,
+      "audio_minus_video_ms": -44.188
+    },
+    {
+      "flash_seconds": 17.466667,
+      "beep_seconds": 17.405812,
+      "audio_minus_video_ms": -60.855
+    },
+    {
+      "flash_seconds": 18.45,
+      "beep_seconds": 18.405812,
+      "audio_minus_video_ms": -44.188
+    },
+    {
+      "flash_seconds": 20.45,
+      "beep_seconds": 20.405812,
+      "audio_minus_video_ms": -44.188
+    },
+    {
+      "flash_seconds": 21.45,
+      "beep_seconds": 21.405812,
+      "audio_minus_video_ms": -44.188
+    },
+    {
+      "flash_seconds": 23.45,
+      "beep_seconds": 23.405812,
+      "audio_minus_video_ms": -44.188
+    },
+    {
+      "flash_seconds": 24.45,
+      "beep_seconds": 24.405812,
+      "audio_minus_video_ms": -44.188
+    },
+    {
+      "flash_seconds": 25.45,
+      "beep_seconds": 25.405812,
+      "audio_minus_video_ms": -44.188
+    },
+    {
+      "flash_seconds": 26.45,
+      "beep_seconds": 26.405812,
+      "audio_minus_video_ms": -44.188
+    }
+  ],
+  "limitations": [
+    "Capture path includes OS/compositor/codec latency; physical speaker/display latency is unmeasured.",
+    "Low audio includes deliberate mute and startup/shutdown; correlate with playback.log.",
+    "Video absence includes deliberate hide/closure and capture failure; it is not automatically a player blackout.",
+    "Repeated-image detection is specific to this moving synthetic fixture and includes normal frame duplication."
+  ]
+}
