@@ -56,7 +56,9 @@ type WatchState struct {
 	Volume   int
 	Muted    bool
 	Favorite bool
-	Channels []WatchChannel
+	// PiPActive reports that the one surface is in the floating window.
+	PiPActive bool
+	Channels  []WatchChannel
 }
 
 // Watch is the native Watch page. It draws status and controls around a
@@ -88,6 +90,10 @@ type Watch struct {
 	OnToggleFavorite func()
 	// OnSelectChannel switches to the drawer row with this key.
 	OnSelectChannel func(key string)
+	// OnEnterPiP moves the video into the floating window.
+	OnEnterPiP func()
+	// OnReturn moves the video back from the floating window.
+	OnReturn func()
 }
 
 // NewWatch returns an idle Watch page.
@@ -313,8 +319,14 @@ func (w *Watch) controls(c *ui.Context, theme *ui.Theme) {
 			ui.Button(c, channels).OnClick(w.ToggleDrawer).
 				AccessSelected(w.drawerOpen)
 
-			ui.Button(c, "Picture-in-Picture").Disabled(true).
-				Tooltip("Picture-in-Picture arrives in #12")
+			pip := ui.Button(c, "Picture-in-Picture").OnClick(func() {
+				if w.OnEnterPiP != nil {
+					w.OnEnterPiP()
+				}
+			})
+			if !w.canEnterPiP() {
+				pip.Disabled(true).Tooltip("Available while a channel is playing")
+			}
 
 			ui.Button(c, "Fullscreen").OnClick(func() {
 				if w.OnFullscreen != nil {
@@ -323,6 +335,16 @@ func (w *Watch) controls(c *ui.Context, theme *ui.Theme) {
 			})
 		})
 	})
+}
+
+// canEnterPiP reports whether the mini player is meaningful now.
+func (w *Watch) canEnterPiP() bool {
+	switch w.state.Kind {
+	case WatchLoading, WatchPlaying, WatchBuffering:
+		return !w.state.PiPActive
+	default:
+		return false
+	}
 }
 
 // statusText names the real player state, nothing when idle.

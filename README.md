@@ -8,7 +8,7 @@ mumu is written in Go and draws its entire interface with
 [MyGo](https://mygo.egoist.dev) native UI. It has no WebView, no HTML or
 JavaScript frontend, and no hosted backend.
 
-**Status:** M3 core UX in progress. The native shell, design tokens and Dark/Light/System themes are implemented. Local SQLite stores, the playback controller, the M3U/catalog pipeline and the per-source network policy are implemented. Discover shows the cached community catalog with search, category and source filters. Watch wires one shared player to a native surface, with explicit resume, favorites, volume/mute and error states. Picture-in-Picture remains #12. Native playback and PiP remain conditional on the M0 findings in [`docs/architecture/`](docs/architecture/); the manual macOS Watch smoke test is still pending.
+**Status:** M3 core UX in progress. The native shell, design tokens and Dark/Light/System themes are implemented. Local SQLite stores, the playback controller, the M3U/catalog pipeline and the per-source network policy are implemented. Discover shows the cached community catalog with search, category and source filters. Watch wires one shared player to a native surface, with explicit resume, favorites, volume/mute and error states. Picture-in-Picture moves the same surface into a floating native window. Native playback and PiP remain conditional on the M0 findings in [`docs/architecture/`](docs/architecture/); the manual macOS Watch and PiP smoke tests are still pending.
 
 ## Requirements
 

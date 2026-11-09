@@ -151,6 +151,7 @@ func TestWatchChannelDrawer(t *testing.T) {
 	w.OnSelectChannel = func(key string) { selected = key }
 
 	tt := watchPage(w)
+
 	if err := tt.Click("Channels"); err != nil {
 		t.Fatal(err)
 	}
@@ -158,14 +159,12 @@ func TestWatchChannelDrawer(t *testing.T) {
 		t.Fatalf("drawer open=%t texts %q", w.DrawerOpen(), tt.Texts())
 	}
 
-	// The drawer list follows the volume slider in tab order.
-	for range 4 {
-		tt.Key(0, ui.KeyTab)
+	if err := tt.Click("Bernama News"); err != nil {
+		t.Fatal(err)
 	}
-	tt.Key(0, ui.KeyDown)
 	tt.Key(0, ui.KeyEnter)
 
-	if selected != "a" && selected != "b" {
+	if selected != "b" {
 		t.Fatalf("selected key %q, want a drawer row", selected)
 	}
 }

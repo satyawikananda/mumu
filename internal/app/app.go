@@ -41,11 +41,14 @@ type App struct {
 	settings       runSession
 	settingsData   *settingsCache
 
-	win        *mygo.Window
-	engine     player.Engine
-	controller *player.Controller
-	surface    video.Surface
-	media      mediaState
+	win          *mygo.Window
+	pipWindow    pipWindow
+	engine       player.Engine
+	controller   *player.Controller
+	surface      video.Surface
+	presentation video.Presentation
+	mainFrame    video.Rect
+	media        mediaState
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -58,6 +61,7 @@ func New() *App {
 
 	return &App{
 		shell:          ui.NewShell(),
+		presentation:   video.PresentationMain,
 		ctx:            ctx,
 		cancel:         cancel,
 		refreshBuiltin: serviceRefreshBuiltin,

@@ -59,6 +59,13 @@ func (a *App) startWatch() {
 	page.OnFullscreen = a.toggleFullscreen
 	page.OnToggleFavorite = a.toggleWatchFavorite
 	page.OnSelectChannel = a.selectWatchChannel
+	page.OnEnterPiP = a.enterPiP
+	page.OnReturn = a.returnFromPiP
+
+	pip := a.shell.PiP()
+	pip.OnReturn = a.returnFromPiP
+	pip.OnClose = a.closePiP
+	pip.OnToggleMute = a.togglePiPMute
 
 	a.openPlayback()
 
@@ -325,14 +332,15 @@ func (a *App) watchState() ui.WatchState {
 	a.mu.Unlock()
 
 	state := ui.WatchState{
-		Kind:     ui.WatchEmpty,
-		Channel:  media.channel.Name,
-		Source:   media.sourceName,
-		Volume:   media.snapshot.Volume,
-		Muted:    media.snapshot.Muted,
-		Favorite: media.favorite,
-		Live:     media.stream.Live || media.snapshot.Capabilities.Live,
-		Status:   media.snapshot.Detail,
+		PiPActive: media.snapshot.State.Active() && a.presentation == video.PresentationPiP,
+		Kind:      ui.WatchEmpty,
+		Channel:   media.channel.Name,
+		Source:    media.sourceName,
+		Volume:    media.snapshot.Volume,
+		Muted:     media.snapshot.Muted,
+		Favorite:  media.favorite,
+		Live:      media.stream.Live || media.snapshot.Capabilities.Live,
+		Status:    media.snapshot.Detail,
 	}
 
 	if media.channel.ProviderID == "" {
@@ -387,7 +395,10 @@ func watchKind(state player.State) ui.WatchKind {
 
 // publishWatch shows the current media state on the UI thread.
 func (a *App) publishWatch() {
-	a.publish(func() { a.shell.Watch().SetState(a.watchState()) })
+	a.publish(func() {
+		a.shell.Watch().SetState(a.watchState())
+		a.shell.PiP().SetState(a.pipState())
+	})
 }
 
 // failWatch reports an actionable error on the Watch page.
@@ -416,6 +427,14 @@ func (a *App) applyVideoFrame(frame ui.Rect) {
 	a.mu.Unlock()
 
 	if surface == nil || win == nil || !active {
+		return
+	}
+
+	a.mu.Lock()
+	a.mainFrame = video.Rect{X: frame.X, Y: frame.Y, W: frame.W, H: frame.H}
+	state := a.presentation
+	a.mu.Unlock()
+	if state != video.PresentationMain {
 		return
 	}
 

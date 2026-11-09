@@ -33,6 +33,13 @@ func (a *App) openWindow() {
 	a.dispatcher = win
 	a.win = win
 	win.OnResize(func() { a.publish(func() {}) })
+	win.OnClosed(func() {
+		a.mu.Lock()
+		if a.win == win {
+			a.win = nil
+		}
+		a.mu.Unlock()
+	})
 	if a.storeErr != nil {
 		a.shell.ShowError(storeMessage(a.storeErr))
 	}
