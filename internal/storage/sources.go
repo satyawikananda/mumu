@@ -2,15 +2,13 @@ package storage
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"time"
 )
 
 // Sources reads and writes playlist, stream and built-in source records.
 type Sources struct {
-	db *sql.DB
+	store *Store
 }
 
 const sourceColumns = `
@@ -34,13 +32,10 @@ func (r *Sources) Upsert(ctx context.Context, src Source) (Source, error) {
 	}
 	src.UpdatedAt = now
 
-	var (
-		createdAt     int64
-		enabled       int
-		lastSuccessAt int64
-		itemCount     int
-	)
-	err = r.db.QueryRowContext(ctx, `
+	r.store.writeMu.Lock()
+	defer r.store.writeMu.Unlock()
+
+	row, found, err := queryRow(ctx, r.store.db, `
 		INSERT INTO sources (
 			id, kind, identity, location, display_name, enabled,
 			created_at, updated_at, last_refresh_at, refresh_etag, refresh_error
@@ -52,7 +47,7 @@ func (r *Sources) Upsert(ctx context.Context, src Source) (Source, error) {
 			last_refresh_at = excluded.last_refresh_at,
 			refresh_etag = excluded.refresh_etag,
 			refresh_error = excluded.refresh_error
-		RETURNING id, created_at, enabled, COALESCE(last_success_at, 0), COALESCE(item_count, 0)
+		RETURNING id
 	`,
 		src.ID,
 		src.Kind,
@@ -65,27 +60,42 @@ func (r *Sources) Upsert(ctx context.Context, src Source) (Source, error) {
 		nullMillis(src.LastRefreshAt),
 		nullString(src.RefreshETag),
 		nullString(src.RefreshError),
-	).Scan(&src.ID, &createdAt, &enabled, &lastSuccessAt, &itemCount)
+	)
 	if err != nil {
 		return Source{}, fmt.Errorf("upsert source: %w", classifyError(err))
 	}
+	if !found {
+		return Source{}, fmt.Errorf("%w: source", ErrNotFound)
+	}
 
-	src.CreatedAt = timeFromMillis(createdAt)
-	src.Enabled = enabled != 0
-	src.LastSuccessAt = timeFromMillis(lastSuccessAt)
-	src.ItemCount = itemCount
+	id, err := valueString(row[0])
+	if err != nil {
+		return Source{}, fmt.Errorf("scan source id: %w", err)
+	}
+	stored, found, err := r.Get(ctx, id)
+	if err != nil {
+		return Source{}, err
+	}
+	if !found {
+		return Source{}, fmt.Errorf("%w: source", ErrNotFound)
+	}
 
-	return src, nil
+	return stored, nil
 }
 
 // Get returns the source with id, or false when it does not exist.
 func (r *Sources) Get(ctx context.Context, id string) (Source, bool, error) {
-	src, err := scanSource(r.db.QueryRowContext(ctx, `SELECT`+sourceColumns+`FROM sources WHERE id = ?`, id))
-	if errors.Is(err, sql.ErrNoRows) {
-		return Source{}, false, nil
-	}
+	row, found, err := queryRow(ctx, r.store.db, `SELECT`+sourceColumns+`FROM sources WHERE id = ?`, id)
 	if err != nil {
 		return Source{}, false, fmt.Errorf("get source: %w", err)
+	}
+	if !found {
+		return Source{}, false, nil
+	}
+
+	var src Source
+	if err := scanSourceValues(row, &src); err != nil {
+		return Source{}, false, fmt.Errorf("scan source: %w", err)
 	}
 
 	return src, true, nil
@@ -93,22 +103,18 @@ func (r *Sources) Get(ctx context.Context, id string) (Source, bool, error) {
 
 // List returns every source ordered by display name.
 func (r *Sources) List(ctx context.Context) ([]Source, error) {
-	rows, err := r.db.QueryContext(ctx, `SELECT`+sourceColumns+`FROM sources ORDER BY display_name, id`)
+	rows, err := r.store.db.Query(ctx, `SELECT`+sourceColumns+`FROM sources ORDER BY display_name, id`)
 	if err != nil {
 		return nil, fmt.Errorf("list sources: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
 
 	sources := []Source{}
-	for rows.Next() {
-		src, err := scanSource(rows)
-		if err != nil {
+	for _, values := range rows.Values {
+		var src Source
+		if err := scanSourceValues(values, &src); err != nil {
 			return nil, fmt.Errorf("scan source: %w", err)
 		}
 		sources = append(sources, src)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate sources: %w", err)
 	}
 
 	return sources, nil
@@ -116,7 +122,10 @@ func (r *Sources) List(ctx context.Context) ([]Source, error) {
 
 // SetEnabled turns a source on or off.
 func (r *Sources) SetEnabled(ctx context.Context, id string, enabled bool) error {
-	result, err := r.db.ExecContext(
+	r.store.writeMu.Lock()
+	defer r.store.writeMu.Unlock()
+
+	result, err := r.store.db.Execute(
 		ctx,
 		`UPDATE sources SET enabled = ?, updated_at = ? WHERE id = ?`,
 		boolToInt(enabled),
@@ -146,7 +155,10 @@ func (r *Sources) MarkRefreshSucceeded(
 		itemCount = 0
 	}
 
-	result, err := r.db.ExecContext(ctx, `
+	r.store.writeMu.Lock()
+	defer r.store.writeMu.Unlock()
+
+	result, err := r.store.db.Execute(ctx, `
 		UPDATE sources
 		SET last_refresh_at = ?, last_success_at = ?, refresh_etag = ?,
 			refresh_error = NULL, item_count = ?, updated_at = ?
@@ -178,7 +190,10 @@ func (r *Sources) MarkRefreshFailed(
 		at = time.Now().UTC()
 	}
 
-	result, err := r.db.ExecContext(ctx, `
+	r.store.writeMu.Lock()
+	defer r.store.writeMu.Unlock()
+
+	result, err := r.store.db.Execute(ctx, `
 		UPDATE sources
 		SET last_refresh_at = ?, refresh_error = ?, updated_at = ?
 		WHERE id = ?
@@ -197,7 +212,10 @@ func (r *Sources) MarkRefreshFailed(
 
 // Delete removes a source and its channels, favorites and recent entries.
 func (r *Sources) Delete(ctx context.Context, id string) error {
-	result, err := r.db.ExecContext(ctx, `DELETE FROM sources WHERE id = ?`, id)
+	r.store.writeMu.Lock()
+	defer r.store.writeMu.Unlock()
+
+	result, err := r.store.db.Execute(ctx, `DELETE FROM sources WHERE id = ?`, id)
 	if err != nil {
 		return fmt.Errorf("delete source: %w", classifyError(err))
 	}
@@ -222,54 +240,65 @@ func normalizeSource(src Source) (Source, error) {
 	return src, nil
 }
 
-func scanSource(scanner rowScanner) (Source, error) {
-	var (
-		src           Source
-		kind          string
-		enabled       int
-		createdAt     int64
-		updatedAt     int64
-		lastRefreshAt sql.NullInt64
-		lastSuccessAt sql.NullInt64
-	)
-
-	err := scanner.Scan(
-		&src.ID,
-		&kind,
-		&src.Identity,
-		&src.Location,
-		&src.DisplayName,
-		&enabled,
-		&createdAt,
-		&updatedAt,
-		&lastRefreshAt,
-		&lastSuccessAt,
-		&src.RefreshETag,
-		&src.RefreshError,
-		&src.ItemCount,
-	)
-	if err != nil {
-		return Source{}, err
+func scanSourceValues(values []any, src *Source) error {
+	if len(values) < 13 {
+		return fmt.Errorf("%w: source row has %d columns", ErrInvalid, len(values))
 	}
 
+	var (
+		err       error
+		enabled   int64
+		createdAt int64
+		updatedAt int64
+	)
+
+	if src.ID, err = valueString(values[0]); err != nil {
+		return err
+	}
+	kind, err := valueString(values[1])
+	if err != nil {
+		return err
+	}
 	src.Kind = SourceKind(kind)
+	if src.Identity, err = valueString(values[2]); err != nil {
+		return err
+	}
+	if src.Location, err = valueString(values[3]); err != nil {
+		return err
+	}
+	if src.DisplayName, err = valueString(values[4]); err != nil {
+		return err
+	}
+	if enabled, err = valueInt64(values[5]); err != nil {
+		return err
+	}
+	if createdAt, err = valueInt64(values[6]); err != nil {
+		return err
+	}
+	if updatedAt, err = valueInt64(values[7]); err != nil {
+		return err
+	}
+	if src.LastRefreshAt, err = valueMillis(values[8]); err != nil {
+		return err
+	}
+	if src.LastSuccessAt, err = valueMillis(values[9]); err != nil {
+		return err
+	}
+	if src.RefreshETag, err = valueString(values[10]); err != nil {
+		return err
+	}
+	if src.RefreshError, err = valueString(values[11]); err != nil {
+		return err
+	}
+	itemCount, err := valueInt64(values[12])
+	if err != nil {
+		return err
+	}
+	src.ItemCount = int(itemCount)
+
 	src.Enabled = enabled != 0
 	src.CreatedAt = timeFromMillis(createdAt)
 	src.UpdatedAt = timeFromMillis(updatedAt)
-	src.LastRefreshAt = nullableMillis(lastRefreshAt)
-	src.LastSuccessAt = nullableMillis(lastSuccessAt)
-
-	return src, nil
-}
-
-func requireChanged(result sql.Result, entity string) error {
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("count changed %s: %w", entity, err)
-	}
-	if affected == 0 {
-		return fmt.Errorf("%w: %s", ErrNotFound, entity)
-	}
 
 	return nil
 }

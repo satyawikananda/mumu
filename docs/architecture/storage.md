@@ -7,6 +7,12 @@ mumu stores user-owned data on-device in SQLite. There is no account, hosted
 backend or cloud sync. The app opens the library during MyGo's `WhenReady`
 callback and shows an actionable error banner if it cannot.
 
+Storage uses the official `github.com/egoist/mygo/plugins/sqlite` connection.
+The plugin is cgo-free and its native library is bundled by `mygo build`.
+WAL, `synchronous=NORMAL` and foreign keys are applied after open. A
+store-level mutex serializes read-modify-write sequences, and compound writes
+use `DB.Transaction` batches because the plugin has no interactive transaction.
+
 ## Location and permissions
 
 ```text
@@ -155,8 +161,9 @@ playback genuinely reaches `playing`; a click alone is not recent activity.
 ## Migrations
 
 Migrations are embedded SQL files in `internal/storage/migrations`, applied
-in version order. Each migration and its `schema_migrations` row commit in one
-transaction, so a failure leaves the previous version intact.
+in version order. The adapter splits each file into single statements and runs
+them with its `schema_migrations` row in one batch transaction, so a failure
+leaves the previous version intact.
 
 Policies:
 

@@ -2,9 +2,10 @@ package storage
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"time"
+
+	"github.com/egoist/mygo/plugins/sqlite"
 )
 
 // RecentLimit bounds how many recent channels are kept.
@@ -12,55 +13,43 @@ const RecentLimit = 100
 
 // RecentChannels reads and writes local playback history.
 type RecentChannels struct {
-	db *sql.DB
+	store *Store
 }
 
 // MarkPlayed records a real playback start and prunes old entries.
 func (r *RecentChannels) MarkPlayed(ctx context.Context, channelID int64, at time.Time) error {
-	exists, err := channelExists(ctx, r.db, channelID)
-	if err != nil {
-		return err
-	}
-	if !exists {
-		return fmt.Errorf("%w: channel", ErrNotFound)
-	}
 	if at.IsZero() {
 		at = time.Now().UTC()
 	}
 
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("begin recent update: %w", err)
-	}
-	defer func() {
-		_ = tx.Rollback() // rollback after commit is a no-op
-	}()
+	r.store.writeMu.Lock()
+	defer r.store.writeMu.Unlock()
 
-	_, err = tx.ExecContext(ctx, `
-		INSERT INTO recent_channels (channel_id, played_at, play_count)
-		VALUES (?, ?, 1)
-		ON CONFLICT (channel_id) DO UPDATE SET
-			played_at = excluded.played_at,
-			play_count = recent_channels.play_count + 1
-	`, channelID, unixMillis(at))
+	_, err := r.store.db.Transaction(ctx, []sqlite.Statement{
+		{
+			SQL: `
+				INSERT INTO recent_channels (channel_id, played_at, play_count)
+				VALUES (?, ?, 1)
+				ON CONFLICT (channel_id) DO UPDATE SET
+					played_at = excluded.played_at,
+					play_count = recent_channels.play_count + 1
+			`,
+			Args: []any{channelID, unixMillis(at)},
+		},
+		{
+			SQL: `
+				DELETE FROM recent_channels
+				WHERE channel_id NOT IN (
+					SELECT channel_id FROM recent_channels
+					ORDER BY played_at DESC, channel_id DESC
+					LIMIT ?
+				)
+			`,
+			Args: []any{RecentLimit},
+		},
+	})
 	if err != nil {
 		return fmt.Errorf("mark recent channel: %w", classifyError(err))
-	}
-
-	_, err = tx.ExecContext(ctx, `
-		DELETE FROM recent_channels
-		WHERE channel_id NOT IN (
-			SELECT channel_id FROM recent_channels
-			ORDER BY played_at DESC, channel_id DESC
-			LIMIT ?
-		)
-	`, RecentLimit)
-	if err != nil {
-		return fmt.Errorf("prune recent channels: %w", classifyError(err))
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit recent update: %w", err)
 	}
 
 	return nil
@@ -73,7 +62,7 @@ func (r *RecentChannels) List(ctx context.Context, limit int) ([]Recent, error) 
 		limit = RecentLimit
 	}
 
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := r.store.db.Query(ctx, `
 		SELECT`+channelColumnsAlias+`, r.played_at, r.play_count
 		FROM recent_channels r
 		JOIN channels c ON c.id = r.channel_id
@@ -83,48 +72,31 @@ func (r *RecentChannels) List(ctx context.Context, limit int) ([]Recent, error) 
 	if err != nil {
 		return nil, fmt.Errorf("list recent channels: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
 
 	recent := []Recent{}
-	for rows.Next() {
-		var (
-			channel   Channel
-			live      int
-			updatedAt int64
-			playedAt  int64
-			playCount int
-		)
-
-		if err := rows.Scan(
-			&channel.ID,
-			&channel.SourceID,
-			&channel.ProviderID,
-			&channel.Name,
-			&channel.StreamURL,
-			&channel.LogoURL,
-			&channel.Country,
-			&channel.Category,
-			&channel.Language,
-			&channel.EPGID,
-			&live,
-			&updatedAt,
-			&playedAt,
-			&playCount,
-		); err != nil {
-			return nil, fmt.Errorf("scan recent channel: %w", err)
+	for _, values := range rows.Values {
+		if len(values) < 14 {
+			return nil, fmt.Errorf("%w: recent row has %d columns", ErrInvalid, len(values))
 		}
 
-		channel.Live = live != 0
-		channel.UpdatedAt = timeFromMillis(updatedAt)
+		channel, err := scanChannelValues(values[:12])
+		if err != nil {
+			return nil, fmt.Errorf("scan recent channel: %w", err)
+		}
+		playedAt, err := valueInt64(values[12])
+		if err != nil {
+			return nil, fmt.Errorf("scan recent played time: %w", err)
+		}
+		playCount, err := valueInt64(values[13])
+		if err != nil {
+			return nil, fmt.Errorf("scan recent play count: %w", err)
+		}
 
 		recent = append(recent, Recent{
 			Channel:   channel,
 			PlayedAt:  timeFromMillis(playedAt),
-			PlayCount: playCount,
+			PlayCount: int(playCount),
 		})
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate recent channels: %w", err)
 	}
 
 	return recent, nil

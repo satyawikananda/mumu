@@ -2,11 +2,12 @@ package storage
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/egoist/mygo/plugins/sqlite"
 )
 
 const (
@@ -57,26 +58,21 @@ func (r *Channels) ReplaceForSource(
 		meta.ItemCount = len(batch)
 	}
 
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return ReplaceResult{}, fmt.Errorf("begin source refresh: %w", err)
-	}
-	defer func() {
-		_ = tx.Rollback() // rollback after commit is a no-op
-	}()
+	r.store.writeMu.Lock()
+	defer r.store.writeMu.Unlock()
 
-	if err := requireSource(ctx, tx, sourceID); err != nil {
+	if err := requireSource(ctx, r.store.db, sourceID); err != nil {
 		return ReplaceResult{}, err
 	}
 
-	existing, err := existingChannels(ctx, tx, sourceID)
+	existing, err := existingChannels(ctx, r.store.db, sourceID)
 	if err != nil {
 		return ReplaceResult{}, err
 	}
 
-	channelIDs := make([]int64, 0, len(batch))
-	seen := make(map[string]struct{}, len(batch))
 	now := time.Now().UTC()
+	seen := make(map[string]struct{}, len(batch))
+	statements := make([]sqlite.Statement, 0, len(batch)*3+len(existing))
 
 	for _, item := range batch {
 		channel := item.Channel
@@ -84,35 +80,38 @@ func (r *Channels) ReplaceForSource(
 			channel.StreamURL = item.Streams[0].URL
 		}
 
-		providerID, err := ProviderID(channel.ProviderID, channel.StreamURL)
+		statement, normalized, err := channelStatement(sourceID, channel, now)
 		if err != nil {
 			return ReplaceResult{}, err
 		}
-		if _, duplicate := seen[providerID]; duplicate {
-			return ReplaceResult{}, fmt.Errorf("%w: duplicate channel provider ID %q", ErrInvalid, providerID)
+		if _, duplicate := seen[normalized.ProviderID]; duplicate {
+			return ReplaceResult{}, fmt.Errorf(
+				"%w: duplicate channel provider ID %q",
+				ErrInvalid,
+				normalized.ProviderID,
+			)
 		}
-
-		id, normalized, err := upsertChannelTx(ctx, tx, sourceID, channel, now)
-		if err != nil {
-			return ReplaceResult{}, err
-		}
-		channelIDs = append(channelIDs, id)
 		seen[normalized.ProviderID] = struct{}{}
+		statements = append(statements, statement)
 	}
 
-	if _, err := tx.ExecContext(ctx, `
-		DELETE FROM channel_streams
-		WHERE channel_id IN (SELECT id FROM channels WHERE source_id = ?)
-	`, sourceID); err != nil {
-		return ReplaceResult{}, fmt.Errorf("clear source streams: %w", classifyError(err))
-	}
+	statements = append(statements, sqlite.Statement{
+		SQL:  `DELETE FROM channel_streams WHERE channel_id IN (SELECT id FROM channels WHERE source_id = ?)`,
+		Args: []any{sourceID},
+	})
 
 	streamCount := 0
-	for i, item := range batch {
-		count, err := insertStreamsTx(ctx, tx, channelIDs[i], item.Streams)
+	for _, item := range batch {
+		providerID, err := ProviderID(item.Channel.ProviderID, primaryStreamURL(item))
 		if err != nil {
 			return ReplaceResult{}, err
 		}
+
+		streamStatements, count, err := streamStatements(sourceID, providerID, item.Streams)
+		if err != nil {
+			return ReplaceResult{}, err
+		}
+		statements = append(statements, streamStatements...)
 		streamCount += count
 	}
 
@@ -122,16 +121,11 @@ func (r *Channels) ReplaceForSource(
 			missing = append(missing, id)
 		}
 	}
-	if err := deleteChannelsByID(ctx, tx, missing); err != nil {
-		return ReplaceResult{}, err
-	}
+	statements = append(statements, deleteChannelStatements(missing)...)
+	statements = append(statements, refreshSucceededStatement(sourceID, meta))
 
-	if err := markRefreshSucceededTx(ctx, tx, sourceID, meta); err != nil {
-		return ReplaceResult{}, err
-	}
-
-	if err := tx.Commit(); err != nil {
-		return ReplaceResult{}, fmt.Errorf("commit source refresh: %w", err)
+	if _, err := r.store.db.Transaction(ctx, statements); err != nil {
+		return ReplaceResult{}, fmt.Errorf("commit source refresh: %w", classifyError(err))
 	}
 
 	return ReplaceResult{
@@ -143,7 +137,7 @@ func (r *Channels) ReplaceForSource(
 
 // ListStreams returns the stream variants for one channel, in order.
 func (r *Channels) ListStreams(ctx context.Context, channelID int64) ([]Stream, error) {
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := r.store.db.Query(ctx, `
 		SELECT id, channel_id, provider_id, url, COALESCE(quality, ''),
 			is_hls, is_live, position, headers
 		FROM channel_streams
@@ -153,18 +147,14 @@ func (r *Channels) ListStreams(ctx context.Context, channelID int64) ([]Stream, 
 	if err != nil {
 		return nil, fmt.Errorf("list channel streams: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
 
 	streams := []Stream{}
-	for rows.Next() {
-		stream, err := scanStream(rows)
+	for _, values := range rows.Values {
+		stream, err := scanStreamValues(values)
 		if err != nil {
 			return nil, fmt.Errorf("scan channel stream: %w", err)
 		}
 		streams = append(streams, stream)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate channel streams: %w", err)
 	}
 
 	return streams, nil
@@ -172,7 +162,7 @@ func (r *Channels) ListStreams(ctx context.Context, channelID int64) ([]Stream, 
 
 // ListStreamsBySource returns streams grouped by channel ID for one source.
 func (r *Channels) ListStreamsBySource(ctx context.Context, sourceID string) (map[int64][]Stream, error) {
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := r.store.db.Query(ctx, `
 		SELECT s.id, s.channel_id, s.provider_id, s.url, COALESCE(s.quality, ''),
 			s.is_hls, s.is_live, s.position, s.headers
 		FROM channel_streams s
@@ -183,18 +173,14 @@ func (r *Channels) ListStreamsBySource(ctx context.Context, sourceID string) (ma
 	if err != nil {
 		return nil, fmt.Errorf("list source streams: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
 
 	grouped := map[int64][]Stream{}
-	for rows.Next() {
-		stream, err := scanStream(rows)
+	for _, values := range rows.Values {
+		stream, err := scanStreamValues(values)
 		if err != nil {
 			return nil, fmt.Errorf("scan source stream: %w", err)
 		}
 		grouped[stream.ChannelID] = append(grouped[stream.ChannelID], stream)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate source streams: %w", err)
 	}
 
 	return grouped, nil
@@ -218,85 +204,91 @@ func validateBatch(batch []ChannelBatch) error {
 	return nil
 }
 
-func existingChannels(ctx context.Context, tx *sql.Tx, sourceID string) (map[string]int64, error) {
-	rows, err := tx.QueryContext(ctx, `SELECT id, provider_id FROM channels WHERE source_id = ?`, sourceID)
+func primaryStreamURL(item ChannelBatch) string {
+	if item.Channel.StreamURL != "" {
+		return item.Channel.StreamURL
+	}
+
+	return item.Streams[0].URL
+}
+
+func existingChannels(ctx context.Context, db *sqlite.DB, sourceID string) (map[string]int64, error) {
+	rows, err := db.Query(ctx, `SELECT id, provider_id FROM channels WHERE source_id = ?`, sourceID)
 	if err != nil {
 		return nil, fmt.Errorf("list existing channels: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
 
 	existing := map[string]int64{}
-	for rows.Next() {
-		var (
-			id         int64
-			providerID string
-		)
-		if err := rows.Scan(&id, &providerID); err != nil {
-			return nil, fmt.Errorf("scan existing channel: %w", err)
+	for _, values := range rows.Values {
+		id, err := valueInt64(values[0])
+		if err != nil {
+			return nil, fmt.Errorf("scan existing channel id: %w", err)
+		}
+		providerID, err := valueString(values[1])
+		if err != nil {
+			return nil, fmt.Errorf("scan existing channel provider: %w", err)
 		}
 		existing[providerID] = id
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate existing channels: %w", err)
 	}
 
 	return existing, nil
 }
 
-func insertStreamsTx(ctx context.Context, tx *sql.Tx, channelID int64, streams []Stream) (int, error) {
+func streamStatements(
+	sourceID, channelProviderID string,
+	streams []Stream,
+) ([]sqlite.Statement, int, error) {
 	seen := make(map[string]string, len(streams))
-	inserted := 0
+	statements := make([]sqlite.Statement, 0, len(streams))
 
 	for _, stream := range streams {
 		providerID, err := ProviderID(stream.ProviderID, stream.URL)
 		if err != nil {
-			return 0, err
+			return nil, 0, err
 		}
 		if existing, exists := seen[providerID]; exists {
 			if existing == stream.URL {
 				continue
 			}
 
-			return 0, fmt.Errorf("%w: duplicate stream provider ID %q", ErrInvalid, providerID)
+			return nil, 0, fmt.Errorf("%w: duplicate stream provider ID %q", ErrInvalid, providerID)
 		}
 		seen[providerID] = stream.URL
 
 		headers, err := encodeHeaders(stream.Headers)
 		if err != nil {
-			return 0, err
+			return nil, 0, err
 		}
 
-		_, err = tx.ExecContext(ctx, `
-			INSERT INTO channel_streams (
-				channel_id, provider_id, url, quality, is_hls, is_live, position, headers
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-			ON CONFLICT (channel_id, provider_id) DO UPDATE SET
-				url = excluded.url,
-				quality = excluded.quality,
-				is_hls = excluded.is_hls,
-				is_live = excluded.is_live,
-				position = excluded.position,
-				headers = excluded.headers
-		`,
-			channelID,
-			providerID,
-			stream.URL,
-			nullString(stream.Quality),
-			boolToInt(stream.HLS),
-			boolToInt(stream.Live),
-			inserted,
-			headers,
-		)
-		if err != nil {
-			return 0, fmt.Errorf("insert channel stream: %w", classifyError(err))
-		}
-		inserted++
+		statements = append(statements, sqlite.Statement{
+			SQL: `
+				INSERT INTO channel_streams (
+					channel_id, provider_id, url, quality, is_hls, is_live, position, headers
+				)
+				SELECT id, ?, ?, ?, ?, ?, ?, ?
+				FROM channels
+				WHERE source_id = ? AND provider_id = ?
+			`,
+			Args: []any{
+				providerID,
+				stream.URL,
+				nullString(stream.Quality),
+				boolToInt(stream.HLS),
+				boolToInt(stream.Live),
+				len(statements),
+				headers,
+				sourceID,
+				channelProviderID,
+			},
+		})
 	}
 
-	return inserted, nil
+	return statements, len(statements), nil
 }
 
-func deleteChannelsByID(ctx context.Context, tx *sql.Tx, ids []int64) error {
+func deleteChannelStatements(ids []int64) []sqlite.Statement {
+	statements := make([]sqlite.Statement, 0, len(ids)/deleteChunkSize+1)
+
 	for start := 0; start < len(ids); start += deleteChunkSize {
 		end := min(start+deleteChunkSize, len(ids))
 		chunk := ids[start:end]
@@ -307,37 +299,32 @@ func deleteChannelsByID(ctx context.Context, tx *sql.Tx, ids []int64) error {
 			args[i] = id
 		}
 
-		if _, err := tx.ExecContext(
-			ctx,
-			`DELETE FROM channels WHERE id IN (`+placeholders+`)`,
-			args...,
-		); err != nil {
-			return fmt.Errorf("remove stale channels: %w", classifyError(err))
-		}
+		statements = append(statements, sqlite.Statement{
+			SQL:  `DELETE FROM channels WHERE id IN (` + placeholders + `)`,
+			Args: args,
+		})
 	}
 
-	return nil
+	return statements
 }
 
-func markRefreshSucceededTx(ctx context.Context, tx *sql.Tx, sourceID string, meta RefreshMeta) error {
-	_, err := tx.ExecContext(ctx, `
-		UPDATE sources
-		SET last_refresh_at = ?, last_success_at = ?, refresh_etag = ?,
-			refresh_error = NULL, item_count = ?, updated_at = ?
-		WHERE id = ?
-	`,
-		unixMillis(meta.RefreshedAt),
-		unixMillis(meta.RefreshedAt),
-		nullString(meta.ETag),
-		meta.ItemCount,
-		unixMillis(time.Now().UTC()),
-		sourceID,
-	)
-	if err != nil {
-		return fmt.Errorf("mark source refreshed: %w", classifyError(err))
+func refreshSucceededStatement(sourceID string, meta RefreshMeta) sqlite.Statement {
+	return sqlite.Statement{
+		SQL: `
+			UPDATE sources
+			SET last_refresh_at = ?, last_success_at = ?, refresh_etag = ?,
+				refresh_error = NULL, item_count = ?, updated_at = ?
+			WHERE id = ?
+		`,
+		Args: []any{
+			unixMillis(meta.RefreshedAt),
+			unixMillis(meta.RefreshedAt),
+			nullString(meta.ETag),
+			meta.ItemCount,
+			unixMillis(time.Now().UTC()),
+			sourceID,
+		},
 	}
-
-	return nil
 }
 
 func encodeHeaders(headers map[string]string) (any, error) {
@@ -380,34 +367,54 @@ func hasHeaderControl(value string) bool {
 	return false
 }
 
-func scanStream(scanner rowScanner) (Stream, error) {
+func scanStreamValues(values []any) (Stream, error) {
+	if len(values) < 9 {
+		return Stream{}, fmt.Errorf("%w: stream row has %d columns", ErrInvalid, len(values))
+	}
+
 	var (
-		stream  Stream
-		hls     int
-		live    int
-		headers sql.NullString
+		stream Stream
+		err    error
+		hls    int64
+		live   int64
 	)
 
-	err := scanner.Scan(
-		&stream.ID,
-		&stream.ChannelID,
-		&stream.ProviderID,
-		&stream.URL,
-		&stream.Quality,
-		&hls,
-		&live,
-		&stream.Position,
-		&headers,
-	)
+	if stream.ID, err = valueInt64(values[0]); err != nil {
+		return Stream{}, err
+	}
+	if stream.ChannelID, err = valueInt64(values[1]); err != nil {
+		return Stream{}, err
+	}
+	if stream.ProviderID, err = valueString(values[2]); err != nil {
+		return Stream{}, err
+	}
+	if stream.URL, err = valueString(values[3]); err != nil {
+		return Stream{}, err
+	}
+	if stream.Quality, err = valueString(values[4]); err != nil {
+		return Stream{}, err
+	}
+	if hls, err = valueInt64(values[5]); err != nil {
+		return Stream{}, err
+	}
+	if live, err = valueInt64(values[6]); err != nil {
+		return Stream{}, err
+	}
+	position, err := valueInt64(values[7])
+	if err != nil {
+		return Stream{}, err
+	}
+	stream.Position = int(position)
+	headers, hasHeaders, err := valueOptionalString(values[8])
 	if err != nil {
 		return Stream{}, err
 	}
 
 	stream.HLS = hls != 0
 	stream.Live = live != 0
-	if headers.Valid && headers.String != "" {
+	if hasHeaders && headers != "" {
 		decoded := map[string]string{}
-		if err := json.Unmarshal([]byte(headers.String), &decoded); err == nil {
+		if err := json.Unmarshal([]byte(headers), &decoded); err == nil {
 			stream.Headers = decoded
 		}
 	}

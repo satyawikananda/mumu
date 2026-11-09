@@ -75,18 +75,12 @@ func TestMigrationFailureRollsBack(t *testing.T) {
 		t.Fatal("applyMigrations succeeded, want failure")
 	}
 
-	var version int
-	if err := db.QueryRowContext(t.Context(), `SELECT MAX(version) FROM schema_migrations`).Scan(&version); err != nil {
-		t.Fatalf("read version: %v", err)
-	}
+	version := queryInt(t, db, `SELECT MAX(version) FROM schema_migrations`)
 	if version != 1 {
 		t.Fatalf("version %d, want 1", version)
 	}
 
-	var count int
-	if err := db.QueryRowContext(t.Context(), `SELECT COUNT(*) FROM items`).Scan(&count); err != nil {
-		t.Fatalf("count items: %v", err)
-	}
+	count := queryInt(t, db, `SELECT COUNT(*) FROM items`)
 	if count != 1 {
 		t.Fatalf("items %d, want 1", count)
 	}
@@ -107,9 +101,7 @@ func TestMigrationPreservesExistingData(t *testing.T) {
 	if err := applyMigrations(t.Context(), db, first); err != nil {
 		t.Fatalf("apply v1: %v", err)
 	}
-	if _, err := db.ExecContext(t.Context(), `INSERT INTO items (name) VALUES ('existing')`); err != nil {
-		t.Fatalf("insert: %v", err)
-	}
+	execSQL(t, db, `INSERT INTO items (name) VALUES ('existing')`)
 
 	second := slices.Concat(first, []migration{{
 		version: 2,
@@ -120,12 +112,9 @@ func TestMigrationPreservesExistingData(t *testing.T) {
 		t.Fatalf("apply v2: %v", err)
 	}
 
-	var name, note string
-	if err := db.QueryRowContext(t.Context(), `SELECT name, note FROM items`).Scan(&name, &note); err != nil {
-		t.Fatalf("select: %v", err)
-	}
-	if name != "existing" || note != "" {
-		t.Fatalf("row = %q %q, want existing ''", name, note)
+	values := queryStrings(t, db, `SELECT name, note FROM items`)
+	if len(values) != 2 || values[0] != "existing" || values[1] != "" {
+		t.Fatalf("row = %v, want existing ''", values)
 	}
 }
 

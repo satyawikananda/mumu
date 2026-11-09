@@ -2,31 +2,31 @@ package storage
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
-	_ "modernc.org/sqlite" // register the sqlite driver
+	"github.com/egoist/mygo/plugins/sqlite"
 )
 
 const (
-	driverName  = "sqlite"
 	openTimeout = 5 * 1000 // milliseconds, passed to SQLite busy_timeout
 )
 
 // Store owns one SQLite database and its repositories.
 //
-// It is safe for concurrent use. Callers must close it during shutdown.
+// It is safe for concurrent use. Writers serialize through writeMu so a
+// read-modify-write sequence cannot interleave with another write.
 type Store struct {
-	db    *sql.DB
-	path  string
-	once  sync.Once
-	close error
+	db      *sqlite.DB
+	path    string
+	writeMu sync.Mutex
+	once    sync.Once
+	close   error
 }
 
 // Open creates or opens the local library at path and applies migrations.
@@ -102,56 +102,41 @@ func (s *Store) Path() string {
 }
 
 // Sources returns the source repository.
-func (s *Store) Sources() *Sources { return &Sources{db: s.db} }
+func (s *Store) Sources() *Sources { return &Sources{store: s} }
 
 // Channels returns the channel repository.
-func (s *Store) Channels() *Channels { return &Channels{db: s.db} }
+func (s *Store) Channels() *Channels { return &Channels{store: s} }
 
 // Favorites returns the favorite repository.
-func (s *Store) Favorites() *Favorites { return &Favorites{db: s.db} }
+func (s *Store) Favorites() *Favorites { return &Favorites{store: s} }
 
 // Recent returns the recent-playback repository.
-func (s *Store) Recent() *RecentChannels { return &RecentChannels{db: s.db} }
+func (s *Store) Recent() *RecentChannels { return &RecentChannels{store: s} }
 
 // Settings returns the preference repository.
-func (s *Store) Settings() *Settings { return &Settings{db: s.db} }
+func (s *Store) Settings() *Settings { return &Settings{store: s} }
 
-func openDatabase(ctx context.Context, path string) (*sql.DB, error) {
-	dsn := dataSourceName(path)
-
-	db, err := sql.Open(driverName, dsn)
+func openDatabase(ctx context.Context, path string) (*sqlite.DB, error) {
+	db, err := sqlite.Open(ctx, path, sqlite.OpenOptions{
+		BusyTimeout: openTimeout * time.Millisecond,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("open local library: %w", classifyError(err))
 	}
 
-	// One connection keeps SQLite writes serialized and avoids SQLITE_BUSY
-	// between repositories. The app is local and low-volume.
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
+	for _, pragma := range []string{
+		"PRAGMA journal_mode=WAL",
+		"PRAGMA synchronous=NORMAL",
+		"PRAGMA foreign_keys=ON",
+	} {
+		if _, err := db.Execute(ctx, pragma); err != nil {
+			_ = db.Close()
 
-	if err := db.PingContext(ctx); err != nil {
-		_ = db.Close()
-
-		return nil, fmt.Errorf("open local library: %w", classifyError(err))
+			return nil, fmt.Errorf("configure local library: %w", classifyError(err))
+		}
 	}
 
 	return db, nil
-}
-
-func dataSourceName(path string) string {
-	if path == ":memory:" {
-		return ":memory:"
-	}
-
-	u := url.URL{Scheme: "file", Path: filepath.ToSlash(path)}
-	query := u.Query()
-	query.Add("_pragma", "foreign_keys(1)")
-	query.Add("_pragma", "journal_mode(WAL)")
-	query.Add("_pragma", fmt.Sprintf("busy_timeout(%d)", openTimeout))
-	query.Add("_pragma", "synchronous(NORMAL)")
-	u.RawQuery = query.Encode()
-
-	return u.String()
 }
 
 func classifyError(err error) error {
@@ -163,6 +148,25 @@ func classifyError(err error) error {
 	}
 	if errors.Is(err, os.ErrPermission) {
 		return fmt.Errorf("%w: %w", ErrPermission, err)
+	}
+
+	var sqliteErr *sqlite.Error
+	if errors.As(err, &sqliteErr) {
+		switch sqliteErr.Code {
+		case 11, 26: // SQLITE_CORRUPT, SQLITE_NOTADB
+			return fmt.Errorf("%w: %w", ErrCorrupt, err)
+		case 3, 8, 14: // SQLITE_PERM, SQLITE_READONLY, SQLITE_CANTOPEN
+			return fmt.Errorf("%w: %w", ErrPermission, err)
+		case 19: // SQLITE_CONSTRAINT
+			switch sqliteErr.ExtendedCode {
+			case 1555, 2067: // primary key, unique
+				return fmt.Errorf("%w: %w", ErrDuplicate, err)
+			case 787: // foreign key
+				return fmt.Errorf("%w: %w", ErrNotFound, err)
+			case 1299: // not null
+				return fmt.Errorf("%w: %w", ErrInvalid, err)
+			}
+		}
 	}
 
 	message := strings.ToLower(err.Error())
