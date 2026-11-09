@@ -38,7 +38,7 @@ jobs:
 
       - name: Test
         env:
-          CGO_ENABLED: "0"
+          CGO_ENABLED: "1"
         run: go test -race ./...
 
       - name: Check native UI lifetimes

@@ -179,7 +179,7 @@ Before claiming completion:
 
 - Run the project commands. These are authoritative after #3:
   - `go tool mygo dev` for a live-reloading native run.
-  - `go test ./...`; use `CGO_ENABLED=0 go test -race ./...` before delivery.
+  - `go test ./...`; use `go test -race ./...` before delivery (race needs cgo).
   - `go vet ./...` and `go tool mygo vet .` for MyGo UI lifetime checks.
   - `gofmt -l ./cmd ./internal` (must print nothing).
   - `golangci-lint run ./cmd/... ./internal/...` when the tool is installed, or `make lint`.
