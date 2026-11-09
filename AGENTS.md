@@ -75,7 +75,7 @@ The spike commands live in [its README](experiments/nativeplayback/README.md). T
 | Go mpv binding | `gen2brain/go-mpv` 0.4.0 | Pinned/tested in standalone spike; native runtime required |
 | Renderer on macOS | MyGo Metal UI + separate native OpenGL video view | Conditional M0 result; no direct Metal interop claim |
 | PiP | Floating native window with one retained view/session | Conditional M0 result; lifecycle/Spaces/stacking observed on tested Mac |
-| Persistence | SQLite, local only | Planned (#6) |
+| Persistence | SQLite, local only | Implemented (#6) |
 | Built-in discovery | iptv-org as an input to a reviewed/authorized catalog | Planned (#8) |
 | Playlist format | M3U playlist and direct supported stream URLs | Planned (#7, #9) |
 | Backend / auth | None for MVP | Decided |
@@ -210,6 +210,7 @@ Before claiming completion:
 - **After #1/#2:** M0 feasibility reports and evidence are recorded under `docs/architecture/`.
 - **After #3:** Completed: `cmd/mumu`, `internal/app`, native shell, CI, README and ADRs.
 - **After #4:** Reconcile UI conventions with the implemented theme and update `DESIGN.md`; replace the placeholder shell. Implemented in this change: tokens, Dark/Light/System themes, wide sidebar, 72 pt rail and shared status views.
+- **After #6:** Implemented local SQLite repositories, versioned migrations and launch-time library opening. Player, catalog, playlist, Watch/PiP surface and library UI remain future issues.
 - Changes to player/rendering boundaries or startup UX require updating both relevant docs and acceptance tests.
 
 ## 12. Reference material
