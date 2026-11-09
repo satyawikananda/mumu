@@ -6,7 +6,7 @@ The engineering constraints remain in [AGENTS.md](../AGENTS.md), and the interac
 
 Bootstrap decisions from #3 are recorded as ADRs: [native-only UI](adr/0001-native-only-ui.md), [modular monolith boundaries](adr/0002-modular-monolith-boundaries.md), and [lifecycle, cancellation and UI dispatch](adr/0003-lifecycle-dispatch-shutdown.md).
 
-Foundation decisions from #6 are recorded as [local SQLite storage](adr/0004-local-sqlite-storage.md). Implementation notes live in [local storage](storage.md).
+Foundation decisions from #5/#6 are recorded as [local SQLite storage](adr/0004-local-sqlite-storage.md) and [playback controller and engine boundary](adr/0005-playback-controller.md). Implementation notes live in [local storage](storage.md) and [playback controller](player-controller.md).
 
 ## 1. Feasibility status and permission to proceed
 

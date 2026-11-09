@@ -1,2 +1,5 @@
-// Package video owns native surface presentation; the darwin adapter arrives in #5/#11.
+// Package video owns native video surface presentation.
+//
+// It stays separate from playback control. The darwin adapter arrives with
+// the Watch experience in #11; the player controller in #5 does not import it.
 package video

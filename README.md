@@ -8,7 +8,7 @@ mumu is written in Go and draws its entire interface with
 [MyGo](https://mygo.egoist.dev) native UI. It has no WebView, no HTML or
 JavaScript frontend, and no hosted backend.
 
-**Status:** M1 foundation. The native shell, design tokens and Dark/Light/System themes are implemented. Local SQLite repositories and migrations are implemented behind package boundaries; playback, discovery, playlists, the library and PiP are not implemented yet. The player and PiP paths remain conditional on the M0 findings in [`docs/architecture/`](docs/architecture/).
+**Status:** M1 foundation. The native shell, design tokens and Dark/Light/System themes are implemented. Local SQLite stores and the playback controller are implemented behind package boundaries; no Watch, Discover, Library or PiP screen is wired yet. The player and PiP paths remain conditional on the M0 findings in [`docs/architecture/`](docs/architecture/).
 
 ## Requirements
 
@@ -49,8 +49,9 @@ The macOS application and disk image are written to `build/`.
 cmd/mumu/             application entry point
 internal/app/         composition root: window, cancellation, background jobs, local library
 internal/ui/          native MyGo shell, theme and shared views
-internal/player/      playback boundary; libmpv adapter arrives with #5
-internal/video/       native video surface boundary; adapter with #5/#11
+internal/player/      playback controller, state machine and Engine port
+internal/player/libmpv/  libmpv adapter behind the mumu_mpv build tag
+internal/video/       native video surface boundary; adapter with #11
 internal/catalog/     channel model and provider boundary (#7, #8)
 internal/playlist/    M3U parsing and source classification (#7)
 internal/storage/     local SQLite repositories and migrations (#6)
@@ -60,8 +61,9 @@ experiments/          M0 playback/PiP spikes and the test stream fixture
 ```
 
 Only `cmd/mumu` is packaged into the application. The local library lives at
-`~/Library/Application Support/Mumu/mumu.db`. Playback, catalog, playlist and
-video-surface APIs remain boundaries owned by their issues.
+`~/Library/Application Support/Mumu/mumu.db`. The libmpv adapter requires the
+`mumu_mpv` build tag and an external runtime; see
+[playback controller](docs/architecture/player-controller.md).
 
 Native-only rules and the engineering workflow are in
 [`AGENTS.md`](AGENTS.md). The visual and interaction contract is in
