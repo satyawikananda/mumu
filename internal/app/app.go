@@ -11,6 +11,7 @@ import (
 
 	"github.com/egoist/mygo"
 
+	"mumu/internal/storage"
 	"mumu/internal/ui"
 )
 
@@ -24,6 +25,8 @@ type App struct {
 	mu         sync.Mutex
 	dispatcher Dispatcher
 	stopped    bool
+	store      *storage.Store
+	storeErr   error
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -45,7 +48,10 @@ func New() *App {
 func (a *App) Run() error {
 	// Stop runs on the main thread before exit.
 	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { a.Stop() })
-	mygo.App.WhenReady(a.openWindow)
+	mygo.App.WhenReady(func() {
+		a.openLocalStore()
+		a.openWindow()
+	})
 
 	return mygo.App.Run()
 }
@@ -106,4 +112,6 @@ func (a *App) Stop() {
 	case <-time.After(shutdownTimeout):
 		slog.Warn("shutdown timed out", "timeout", shutdownTimeout)
 	}
+
+	a.closeStore()
 }

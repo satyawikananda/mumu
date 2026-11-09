@@ -8,7 +8,7 @@ mumu is written in Go and draws its entire interface with
 [MyGo](https://mygo.egoist.dev) native UI. It has no WebView, no HTML or
 JavaScript frontend, and no hosted backend.
 
-**Status:** M1 foundation. The native shell, design tokens and Dark/Light/System themes are implemented; playback, discovery, playlists, the library and PiP are not implemented yet. The player and PiP paths are conditional on the M0 findings in [`docs/architecture/`](docs/architecture/).
+**Status:** M1 foundation. The native shell, design tokens and Dark/Light/System themes are implemented. Local SQLite repositories and migrations are implemented behind package boundaries; playback, discovery, playlists, the library and PiP are not implemented yet. The player and PiP paths remain conditional on the M0 findings in [`docs/architecture/`](docs/architecture/).
 
 ## Requirements
 
@@ -47,21 +47,21 @@ The macOS application and disk image are written to `build/`.
 
 ```text
 cmd/mumu/             application entry point
-internal/app/         composition root: window, cancellation, background jobs
+internal/app/         composition root: window, cancellation, background jobs, local library
 internal/ui/          native MyGo shell, theme and shared views
 internal/player/      playback boundary; libmpv adapter arrives with #5
 internal/video/       native video surface boundary; adapter with #5/#11
 internal/catalog/     channel model and provider boundary (#7, #8)
 internal/playlist/    M3U parsing and source classification (#7)
-internal/storage/     local SQLite repositories (#6)
+internal/storage/     local SQLite repositories and migrations (#6)
 docs/architecture/    feasibility reports, evidence and ADRs
 docs/ux/              shell wireframes, states and interaction notes
 experiments/          M0 playback/PiP spikes and the test stream fixture
 ```
 
-Only `cmd/mumu` is packaged into the application. The packages under
-`internal/` currently declare boundaries with package documentation; their
-APIs arrive with the issues above rather than being invented up front.
+Only `cmd/mumu` is packaged into the application. The local library lives at
+`~/Library/Application Support/Mumu/mumu.db`. Playback, catalog, playlist and
+video-surface APIs remain boundaries owned by their issues.
 
 Native-only rules and the engineering workflow are in
 [`AGENTS.md`](AGENTS.md). The visual and interaction contract is in

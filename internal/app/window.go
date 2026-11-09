@@ -31,4 +31,7 @@ func (a *App) openWindow() {
 	})
 
 	a.dispatcher = win
+	if a.storeErr != nil {
+		a.shell.ShowError(storeMessage(a.storeErr))
+	}
 }
