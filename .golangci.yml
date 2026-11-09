@@ -1,8 +1,31 @@
 version: "2"
+
 run:
-  timeout: 3m
+  timeout: 5m
+  tests: true
+
 linters:
-  default: standard
+  default: none
+  enable:
+    - bodyclose
+    - errcheck
+    - errorlint
+    - gocritic
+    - govet
+    - ineffassign
+    - misspell
+    - nilerr
+    - revive
+    - staticcheck
+    - unconvert
+    - unused
+  exclusions:
+    # M0 spikes are evidence artifacts, not production code. They keep
+    # their own review history.
+    paths:
+      - experiments
+
 formatters:
   enable:
     - gofmt
+    - goimports

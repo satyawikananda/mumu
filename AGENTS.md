@@ -64,12 +64,13 @@ No MyGo fork was needed. Follow-up QA records capture-based audio/video measurem
 OpenGL deprecation, capture/presentation gaps, per-process GPU attribution, broader platform QA and runtime redistribution remain constraints.
 The bridge now serializes rendering and drawable changes with both a Go mutex and native CGL context locking after capture exposed a native crash.
 Do not treat these findings as production playback/PiP completion or as proof that mpv renders directly into MyGo Metal.
-The spike commands live in [its README](experiments/nativeplayback/README.md); the root application remains the existing starter pending #3.
+The spike commands live in [its README](experiments/nativeplayback/README.md). The root application was bootstrapped in #3: `cmd/mumu` is the entry point and the native shell is in `internal/`.
 
 | Area | Direction | Status |
 |---|---|---|
-| Language | Go | Decided |
+| Language | Go 1.27.3 | Decided, pinned in `go.mod` |
 | UI | MyGo native `ui` | Decided |
+| MyGo | `github.com/egoist/mygo` 0.8.3 | Pinned; latest release at bootstrap |
 | Playback engine | libmpv | Conditional native child-surface path proven in M0 |
 | Go mpv binding | `gen2brain/go-mpv` 0.4.0 | Pinned/tested in standalone spike; native runtime required |
 | Renderer on macOS | MyGo Metal UI + separate native OpenGL video view | Conditional M0 result; no direct Metal interop claim |
@@ -78,7 +79,7 @@ The spike commands live in [its README](experiments/nativeplayback/README.md); t
 | Built-in discovery | iptv-org as an input to a reviewed/authorized catalog | Planned (#8) |
 | Playlist format | M3U playlist and direct supported stream URLs | Planned (#7, #9) |
 | Backend / auth | None for MVP | Decided |
-| Go toolchain | Follow **pinned MyGo requirement**; upstream docs currently list Go 1.27+ | Verify at bootstrap (#3) |
+| Go toolchain | Follow **pinned MyGo requirement**: Go 1.27.3, the minimum MyGo 0.8.3 accepts | Verified at bootstrap (#3) |
 
 **Important:** MyGo uses Metal on macOS, while common libmpv integration approaches expose OpenGL or software-render paths. Do not assume they are directly compatible. A PureGo/nocgo binding does **not** eliminate the dynamic native libmpv runtime dependency. Hardware decoding and zero-copy rendering are *goals*, not verified facts.
 
@@ -93,23 +94,28 @@ The spike commands live in [its README](experiments/nativeplayback/README.md); t
 
 If #1 or #2 yields NO-GO, dependent production issues are **blocked**, not considered complete by swapping in a WebView or separate playback window.
 
-## 6. Proposed repository boundaries (not yet a verified tree)
+## 6. Repository boundaries
 
-The repo is initially empty; use this as a suggested design, **not an instruction to generate every directory up front**:
+Actual tree after #3:
 
 ```text
-cmd/mumu/             # App entry point (after bootstrap)
-internal/app/         # Composition, lifecycle, application state
-internal/ui/          # Native MyGo views: watch, discover, library, settings, pip
-internal/player/      # Player interface, controller, events, libmpv adapter
-internal/video/       # Video surface abstraction; darwin implementation after M0
-internal/catalog/     # Provider adapters, normalized channel discovery
-internal/playlist/    # M3U parsing, import, refresh, source matching
-internal/storage/     # Local repositories, SQLite migrations
-assets/               # Original tomato brand marks and packaged resources
-docs/architecture/    # ADRs, feasibility reports, benchmarks
-docs/ux/              # Wireflows and interaction notes
+cmd/mumu/             # Application entry point: wiring and Run only
+internal/app/         # Composition root, window, cancellation, background jobs
+internal/ui/          # Native shell, theme and shared views
+internal/player/      # Playback boundary; libmpv adapter and state machine in #5
+internal/video/       # Native surface presentation boundary; adapter in #5/#11
+internal/catalog/     # Channel model and provider boundary; #7/#8
+internal/playlist/    # M3U parsing and source classification; #7
+internal/storage/     # Local repositories and migrations; #6
+docs/architecture/    # ADRs, feasibility reports, evidence
+docs/ux/              # Shell wireframes, states and interaction notes
+experiments/          # M0 spikes and the synthetic HLS fixture
+resources/            # Packaged app icon
 ```
+
+`internal/player`, `video`, `catalog`, `playlist` and `storage` contain
+package documentation only. Their APIs are declared by the issues that
+implement them; do not invent signatures ahead of that work.
 
 Architectural boundaries:
 
@@ -171,8 +177,13 @@ While coding:
 
 Before claiming completion:
 
-- Run available project commands. **After #3**, maintain an authoritative command list here; until then do not pretend commands are established.
-- At minimum for Go modules: `gofmt`, `go test ./...`, and `go vet ./...` where the environment supports them.
+- Run the project commands. These are authoritative after #3:
+  - `go tool mygo dev` for a live-reloading native run.
+  - `go test ./...`; use `CGO_ENABLED=0 go test -race ./...` before delivery.
+  - `go vet ./...` and `go tool mygo vet .` for MyGo UI lifetime checks.
+  - `gofmt -l ./cmd ./internal` (must print nothing).
+  - `golangci-lint run ./cmd/... ./internal/...` when the tool is installed, or `make lint`.
+  - `go tool mygo build` for a packaged macOS app.
 - For native media work, record **OS, architecture, MyGo/libmpv versions, command, observable output, and tested stream type**.
 - Report a clear summary: changed files, tests actually run, constraints met, unverified items, and follow-up risks.
 - Do not mark acceptance criteria complete based solely on static code review or compilation if runtime video/PiP is required.
@@ -195,10 +206,10 @@ Before claiming completion:
 
 ## 11. Documentation lifecycle
 
-- **Now:** This is a pre-bootstrap baseline. Treat proposed package paths and commands as provisional.
-- **After #1/#2:** Add links to native video/PiP ADRs and record what the renderer can/cannot do.
-- **After #3:** Replace provisional paths and setup with actual repo commands and pinned dependencies.
-- **After #4:** Reconcile UI conventions with the implemented theme and update `DESIGN.md`.
+- **Now:** #3 bootstrapped the repository. Commands, tree and pinned versions above are verified; see the ADRs in `docs/architecture/adr/`.
+- **After #1/#2:** M0 feasibility reports and evidence are recorded under `docs/architecture/`.
+- **After #3:** Completed: `cmd/mumu`, `internal/app`, native shell, CI, README and ADRs.
+- **After #4:** Reconcile UI conventions with the implemented theme and update `DESIGN.md`; replace the placeholder shell. Implemented in this change: tokens, Dark/Light/System themes, wide sidebar, 72 pt rail and shared status views.
 - Changes to player/rendering boundaries or startup UX require updating both relevant docs and acceptance tests.
 
 ## 12. Reference material
