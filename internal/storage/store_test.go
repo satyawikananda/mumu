@@ -5,9 +5,58 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"testing"
+
+	"github.com/egoist/mygo/plugins/sqlite"
 )
+
+func execSQL(t *testing.T, db *sqlite.DB, query string, args ...any) {
+	t.Helper()
+
+	if _, err := db.Execute(t.Context(), query, args...); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+}
+
+func queryInt(t *testing.T, db *sqlite.DB, query string, args ...any) int64 {
+	t.Helper()
+
+	row, found, err := queryRow(t.Context(), db, query, args...)
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if !found {
+		t.Fatalf("query returned no row: %s", query)
+	}
+	value, err := valueInt64(row[0])
+	if err != nil {
+		t.Fatalf("read integer: %v", err)
+	}
+
+	return value
+}
+
+func queryStrings(t *testing.T, db *sqlite.DB, query string, args ...any) []string {
+	t.Helper()
+
+	row, found, err := queryRow(t.Context(), db, query, args...)
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if !found {
+		t.Fatalf("query returned no row: %s", query)
+	}
+	values := make([]string, 0, len(row))
+	for _, cell := range row {
+		value, err := valueString(cell)
+		if err != nil {
+			t.Fatalf("read text: %v", err)
+		}
+		values = append(values, value)
+	}
+
+	return values
+}
 
 func openTestStore(t *testing.T) *Store {
 	t.Helper()
@@ -42,10 +91,7 @@ func TestOpenCreatesDatabaseAndSchema(t *testing.T) {
 		t.Fatalf("database mode %o, want 600", info.Mode().Perm())
 	}
 
-	var version int
-	if err := store.db.QueryRowContext(t.Context(), `SELECT MAX(version) FROM schema_migrations`).Scan(&version); err != nil {
-		t.Fatalf("read version: %v", err)
-	}
+	version := queryInt(t, store.db, `SELECT MAX(version) FROM schema_migrations`)
 	if version != 2 {
 		t.Fatalf("version %d, want 2", version)
 	}
@@ -68,10 +114,7 @@ func TestOpenIsIdempotent(t *testing.T) {
 	}
 	defer func() { _ = second.Close() }()
 
-	var count int
-	if err := second.db.QueryRowContext(t.Context(), `SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
-		t.Fatalf("count migrations: %v", err)
-	}
+	count := queryInt(t, second.db, `SELECT COUNT(*) FROM schema_migrations`)
 	if count != 2 {
 		t.Fatalf("migration count %d, want 2", count)
 	}
@@ -96,12 +139,11 @@ func TestOpenNewerSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	if _, err := store.db.ExecContext(
-		t.Context(),
+	execSQL(
+		t,
+		store.db,
 		`INSERT INTO schema_migrations (version, name, applied_at) VALUES (99, 'future', 0)`,
-	); err != nil {
-		t.Fatalf("insert future migration: %v", err)
-	}
+	)
 	if err := store.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
 	}
@@ -119,9 +161,7 @@ func TestOpenUnknownSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("openDatabase: %v", err)
 	}
-	if _, err := db.ExecContext(t.Context(), `CREATE TABLE legacy (id INTEGER PRIMARY KEY)`); err != nil {
-		t.Fatalf("create legacy table: %v", err)
-	}
+	execSQL(t, db, `CREATE TABLE legacy (id INTEGER PRIMARY KEY)`)
 	if err := db.Close(); err != nil {
 		t.Fatalf("close database: %v", err)
 	}
@@ -153,11 +193,17 @@ func TestOpenRejectsEmptyPath(t *testing.T) {
 	}
 }
 
-func TestDataSourceNameContainsPragmas(t *testing.T) {
-	dsn := dataSourceName("/tmp/mumu.db")
-	for _, want := range []string{"foreign_keys", "journal_mode", "busy_timeout", "synchronous"} {
-		if !strings.Contains(dsn, want) {
-			t.Fatalf("DSN %q missing %q", dsn, want)
-		}
+func TestOpenAppliesPragmas(t *testing.T) {
+	store := openTestStore(t)
+
+	journal := queryStrings(t, store.db, `PRAGMA journal_mode`)
+	if len(journal) == 0 || journal[0] != "wal" {
+		t.Fatalf("journal_mode = %v, want wal", journal)
+	}
+	if value := queryInt(t, store.db, `PRAGMA foreign_keys`); value != 1 {
+		t.Fatalf("foreign_keys = %d, want 1", value)
+	}
+	if value := queryInt(t, store.db, `PRAGMA synchronous`); value != 1 {
+		t.Fatalf("synchronous = %d, want 1 (NORMAL)", value)
 	}
 }

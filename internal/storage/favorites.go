@@ -2,31 +2,25 @@ package storage
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"time"
 )
 
 // Favorites reads and writes the user's favorite channels.
 type Favorites struct {
-	db *sql.DB
+	store *Store
 }
 
 // Add marks channelID as a favorite. Repeated calls keep the first timestamp.
 func (r *Favorites) Add(ctx context.Context, channelID int64, at time.Time) error {
-	exists, err := channelExists(ctx, r.db, channelID)
-	if err != nil {
-		return err
-	}
-	if !exists {
-		return fmt.Errorf("%w: channel", ErrNotFound)
-	}
 	if at.IsZero() {
 		at = time.Now().UTC()
 	}
 
-	_, err = r.db.ExecContext(ctx, `
+	r.store.writeMu.Lock()
+	defer r.store.writeMu.Unlock()
+
+	_, err := r.store.db.Execute(ctx, `
 		INSERT INTO favorites (channel_id, created_at) VALUES (?, ?)
 		ON CONFLICT (channel_id) DO NOTHING
 	`, channelID, unixMillis(at))
@@ -39,7 +33,10 @@ func (r *Favorites) Add(ctx context.Context, channelID int64, at time.Time) erro
 
 // Remove deletes a favorite. Removing a missing favorite is a no-op.
 func (r *Favorites) Remove(ctx context.Context, channelID int64) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM favorites WHERE channel_id = ?`, channelID)
+	r.store.writeMu.Lock()
+	defer r.store.writeMu.Unlock()
+
+	_, err := r.store.db.Execute(ctx, `DELETE FROM favorites WHERE channel_id = ?`, channelID)
 	if err != nil {
 		return fmt.Errorf("remove favorite: %w", classifyError(err))
 	}
@@ -49,21 +46,22 @@ func (r *Favorites) Remove(ctx context.Context, channelID int64) error {
 
 // Has reports whether channelID is a favorite.
 func (r *Favorites) Has(ctx context.Context, channelID int64) (bool, error) {
-	var exists int
-	err := r.db.QueryRowContext(ctx, `SELECT 1 FROM favorites WHERE channel_id = ?`, channelID).Scan(&exists)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
-	}
+	_, found, err := queryRow(
+		ctx,
+		r.store.db,
+		`SELECT 1 FROM favorites WHERE channel_id = ?`,
+		channelID,
+	)
 	if err != nil {
 		return false, fmt.Errorf("check favorite: %w", err)
 	}
 
-	return true, nil
+	return found, nil
 }
 
 // List returns favorite channels, most recently added first.
 func (r *Favorites) List(ctx context.Context) ([]Channel, error) {
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := r.store.db.Query(ctx, `
 		SELECT`+channelColumnsAlias+`
 		FROM favorites f
 		JOIN channels c ON c.id = f.channel_id
@@ -72,7 +70,6 @@ func (r *Favorites) List(ctx context.Context) ([]Channel, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list favorites: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
 
 	return collectChannels(rows)
 }

@@ -2,8 +2,6 @@ package storage
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -14,7 +12,7 @@ import (
 // Keys are owned by the caller. Values are opaque strings; callers that need
 // typed values should encode and validate them at the boundary.
 type Settings struct {
-	db *sql.DB
+	store *Store
 }
 
 // Get returns the value for key, or false when it is not set.
@@ -23,13 +21,17 @@ func (r *Settings) Get(ctx context.Context, key string) (string, bool, error) {
 		return "", false, err
 	}
 
-	var value string
-	err := r.db.QueryRowContext(ctx, `SELECT value FROM settings WHERE key = ?`, key).Scan(&value)
-	if errors.Is(err, sql.ErrNoRows) {
-		return "", false, nil
-	}
+	row, found, err := queryRow(ctx, r.store.db, `SELECT value FROM settings WHERE key = ?`, key)
 	if err != nil {
 		return "", false, fmt.Errorf("get setting: %w", err)
+	}
+	if !found {
+		return "", false, nil
+	}
+
+	value, err := valueString(row[0])
+	if err != nil {
+		return "", false, fmt.Errorf("scan setting: %w", err)
 	}
 
 	return value, true, nil
@@ -41,7 +43,10 @@ func (r *Settings) Set(ctx context.Context, key, value string) error {
 		return err
 	}
 
-	_, err := r.db.ExecContext(ctx, `
+	r.store.writeMu.Lock()
+	defer r.store.writeMu.Unlock()
+
+	_, err := r.store.db.Execute(ctx, `
 		INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
 		ON CONFLICT (key) DO UPDATE SET
 			value = excluded.value,
@@ -60,7 +65,10 @@ func (r *Settings) Delete(ctx context.Context, key string) error {
 		return err
 	}
 
-	_, err := r.db.ExecContext(ctx, `DELETE FROM settings WHERE key = ?`, key)
+	r.store.writeMu.Lock()
+	defer r.store.writeMu.Unlock()
+
+	_, err := r.store.db.Execute(ctx, `DELETE FROM settings WHERE key = ?`, key)
 	if err != nil {
 		return fmt.Errorf("delete setting: %w", classifyError(err))
 	}
@@ -70,22 +78,22 @@ func (r *Settings) Delete(ctx context.Context, key string) error {
 
 // All returns every setting.
 func (r *Settings) All(ctx context.Context) (map[string]string, error) {
-	rows, err := r.db.QueryContext(ctx, `SELECT key, value FROM settings ORDER BY key`)
+	rows, err := r.store.db.Query(ctx, `SELECT key, value FROM settings ORDER BY key`)
 	if err != nil {
 		return nil, fmt.Errorf("list settings: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
 
 	settings := map[string]string{}
-	for rows.Next() {
-		var key, value string
-		if err := rows.Scan(&key, &value); err != nil {
-			return nil, fmt.Errorf("scan setting: %w", err)
+	for _, values := range rows.Values {
+		key, err := valueString(values[0])
+		if err != nil {
+			return nil, fmt.Errorf("scan setting key: %w", err)
+		}
+		value, err := valueString(values[1])
+		if err != nil {
+			return nil, fmt.Errorf("scan setting value: %w", err)
 		}
 		settings[key] = value
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate settings: %w", err)
 	}
 
 	return settings, nil

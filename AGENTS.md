@@ -75,7 +75,7 @@ The spike commands live in [its README](experiments/nativeplayback/README.md). T
 | Go mpv binding | `gen2brain/go-mpv` 0.4.0 | Pinned/tested in standalone spike; native runtime required |
 | Renderer on macOS | MyGo Metal UI + separate native OpenGL video view | Conditional M0 result; no direct Metal interop claim |
 | PiP | Floating native window with one retained view/session | Conditional M0 result; lifecycle/Spaces/stacking observed on tested Mac |
-| Persistence | SQLite, local only | Implemented (#6) |
+| Persistence | SQLite via the MyGo plugin, local only | Implemented (#6, refactor) |
 | Built-in discovery | iptv-org as a labelled community list, not rights clearance | Implemented (#8) |
 | Playlist format | M3U playlist and direct supported stream URLs | Implemented (#7, #9) |
 | Backend / auth | None for MVP | Decided |

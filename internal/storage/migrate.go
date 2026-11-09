@@ -2,7 +2,6 @@ package storage
 
 import (
 	"context"
-	"database/sql"
 	"embed"
 	"fmt"
 	"io/fs"
@@ -11,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/egoist/mygo/plugins/sqlite"
 )
 
 //go:embed migrations/*.sql
@@ -84,7 +85,7 @@ func parseMigrationName(name string) (version int, label string, err error) {
 	return version, rest, nil
 }
 
-func applyMigrations(ctx context.Context, db *sql.DB, migrations []migration) error {
+func applyMigrations(ctx context.Context, db *sqlite.DB, migrations []migration) error {
 	if len(migrations) == 0 {
 		return nil
 	}
@@ -140,39 +141,27 @@ func applyMigrations(ctx context.Context, db *sql.DB, migrations []migration) er
 	return nil
 }
 
-func applyMigration(ctx context.Context, db *sql.DB, m migration) error {
-	tx, err := db.BeginTx(ctx, nil)
+func applyMigration(ctx context.Context, db *sqlite.DB, m migration) error {
+	statements, err := splitSQL(m.sql)
 	if err != nil {
-		return fmt.Errorf("begin migration %d: %w", m.version, err)
-	}
-	defer func() {
-		_ = tx.Rollback() // rollback after commit is a no-op
-	}()
-
-	if _, err := tx.ExecContext(ctx, m.sql); err != nil {
 		return fmt.Errorf("migration %d %s: %w", m.version, m.name, err)
 	}
 
 	appliedAt := time.Now().UTC().UnixMilli()
-	if _, err := tx.ExecContext(
-		ctx,
-		`INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)`,
-		m.version,
-		m.name,
-		appliedAt,
-	); err != nil {
-		return fmt.Errorf("record migration %d: %w", m.version, err)
-	}
+	statements = append(statements, sqlite.Statement{
+		SQL:  `INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)`,
+		Args: []any{m.version, m.name, appliedAt},
+	})
 
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit migration %d: %w", m.version, err)
+	if _, err := db.Transaction(ctx, statements); err != nil {
+		return fmt.Errorf("migration %d %s: %w", m.version, m.name, classifyError(err))
 	}
 
 	return nil
 }
 
-func createMigrationTable(ctx context.Context, db *sql.DB) error {
-	_, err := db.ExecContext(ctx, `
+func createMigrationTable(ctx context.Context, db *sqlite.DB) error {
+	_, err := db.Execute(ctx, `
 		CREATE TABLE IF NOT EXISTS schema_migrations (
 			version    INTEGER PRIMARY KEY,
 			name       TEXT NOT NULL,
@@ -180,47 +169,139 @@ func createMigrationTable(ctx context.Context, db *sql.DB) error {
 		)
 	`)
 	if err != nil {
-		return fmt.Errorf("create migration table: %w", err)
+		return fmt.Errorf("create migration table: %w", classifyError(err))
 	}
 
 	return nil
 }
 
-func currentVersion(ctx context.Context, db *sql.DB) (int, error) {
-	var version int
-	err := db.QueryRowContext(ctx, `SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&version)
+func currentVersion(ctx context.Context, db *sqlite.DB) (int, error) {
+	row, found, err := queryRow(
+		ctx,
+		db,
+		`SELECT COALESCE(MAX(version), 0) FROM schema_migrations`,
+	)
 	if err != nil {
 		return 0, fmt.Errorf("read schema version: %w", err)
 	}
+	if !found {
+		return 0, nil
+	}
+	version, err := valueInt64(row[0])
+	if err != nil {
+		return 0, fmt.Errorf("scan schema version: %w", err)
+	}
 
-	return version, nil
+	return int(version), nil
 }
 
-func tableExists(ctx context.Context, db *sql.DB, name string) (bool, error) {
-	var count int
-	err := db.QueryRowContext(
+func tableExists(ctx context.Context, db *sqlite.DB, name string) (bool, error) {
+	row, found, err := queryRow(
 		ctx,
+		db,
 		`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`,
 		name,
-	).Scan(&count)
+	)
 	if err != nil {
 		return false, fmt.Errorf("inspect schema: %w", err)
+	}
+	if !found {
+		return false, nil
+	}
+	count, err := valueInt64(row[0])
+	if err != nil {
+		return false, fmt.Errorf("scan table count: %w", err)
 	}
 
 	return count > 0, nil
 }
 
-func userTableCount(ctx context.Context, db *sql.DB) (int, error) {
-	var count int
-	err := db.QueryRowContext(ctx, `
+func userTableCount(ctx context.Context, db *sqlite.DB) (int, error) {
+	row, found, err := queryRow(ctx, db, `
 		SELECT COUNT(*) FROM sqlite_master
 		WHERE type = 'table'
 		  AND name NOT LIKE 'sqlite_%'
 		  AND name <> 'schema_migrations'
-	`).Scan(&count)
+	`)
 	if err != nil {
 		return 0, fmt.Errorf("inspect existing tables: %w", err)
 	}
+	if !found {
+		return 0, nil
+	}
+	count, err := valueInt64(row[0])
+	if err != nil {
+		return 0, fmt.Errorf("scan existing table count: %w", err)
+	}
 
-	return count, nil
+	return int(count), nil
+}
+
+// splitSQL splits a migration body into single statements. It tracks quoted
+// strings and comments so semicolons inside them stay intact.
+func splitSQL(input string) ([]sqlite.Statement, error) {
+	statements := []sqlite.Statement{}
+	start := 0
+
+	var (
+		singleQuoted bool
+		doubleQuoted bool
+		lineComment  bool
+		blockComment bool
+	)
+
+	for i := 0; i < len(input); i++ {
+		current := input[i]
+
+		switch {
+		case lineComment:
+			if current == '\n' {
+				lineComment = false
+			}
+		case blockComment:
+			if current == '*' && i+1 < len(input) && input[i+1] == '/' {
+				blockComment = false
+				i++
+			}
+		case singleQuoted:
+			if current == '\'' {
+				if i+1 < len(input) && input[i+1] == '\'' {
+					i++
+				} else {
+					singleQuoted = false
+				}
+			}
+		case doubleQuoted:
+			if current == '"' {
+				doubleQuoted = false
+			}
+		default:
+			switch {
+			case current == '-' && i+1 < len(input) && input[i+1] == '-':
+				lineComment = true
+				i++
+			case current == '/' && i+1 < len(input) && input[i+1] == '*':
+				blockComment = true
+				i++
+			case current == '\'':
+				singleQuoted = true
+			case current == '"':
+				doubleQuoted = true
+			case current == ';':
+				if statement := strings.TrimSpace(input[start:i]); statement != "" {
+					statements = append(statements, sqlite.Statement{SQL: statement})
+				}
+				start = i + 1
+			}
+		}
+	}
+
+	if singleQuoted || doubleQuoted || blockComment {
+		return nil, fmt.Errorf("%w: unterminated SQL quote or comment", ErrInvalid)
+	}
+	if tail := strings.TrimSpace(input[start:]); tail != "" {
+		statements = append(statements, sqlite.Statement{SQL: tail})
+	}
+
+	return statements, nil
 }
