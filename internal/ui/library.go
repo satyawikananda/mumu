@@ -82,6 +82,11 @@ type LibraryPreview struct {
 	// SkippedExamples names up to three skipped entries without a URL.
 	SkippedExamples []string
 	Truncated       bool
+	// NeedsPrivate reports streams on private or local addresses, which the
+	// sheet can allow explicitly for this source only.
+	NeedsPrivate bool
+	// Schemes lists the distinct stream schemes the preview found.
+	Schemes []string
 }
 
 // SkippedReason is one reason a playlist entry was skipped.
@@ -96,6 +101,8 @@ type LibraryRequest struct {
 	URL  string
 	Path string
 	Name string
+	// AllowPrivate carries the sheet's explicit consent for this source.
+	AllowPrivate bool
 }
 
 // Library is the native Library page for playlists and custom streams. The
@@ -119,6 +126,7 @@ type Library struct {
 	importBusy    bool
 	importErr     string
 	pickBusy      bool
+	allowPrivate  bool
 
 	confirmOpen bool
 	confirmID   string
@@ -213,6 +221,8 @@ func (l *Library) SetPreview(preview *LibraryPreview, errText string) {
 	l.preview = preview
 	l.previewErr = errText
 	l.importErr = ""
+	// Consent is per draft and starts off for every new preview.
+	l.allowPrivate = false
 }
 
 // SetImportError reports a failed import and lets the viewer retry.
@@ -499,6 +509,7 @@ func (l *Library) sheetBody(c *ui.Context, theme *ui.Theme) {
 	}
 	if l.preview != nil {
 		l.previewPanel(c, theme)
+		l.privateConsent(c, theme)
 	}
 	if l.importErr != "" {
 		ui.Text(c, l.importErr).TextColor(theme.Danger)
@@ -567,6 +578,24 @@ func (l *Library) previewPanel(c *ui.Context, theme *ui.Theme) {
 	})
 }
 
+// privateConsent asks for explicit permission before storing private hosts.
+func (l *Library) privateConsent(c *ui.Context, theme *ui.Theme) {
+	if l.preview == nil || !l.preview.NeedsPrivate {
+		return
+	}
+
+	ui.Column(c).Gap(4).Padding(8, 10).Background(theme.Surface).Radius(6).
+		Border(1, theme.Border).Children(func() {
+		ui.Checkbox(c, &l.allowPrivate, "Allow private and LAN addresses for this source")
+		ui.Text(c, "Enable this only for a source you trust. mumu keeps the choice on this Mac.").
+			FontSize(theme.Rem(0.85)).TextColor(theme.TextMuted)
+		if schemes := strings.Join(l.preview.Schemes, ", "); schemes != "" {
+			ui.Textf(c, "Stream schemes found · %s", schemes).
+				FontSize(theme.Rem(0.85)).TextColor(theme.TextMuted)
+		}
+	})
+}
+
 // confirm draws the remove confirmation, naming the source.
 func (l *Library) confirm(c *ui.Context, _ *ui.Theme) {
 	if !l.confirmOpen {
@@ -631,6 +660,7 @@ func (l *Library) clearDraft() {
 	l.previewBusy = false
 	l.importBusy = false
 	l.pickBusy = false
+	l.allowPrivate = false
 }
 
 // resetPreview drops a preview that no longer matches the draft.
@@ -638,6 +668,7 @@ func (l *Library) resetPreview() {
 	l.preview = nil
 	l.previewErr = ""
 	l.importErr = ""
+	l.allowPrivate = false
 }
 
 // validate dispatches the draft for validation.
@@ -670,11 +701,26 @@ func (l *Library) importDraft() {
 func (l *Library) request() LibraryRequest {
 	switch {
 	case l.sheetKind == LibraryStream:
-		return LibraryRequest{Kind: LibraryStream, URL: strings.TrimSpace(l.url), Name: strings.TrimSpace(l.name)}
+		return LibraryRequest{
+			Kind:         LibraryStream,
+			URL:          strings.TrimSpace(l.url),
+			Name:         strings.TrimSpace(l.name),
+			AllowPrivate: l.allowPrivate,
+		}
 	case l.tab == 1:
-		return LibraryRequest{Kind: LibraryPlaylistFile, Path: strings.TrimSpace(l.path), Name: strings.TrimSpace(l.name)}
+		return LibraryRequest{
+			Kind:         LibraryPlaylistFile,
+			Path:         strings.TrimSpace(l.path),
+			Name:         strings.TrimSpace(l.name),
+			AllowPrivate: l.allowPrivate,
+		}
 	default:
-		return LibraryRequest{Kind: LibraryPlaylistURL, URL: strings.TrimSpace(l.url), Name: strings.TrimSpace(l.name)}
+		return LibraryRequest{
+			Kind:         LibraryPlaylistURL,
+			URL:          strings.TrimSpace(l.url),
+			Name:         strings.TrimSpace(l.name),
+			AllowPrivate: l.allowPrivate,
+		}
 	}
 }
 

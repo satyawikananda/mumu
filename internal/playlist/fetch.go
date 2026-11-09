@@ -40,7 +40,14 @@ func NewLoader(policy netguard.Policy) *Loader {
 
 // LoadOptions bounds one source read.
 type LoadOptions struct {
-	AllowPrivate   bool
+	// AllowPrivate lets this read reach a private or local document host.
+	AllowPrivate bool
+	// AllowPrivateStreams is the stored consent that lets the parser accept
+	// stream URLs on private or local addresses.
+	AllowPrivateStreams bool
+	// AllowedSchemes is the per-source stream scheme allowlist. Empty means
+	// http and https only.
+	AllowedSchemes []string
 	MaxBytes       int64
 	ETag           string
 	DefaultCountry string
@@ -85,6 +92,7 @@ func (l *Loader) Load(ctx context.Context, location string, opts LoadOptions) (L
 			BaseDir:           filepath.Dir(path),
 			AllowLocalPaths:   true,
 			AllowPrivateHosts: true,
+			AllowedSchemes:    opts.AllowedSchemes,
 		})
 	}
 
@@ -111,7 +119,8 @@ func (l *Loader) Load(ctx context.Context, location string, opts LoadOptions) (L
 
 	return l.classify(response.Body, response.ContentType, meta, Options{
 		DefaultCountry:    opts.DefaultCountry,
-		AllowPrivateHosts: opts.AllowPrivate,
+		AllowPrivateHosts: opts.AllowPrivateStreams,
+		AllowedSchemes:    opts.AllowedSchemes,
 	})
 }
 

@@ -2,7 +2,9 @@
 
 Issue: [#7](https://github.com/satyawikananda/mumu/issues/7). Follow-ups:
 [#8](https://github.com/satyawikananda/mumu/issues/8) built-in catalog,
-[#9](https://github.com/satyawikananda/mumu/issues/9) source management.
+[#9](https://github.com/satyawikananda/mumu/issues/9) source management,
+[#11](https://github.com/satyawikananda/mumu/issues/11) slice 11a per-source
+policy.
 
 This document defines how mumu turns M3U sources and direct streams into the
 shared channel model, how it distinguishes a channel list from an HLS media
@@ -54,6 +56,12 @@ type Stream struct {
     HLS        bool
     Live       bool
     Headers    Headers // User-Agent and Referer only
+}
+
+type Source struct {
+    // ...
+    AllowPrivate   bool     // stored consent for private/local stream hosts
+    AllowedSchemes []string // normalized allowlist; http and https always present
 }
 ```
 
@@ -143,9 +151,38 @@ cannot silently accept the wrong thing.
 - cookies are never stored or sent.
 
 `AllowPrivate` is opt-in for a URL the user typed or a playlist the user chose
-in the file dialog. A catalog-provided source keeps it off. Remote playlists
-that reference private or local stream addresses are skipped and counted in
-the preview warnings.
+in the file dialog. A catalog-provided source keeps it off. Without a stored
+consent, remote playlists that reference private or local stream addresses are
+skipped and counted in the preview warnings.
+
+## Per-source stream policy (slice 11a)
+
+The document policy above is global; the stream policy is **per source** and
+stored, because a user playlist may legitimately point at a LAN origin while
+the community catalog never may. See
+[ADR 0007](adr/0007-per-source-stream-policy.md).
+
+| Concern | Rule |
+|---|---|
+| Migration | `0003_source_policy.sql` adds `sources.allow_private` (default `0`) and `sources.allowed_schemes` (default `http,https`) |
+| Default for a new source | strict: no private hosts, `http`/`https` only |
+| Consent | `preview.NeedsPrivate` asks the import sheet; `preview.AllowPrivate` records the answer and is the only way `Save` stores `allow_private = 1` |
+| Reading the playlist document | the user's own location, so a private document host is reachable |
+| Streams inside it | `playlist.Options.AllowPrivateHosts` and `AllowedSchemes` from the stored policy |
+| Preview | parses with private hosts allowed so it can *report* them; it never fetches a stream |
+| Save | revalidates every channel, drops channels with no allowed stream, and reports the count |
+| Refresh | reuses the stored policy, so a consent (or its absence) survives |
+| Built-in | always strict at parse, mapping, storage and service level |
+
+`catalog.NormalizeSchemes` is the single source of truth for the allowlist: it
+trims, lowercases, deduplicates, sorts, always includes `http` and `https`, and
+always removes `file`, `udp`, `rtp`, `multicast`, `rtsp`, `rtmp` and `srt`.
+`file` remains a local-playlist decision (`playlist.Options.AllowLocalPaths`)
+and a stored policy can never add it.
+
+Only `http` and `https` are enabled. `rtsp`, `rtmp` and `srt` stay rejected
+until a recorded macOS/libmpv smoke test proves them, and the evidence gap is
+tracked in the ADR.
 
 ## Playback headers
 
@@ -157,6 +194,19 @@ limited to 1,024 bytes and control characters are rejected. `Cookie`,
 Headers are stored with the stream row so playback can use them later. They
 never contain credentials.
 
+`player.Source` carries `Scheme` and `Headers`; the controller accepts only
+`http`/`https` and fails with `player.ErrUnsupportedScheme` otherwise. The
+libmpv adapter builds one `http-header-fields` value from the sanitized
+`User-Agent` and `Referer`, sets it on the pump goroutine immediately before
+`loadfile` for that source, and clears it on stop. A value containing a comma
+or a backslash is dropped, because mpv parses that option as a comma-separated
+list escaped with backslash. The option value is never logged.
+
+Whether those headers actually reach a server through libmpv is verified by
+`internal/player/libmpv/headers_integration_test.go`, gated by
+`MUMU_MPV_HEADER_TEST=1` on `darwin/arm64` with the `mumu_mpv` tag. It has not
+been run in this change; see the ADR evidence gap.
+
 ## Storage mapping
 
 `internal/sources` maps the domain to SQLite:
@@ -164,6 +214,9 @@ never contain credentials.
 - `Channel.Streams[0]` remains the primary `channels.stream_url` for existing
   queries;
 - every variant is stored in `channel_streams` with a stable provider ID;
+- `AllowPrivate` and `AllowedSchemes` map to `sources.allow_private` and
+  `sources.allowed_schemes` through `EffectivePolicy`, so a built-in is always
+  written strict and a stored built-in row is always read strict;
 - `ReplaceForSource` upserts channels, replaces streams, removes channels that
   disappeared and records refresh metadata in **one transaction**.
 
@@ -201,7 +254,9 @@ the catalog refresh. This is risk reduction, not a rights review.
 
 Provider loading reuses the same parser and policy: private stream addresses
 are dropped, HTTP is allowed, unsupported schemes are dropped, and a failed
-refresh never deletes cached rows.
+refresh never deletes cached rows. The built-in refresh additionally applies the
+strict policy to the parsed channels before storage, so a playlist or a cached
+row cannot widen it.
 
 ## Import diagnostics
 
@@ -218,21 +273,29 @@ No full URL, query string or credential is kept in the preview. A channel list
 that skips entries still imports the usable channels; a list with none returns
 `ErrNoChannels`.
 
-## Source management (#9)
+## Source management (#9, slice 11a)
 
 `internal/sources.Service` owns the user flows:
 
 ```go
 preview, err := service.PreviewRemote(ctx, url, "My list")
+// preview.NeedsPrivate asks the sheet for consent; preview.AllowPrivate
+// records the answer.
 source, err := service.Save(ctx, preview)
+
+result, err := service.SaveSource(ctx, preview) // also reports Dropped
 result, err := service.Refresh(ctx, source.ID)
 err = service.SetEnabled(ctx, source.ID, false)
 err = service.Remove(ctx, source.ID)
 ```
 
-Preview parses without storing. Save writes the source and replaces its
-channels in one transaction. Refresh is atomic and keeps the last known good
-rows on failure. Built-in sources are protected from Library removal; they are
+Preview parses without storing and reports `NeedsPrivate` plus the distinct
+`Schemes` it saw. Save writes the source and replaces its channels in one
+transaction, revalidating every channel against the effective policy; a channel
+whose streams are all outside it is dropped and counted in `SaveResult.Dropped`,
+and a save that keeps nothing returns `ErrEmptyPreview`. Refresh is atomic, uses
+the stored policy, and keeps the last known good rows on failure. Built-in
+sources are protected from Library saving, removal and enabling; they are
 managed by Discover.
 
 ## UI surfaces
@@ -296,6 +359,8 @@ case playlist.KindHLSManifest, playlist.KindDirectStream:
 
 - full Discover search, country/category/source filters and channel selection (#10);
 - Watch playback, channel drawer and resume (#11/#13);
+- `rtsp`, `rtmp` and `srt` playback: rejected, no recorded evidence yet;
+- a runtime UI for editing a stored policy after import (re-import asks again);
 - probing every stream to claim it is online;
 - DRM, authentication, proxying or re-hosting media;
 - EPG schedules and time-shift.
@@ -303,9 +368,15 @@ case playlist.KindHLSManifest, playlist.KindDirectStream:
 ## Verification
 
 ```sh
-go test ./internal/catalog ./internal/netguard ./internal/playlist ./internal/sources ./internal/storage
-go test -race ./internal/catalog ./internal/netguard ./internal/playlist ./internal/storage
+go test ./internal/catalog ./internal/netguard ./internal/playlist ./internal/sources ./internal/storage ./internal/player
+go test -race ./internal/catalog ./internal/netguard ./internal/playlist ./internal/storage ./internal/player
 go vet ./...
+```
+
+The libmpv header path additionally has a gated integration test:
+
+```sh
+MUMU_MPV_HEADER_TEST=1 go test -tags mumu_mpv ./internal/player/libmpv -run TestIntegrationPlaybackHeaders
 ```
 
 `BenchmarkParse` on the Apple M3 test machine parses 1,000 channels in about

@@ -186,6 +186,12 @@ func TestPreviewStreamAndSave(t *testing.T) {
 	if !preview.Channels[0].Streams[0].HLS {
 		t.Fatal("HLS stream not marked")
 	}
+	// The loopback test server is a private host, so the preview asks for
+	// consent and Save drops the channel without it.
+	if !preview.NeedsPrivate || len(preview.Schemes) != 1 || preview.Schemes[0] != "http" {
+		t.Fatalf("preview policy = %v %v, want private http", preview.NeedsPrivate, preview.Schemes)
+	}
+	preview.AllowPrivate = true
 
 	source, err := service.Save(ctx, preview)
 	if err != nil {
@@ -333,6 +339,7 @@ func TestRefreshCustomStream(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PreviewStream: %v", err)
 	}
+	preview.AllowPrivate = true
 	source, err := service.Save(ctx, preview)
 	if err != nil {
 		t.Fatalf("Save: %v", err)
@@ -344,6 +351,9 @@ func TestRefreshCustomStream(t *testing.T) {
 	}
 	if result.Channels != 1 {
 		t.Fatalf("result = %+v", result)
+	}
+	if !result.Source.AllowPrivate {
+		t.Fatalf("refresh lost the stored consent: %+v", result.Source)
 	}
 }
 

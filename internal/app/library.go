@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/url"
 	"path/filepath"
@@ -465,7 +466,8 @@ func (a *App) importLibrarySource(req ui.LibraryRequest) {
 		}
 
 		opCtx, cancel := context.WithTimeout(ctx, libraryTimeout)
-		_, err = service.Save(opCtx, preview)
+		preview.AllowPrivate = req.AllowPrivate
+		result, err := service.SaveSource(opCtx, preview)
 		cancel()
 
 		if err != nil {
@@ -477,7 +479,7 @@ func (a *App) importLibrarySource(req ui.LibraryRequest) {
 		}
 
 		a.libraryData.clearPending()
-		a.libraryData.setMessage("")
+		a.libraryData.setMessage(importMessage(result.Dropped))
 		// The reload must outlive the import session the closed sheet cancels.
 		a.loadLibraryRows(a.ctx, service)
 		a.publishLibrary()
@@ -681,7 +683,21 @@ func libraryPreview(preview sources.Preview) *ui.LibraryPreview {
 		SkippedReasons:  librarySkippedReasons(preview.SkippedReasons),
 		SkippedExamples: librarySkippedExamples(preview.SkippedEntries),
 		Truncated:       preview.Truncated,
+		NeedsPrivate:    preview.NeedsPrivate,
+		Schemes:         preview.Schemes,
 	}
+}
+
+// importMessage explains channels the stored policy excluded.
+func importMessage(dropped int) string {
+	if dropped <= 0 {
+		return ""
+	}
+	if dropped == 1 {
+		return "1 entry was skipped because it is outside the source policy."
+	}
+
+	return fmt.Sprintf("%d entries were skipped because they are outside the source policy.", dropped)
 }
 
 // librarySkippedReasons counts skips by reason, most frequent first.

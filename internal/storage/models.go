@@ -28,20 +28,25 @@ func (k SourceKind) Valid() bool {
 // Identity is the stable, credential-free form of Location. ID is derived
 // from Kind and Identity, so re-importing the same source keeps favorites
 // and recent channels.
+//
+// AllowPrivate and AllowedSchemes are the stored stream policy. They are a
+// preference the catalog layer validates, never a substitute for its checks.
 type Source struct {
-	ID            string
-	Kind          SourceKind
-	Identity      string
-	Location      string
-	DisplayName   string
-	Enabled       bool
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	LastRefreshAt time.Time
-	LastSuccessAt time.Time
-	RefreshETag   string
-	RefreshError  string
-	ItemCount     int
+	ID             string
+	Kind           SourceKind
+	Identity       string
+	Location       string
+	DisplayName    string
+	Enabled        bool
+	AllowPrivate   bool
+	AllowedSchemes []string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	LastRefreshAt  time.Time
+	LastSuccessAt  time.Time
+	RefreshETag    string
+	RefreshError   string
+	ItemCount      int
 }
 
 // Channel is one playable entry scoped to a Source.

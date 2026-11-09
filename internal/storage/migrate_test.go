@@ -11,14 +11,17 @@ func TestLoadMigrations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadMigrations: %v", err)
 	}
-	if len(migrations) != 2 {
-		t.Fatalf("migration count %d, want 2", len(migrations))
+	if len(migrations) != 3 {
+		t.Fatalf("migration count %d, want 3", len(migrations))
 	}
 	if migrations[0].version != 1 || migrations[0].name != "init" {
 		t.Fatalf("migration = %+v, want version 1 init", migrations[0])
 	}
 	if migrations[1].version != 2 || migrations[1].name != "streams" {
 		t.Fatalf("migration = %+v, want version 2 streams", migrations[1])
+	}
+	if migrations[2].version != 3 || migrations[2].name != "source_policy" {
+		t.Fatalf("migration = %+v, want version 3 source_policy", migrations[2])
 	}
 }
 
@@ -132,6 +135,46 @@ func TestMigrationDuplicateVersion(t *testing.T) {
 	// applyMigrations does not sort; loadMigrations validates duplicates.
 	if err := applyMigrations(t.Context(), db, migrations); err == nil {
 		t.Fatal("applyMigrations accepted duplicate versions")
+	}
+}
+
+func TestMigrationSourcePolicyUpgradesExistingDatabase(t *testing.T) {
+	db, err := openDatabase(t.Context(), filepath.Join(t.TempDir(), "mumu.db"))
+	if err != nil {
+		t.Fatalf("openDatabase: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	migrations, err := loadMigrations()
+	if err != nil {
+		t.Fatalf("loadMigrations: %v", err)
+	}
+	if len(migrations) < 3 {
+		t.Fatalf("migration count %d, want at least 3", len(migrations))
+	}
+
+	// Reproduce a database shipped with 0002 only.
+	if err := applyMigrations(t.Context(), db, migrations[:2]); err != nil {
+		t.Fatalf("apply 0001-0002: %v", err)
+	}
+	execSQL(t, db, `
+		INSERT INTO sources (id, kind, identity, location, display_name, enabled, created_at, updated_at)
+		VALUES ('builtin:existing', 'builtin', 'https://example.com/id.m3u',
+		        'https://example.com/id.m3u', 'Community', 1, 0, 0)
+	`)
+
+	if err := applyMigrations(t.Context(), db, migrations); err != nil {
+		t.Fatalf("apply 0003: %v", err)
+	}
+
+	values := queryStrings(t, db, `SELECT allow_private, allowed_schemes FROM sources`)
+	if len(values) != 2 || values[0] != "0" || values[1] != "http,https" {
+		t.Fatalf("existing row policy = %v, want 0 http,https", values)
+	}
+
+	version := queryInt(t, db, `SELECT MAX(version) FROM schema_migrations`)
+	if version != 3 {
+		t.Fatalf("version %d, want 3", version)
 	}
 }
 

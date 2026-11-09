@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"regexp"
 	"strings"
 	"sync"
@@ -111,9 +112,15 @@ func New(engine Engine, opts ...Option) *Controller {
 }
 
 // Play requests a source. The newest request wins while others are queued.
+//
+// Play rejects an empty URL and any scheme other than http or https; a
+// private host or a header is a source-policy decision made before this call.
 func (c *Controller) Play(source Source) error {
 	if strings.TrimSpace(source.URL) == "" {
 		return fmt.Errorf("%w: source URL is empty", ErrInvalid)
+	}
+	if _, err := sourceScheme(source); err != nil {
+		return err
 	}
 	if c.isDone() {
 		return ErrClosed
@@ -123,6 +130,37 @@ func (c *Controller) Play(source Source) error {
 	}
 
 	return c.post(intent{kind: intentPlay, source: source})
+}
+
+// sourceScheme returns the validated scheme of source. The URL own scheme
+// wins, and a declared Scheme must agree with it.
+func sourceScheme(source Source) (string, error) {
+	parsed, err := url.Parse(strings.TrimSpace(source.URL))
+	if err != nil {
+		return "", fmt.Errorf("%w: source URL is invalid", ErrInvalid)
+	}
+
+	scheme := strings.ToLower(parsed.Scheme)
+	if !isHTTPScheme(scheme) {
+		return "", fmt.Errorf("%w: %q", ErrUnsupportedScheme, scheme)
+	}
+
+	declared := strings.ToLower(strings.TrimSpace(source.Scheme))
+	if declared == "" {
+		return scheme, nil
+	}
+	if !isHTTPScheme(declared) {
+		return "", fmt.Errorf("%w: %q", ErrUnsupportedScheme, declared)
+	}
+	if declared != scheme {
+		return "", fmt.Errorf("%w: %q does not match the URL", ErrInvalid, declared)
+	}
+
+	return scheme, nil
+}
+
+func isHTTPScheme(scheme string) bool {
+	return scheme == "http" || scheme == "https"
 }
 
 // Stop requests playback teardown.
@@ -519,7 +557,7 @@ func (c *Controller) update(mutate func(*Snapshot)) {
 	after := c.snap
 	c.mu.Unlock()
 
-	if before != after {
+	if !before.equal(after) {
 		c.notifyLatest()
 	}
 }

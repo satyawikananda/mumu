@@ -1,0 +1,37 @@
+# Playback header forwarding — libmpv integration
+
+- Date: 2026-11-10
+- Machine: macOS 27.0.1 (26A434), darwin/arm64, Apple M3, 8 GiB
+- Go: 1.27.3
+- MyGo: 0.8.3
+- libmpv runtime: vegidio/binaries-mpv 26.10.1, mpv 0.41.0, client API 2.5
+- Runtime path: /private/tmp/mumu-runtime/lib
+
+## Command
+
+```sh
+CGO_ENABLED=0 go test -tags mumu_mpv -c -o /tmp/mumu-libmpv.test \
+  ./internal/player/libmpv
+DYLD_LIBRARY_PATH=/private/tmp/mumu-runtime/lib MUMU_MPV_HEADER_TEST=1 \
+  /tmp/mumu-libmpv.test -test.run TestIntegrationPlaybackHeaders -test.v
+```
+
+## Observed
+
+```text
+=== RUN   TestIntegrationPlaybackHeaders
+--- PASS: TestIntegrationPlaybackHeaders (0.30s)
+PASS
+```
+
+The test serves a synthetic HLS manifest from a local HTTP server and fails
+unless:
+
+- `User-Agent` equals `mumu-header-test/0.1`;
+- `Referer` equals `https://example.com/watch`;
+- a `Cookie` header present in `player.Source.Headers` never reaches the server.
+
+A direct `go test` invocation in this shell failed to `dlopen` libmpv; the
+built test binary above is the recorded run. This proves header forwarding for
+`http` only. It does not prove `https`, other schemes, renderer behavior or
+packaging.

@@ -169,6 +169,10 @@ func (s *Service) RefreshBuiltin(ctx context.Context, region string) (catalog.So
 	}
 
 	channels, blocked := s.blocklist.WithEntries(s.upstreamBlocklist(ctx)).Filter(loaded.Channels)
+	// A built-in source is always strict, whatever a playlist or a cached row
+	// claims, so no community entry can reach a private host or an
+	// unpublished scheme.
+	channels, dropped := applyPolicy(catalog.SourceBuiltin, catalog.StrictPolicy(), channels)
 	if len(channels) == 0 {
 		err := fmt.Errorf("%w: playlist has no usable channels", playlist.ErrNoChannels)
 		s.markFailed(ctx, existingID, err)
@@ -210,7 +214,12 @@ func (s *Service) RefreshBuiltin(ctx context.Context, region string) (catalog.So
 		return catalog.Source{}, err
 	}
 
-	s.logger.Info("community catalog refreshed", "region", region, "channels", len(channels), "blocked", blocked)
+	s.logger.Info("community catalog refreshed",
+		"region", region,
+		"channels", len(channels),
+		"blocked", blocked,
+		"dropped", dropped,
+	)
 	saved, found, err := s.store.Sources().Get(ctx, stored.ID)
 	if err != nil {
 		return catalog.Source{}, err

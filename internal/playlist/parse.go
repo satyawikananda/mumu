@@ -370,8 +370,22 @@ func normalizeStream(raw string, opts Options) (string, error) {
 			return "", fmt.Errorf("%w: %w", ErrMalformed, err)
 		}
 
-		switch strings.ToLower(parsed.Scheme) {
-		case "http", "https":
+		scheme := strings.ToLower(parsed.Scheme)
+		switch {
+		case scheme == "file":
+			// A local path is a local-playlist decision only; a remote
+			// source policy never adds it.
+			if !opts.AllowLocalPaths {
+				return "", netguard.ErrUnsupportedScheme
+			}
+			if parsed.User != nil {
+				return "", netguard.ErrCredentials
+			}
+
+			return normalizeLocal(parsed.Path, opts)
+		case !catalog.SchemeAllowed(opts.AllowedSchemes, scheme):
+			return "", fmt.Errorf("%w: %q", netguard.ErrUnsupportedScheme, scheme)
+		default:
 			policy := netguard.Policy{AllowPrivate: opts.AllowPrivateHosts}
 			validated, err := policy.ValidateURL(raw)
 			if err != nil {
@@ -382,17 +396,6 @@ func normalizeStream(raw string, opts Options) (string, error) {
 			validated.Host = strings.ToLower(validated.Host)
 
 			return validated.String(), nil
-		case "file":
-			if !opts.AllowLocalPaths {
-				return "", netguard.ErrUnsupportedScheme
-			}
-			if parsed.User != nil {
-				return "", netguard.ErrCredentials
-			}
-
-			return normalizeLocal(parsed.Path, opts)
-		default:
-			return "", fmt.Errorf("%w: %q", netguard.ErrUnsupportedScheme, parsed.Scheme)
 		}
 	}
 

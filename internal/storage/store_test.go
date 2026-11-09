@@ -92,8 +92,8 @@ func TestOpenCreatesDatabaseAndSchema(t *testing.T) {
 	}
 
 	version := queryInt(t, store.db, `SELECT MAX(version) FROM schema_migrations`)
-	if version != 2 {
-		t.Fatalf("version %d, want 2", version)
+	if version != 3 {
+		t.Fatalf("version %d, want 3", version)
 	}
 }
 
@@ -115,8 +115,8 @@ func TestOpenIsIdempotent(t *testing.T) {
 	defer func() { _ = second.Close() }()
 
 	count := queryInt(t, second.db, `SELECT COUNT(*) FROM schema_migrations`)
-	if count != 2 {
-		t.Fatalf("migration count %d, want 2", count)
+	if count != 3 {
+		t.Fatalf("migration count %d, want 3", count)
 	}
 }
 
