@@ -11,6 +11,7 @@ import (
 
 	"github.com/egoist/mygo"
 
+	"mumu/internal/sources"
 	"mumu/internal/storage"
 	"mumu/internal/ui"
 )
@@ -22,11 +23,19 @@ const shutdownTimeout = 2 * time.Second
 type App struct {
 	shell *ui.Shell
 
-	mu         sync.Mutex
-	dispatcher Dispatcher
-	stopped    bool
-	store      *storage.Store
-	storeErr   error
+	mu             sync.Mutex
+	dispatcher     Dispatcher
+	stopped        bool
+	store          *storage.Store
+	storeErr       error
+	catalog        *sources.Service
+	refreshBuiltin catalogRefresher
+	discover       runSession
+	logos          *logoCache
+	library        runSession
+	libraryData    *libraryCache
+	settings       runSession
+	settingsData   *settingsCache
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -38,9 +47,13 @@ func New() *App {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &App{
-		shell:  ui.NewShell(),
-		ctx:    ctx,
-		cancel: cancel,
+		shell:          ui.NewShell(),
+		ctx:            ctx,
+		cancel:         cancel,
+		refreshBuiltin: serviceRefreshBuiltin,
+		logos:          newDiscoverLogos(),
+		libraryData:    newLibraryCache(),
+		settingsData:   newSettingsCache(),
 	}
 }
 
@@ -50,7 +63,11 @@ func (a *App) Run() error {
 	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { a.Stop() })
 	mygo.App.WhenReady(func() {
 		a.openLocalStore()
+		a.openCatalog()
 		a.openWindow()
+		a.startDiscover()
+		a.startLibrary()
+		a.startSettings()
 	})
 
 	return mygo.App.Run()

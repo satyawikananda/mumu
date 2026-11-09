@@ -16,13 +16,13 @@ type Channels struct {
 const channelColumns = `
 	id, source_id, provider_id, name, stream_url,
 	COALESCE(logo_url, ''), COALESCE(country, ''), COALESCE(category, ''),
-	COALESCE(language, ''), is_live, updated_at
+	COALESCE(language, ''), COALESCE(epg_id, ''), is_live, updated_at
 `
 
 const channelColumnsAlias = `
 	c.id, c.source_id, c.provider_id, c.name, c.stream_url,
 	COALESCE(c.logo_url, ''), COALESCE(c.country, ''), COALESCE(c.category, ''),
-	COALESCE(c.language, ''), c.is_live, c.updated_at
+	COALESCE(c.language, ''), COALESCE(c.epg_id, ''), c.is_live, c.updated_at
 `
 
 // Upsert inserts or updates one channel and returns it with its local ID.
@@ -125,8 +125,8 @@ func upsertChannelTx(
 	err = tx.QueryRowContext(ctx, `
 		INSERT INTO channels (
 			source_id, provider_id, name, stream_url, logo_url,
-			country, category, language, is_live, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			country, category, language, epg_id, is_live, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (source_id, provider_id) DO UPDATE SET
 			name = excluded.name,
 			stream_url = excluded.stream_url,
@@ -134,6 +134,7 @@ func upsertChannelTx(
 			country = excluded.country,
 			category = excluded.category,
 			language = excluded.language,
+			epg_id = excluded.epg_id,
 			is_live = excluded.is_live,
 			updated_at = excluded.updated_at
 		RETURNING id
@@ -146,6 +147,7 @@ func upsertChannelTx(
 		nullString(channel.Country),
 		nullString(channel.Category),
 		nullString(channel.Language),
+		nullString(channel.EPGID),
 		boolToInt(channel.Live),
 		unixMillis(now),
 	).Scan(&id)
@@ -258,6 +260,7 @@ func scanChannel(scanner rowScanner) (Channel, error) {
 		&channel.Country,
 		&channel.Category,
 		&channel.Language,
+		&channel.EPGID,
 		&live,
 		&updatedAt,
 	)

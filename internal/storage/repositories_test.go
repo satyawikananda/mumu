@@ -315,19 +315,35 @@ func TestSourceRefreshMetadata(t *testing.T) {
 	source := mustSource(t, store, SourceRemotePlaylist, "https://example.com/list.m3u")
 
 	refreshedAt := time.Now().Add(-time.Minute).UTC().Truncate(time.Millisecond)
-	if err := store.Sources().MarkRefreshed(t.Context(), source.ID, refreshedAt, `"etag"`, "offline"); err != nil {
-		t.Fatalf("MarkRefreshed: %v", err)
+	if err := store.Sources().MarkRefreshSucceeded(t.Context(), source.ID, refreshedAt, `"etag"`, 12); err != nil {
+		t.Fatalf("MarkRefreshSucceeded: %v", err)
 	}
 
 	stored, ok, err := store.Sources().Get(t.Context(), source.ID)
 	if err != nil || !ok {
 		t.Fatalf("Get = %v, %v", ok, err)
 	}
-	if !stored.LastRefreshAt.Equal(refreshedAt) {
-		t.Fatalf("LastRefreshAt %v, want %v", stored.LastRefreshAt, refreshedAt)
+	if !stored.LastRefreshAt.Equal(refreshedAt) || !stored.LastSuccessAt.Equal(refreshedAt) {
+		t.Fatalf("refresh times = %v %v, want %v", stored.LastRefreshAt, stored.LastSuccessAt, refreshedAt)
 	}
-	if stored.RefreshETag != `"etag"` || stored.RefreshError != "offline" {
-		t.Fatalf("refresh metadata = %q %q", stored.RefreshETag, stored.RefreshError)
+	if stored.RefreshETag != `"etag"` || stored.RefreshError != "" || stored.ItemCount != 12 {
+		t.Fatalf("refresh metadata = %q %q %d", stored.RefreshETag, stored.RefreshError, stored.ItemCount)
+	}
+
+	failedAt := time.Now().UTC().Truncate(time.Millisecond)
+	if err := store.Sources().MarkRefreshFailed(t.Context(), source.ID, failedAt, "offline"); err != nil {
+		t.Fatalf("MarkRefreshFailed: %v", err)
+	}
+
+	stored, _, err = store.Sources().Get(t.Context(), source.ID)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if !stored.LastRefreshAt.Equal(failedAt) {
+		t.Fatalf("LastRefreshAt %v, want %v", stored.LastRefreshAt, failedAt)
+	}
+	if !stored.LastSuccessAt.Equal(refreshedAt) || stored.RefreshError != "offline" || stored.ItemCount != 12 {
+		t.Fatalf("failed refresh changed success metadata: %+v", stored)
 	}
 
 	if err := store.Sources().SetEnabled(t.Context(), source.ID, false); err != nil {

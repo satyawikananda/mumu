@@ -76,8 +76,8 @@ The spike commands live in [its README](experiments/nativeplayback/README.md). T
 | Renderer on macOS | MyGo Metal UI + separate native OpenGL video view | Conditional M0 result; no direct Metal interop claim |
 | PiP | Floating native window with one retained view/session | Conditional M0 result; lifecycle/Spaces/stacking observed on tested Mac |
 | Persistence | SQLite, local only | Implemented (#6) |
-| Built-in discovery | iptv-org as an input to a reviewed/authorized catalog | Planned (#8) |
-| Playlist format | M3U playlist and direct supported stream URLs | Planned (#7, #9) |
+| Built-in discovery | iptv-org as a labelled community list, not rights clearance | Implemented (#8) |
+| Playlist format | M3U playlist and direct supported stream URLs | Implemented (#7, #9) |
 | Backend / auth | None for MVP | Decided |
 | Go toolchain | Follow **pinned MyGo requirement**: Go 1.27.3, the minimum MyGo 0.8.3 accepts | Verified at bootstrap (#3) |
 
@@ -105,8 +105,11 @@ internal/ui/          # Native shell, theme and shared views
 internal/player/      # Playback controller, state machine and Engine port (#5)
 internal/player/libmpv/  # libmpv adapter behind the mumu_mpv build tag
 internal/video/       # Native surface presentation boundary; adapter in #11
-internal/catalog/     # Channel model and provider boundary; #7/#8
-internal/playlist/    # M3U parsing and source classification; #7
+internal/catalog/     # Channel domain, identity, validation and provider boundary; #7/#8
+internal/netguard/    # Bounded HTTP client and untrusted-URL policy; #7
+internal/playlist/    # M3U parsing, content detection and source loading; #7
+internal/sources/     # Catalog-to-storage mapping, built-in catalog and import service; #8/#9
+internal/logos/       # Bounded logo fetch, decode and cache; #8
 internal/storage/     # Local repositories and migrations; #6
 docs/architecture/    # ADRs, feasibility reports, evidence
 docs/ux/              # Shell wireframes, states and interaction notes
@@ -114,9 +117,9 @@ experiments/          # M0 spikes and the synthetic HLS fixture
 resources/            # Packaged app icon
 ```
 
-`internal/player`, `video`, `catalog`, `playlist` and `storage` contain
-package documentation only. Their APIs are declared by the issues that
-implement them; do not invent signatures ahead of that work.
+`internal/player`, `video`, `catalog`, `netguard`, `playlist`, `sources` and
+`storage` declare the APIs their implementing issues own. Do not invent
+signatures ahead of that work.
 
 Architectural boundaries:
 
@@ -151,6 +154,7 @@ Architectural boundaries:
 ## 9. Security, privacy and content rights
 
 - Only include **reviewed and authorized** sources in the built-in catalog. iptv-org is a source-discovery dataset, **not** blanket content licensing.
+- ADR 0006 records the accepted iptv-org exception: it is labelled a community list, never verified or cleared, filtered by the local blocklist and the upstream NSFW/DMCA blocklist, and can be hidden in Settings. This is risk reduction, not a rights review.
 - Custom playlist URLs are user-provided; do not advertise that every imported stream is legal or accessible.
 - Remote source loading requires timeouts, maximum response sizes, redirect/scheme controls, and cancellation. Do not automatically fetch untrusted local/private-network addresses referenced by remote catalogs.
 - Use user intent for local file or LAN imports; avoid leaking local files, private playlist credentials or sensitive headers into logs.
@@ -212,6 +216,7 @@ Before claiming completion:
 - **After #3:** Completed: `cmd/mumu`, `internal/app`, native shell, CI, README and ADRs.
 - **After #4:** Reconcile UI conventions with the implemented theme and update `DESIGN.md`; replace the placeholder shell. Implemented in this change: tokens, Dark/Light/System themes, wide sidebar, 72 pt rail and shared status views.
 - **After #5/#6:** Implemented: local SQLite repositories and migrations, the playback controller/state machine, and the libmpv adapter behind the `mumu_mpv` build tag. The app wires the local library at launch; Watch/PiP surface and UI wiring remain #11/#12.
+- **After #7/#8/#9:** Implemented: M3U domain/parser with bounded network policy, variant streams, the iptv-org community catalog with cache/blocklist/attribution, source management (import, preview, atomic refresh, toggle, remove), and native Discover/Library source UI. Search, filters, channel selection and playback remain #10/#11. See `docs/architecture/sources.md` and ADR 0006.
 - Changes to player/rendering boundaries or startup UX require updating both relevant docs and acceptance tests.
 
 ## 12. Reference material

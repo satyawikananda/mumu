@@ -27,8 +27,8 @@ func destinations() [4]destination {
 }
 
 // pageHeading draws a page's level-one heading.
-func pageHeading(c *ui.Context, title string) {
-	ui.Text(c, title).FontSize(c.Theme().Rem(2)).FontWeight(600).Role(ui.RoleHeading).Level(1)
+func pageHeading(c *ui.Context, title string) ui.Element {
+	return ui.Text(c, title).FontSize(c.Theme().Rem(2)).FontWeight(600).Role(ui.RoleHeading).Level(1)
 }
 
 // pageStatus fills the rest of a page with a status view.
@@ -51,26 +51,17 @@ func (s *Shell) drawPage(c *ui.Context, theme *ui.Theme) {
 			},
 		})
 	case destLibrary:
-		pageHeading(c, "Library")
-		pageStatus(c, Status{
-			Kind:    StatusEmpty,
-			Title:   "Nothing saved yet",
-			Message: "Favorites and recent channels arrive in #13.",
-		})
+		s.library.View(c, theme)
 	case destSettings:
 		pageHeading(c, "Settings")
 		s.drawSettings(c, theme)
 	default:
-		pageHeading(c, "Discover")
-		pageStatus(c, Status{
-			Kind:    StatusEmpty,
-			Title:   "No channels yet",
-			Message: "Built-in catalog arrives in #10 and playlists in #9.",
-		})
+		s.discover.View(c, theme)
 	}
 }
 
-// drawSettings draws appearance controls and the static settings rows.
+// drawSettings draws appearance controls, catalog sources and the static
+// settings rows.
 func (s *Shell) drawSettings(c *ui.Context, theme *ui.Theme) {
 	ui.Text(c, "Appearance").FontSize(theme.Rem(1.4)).FontWeight(600)
 
@@ -80,10 +71,11 @@ func (s *Shell) drawSettings(c *ui.Context, theme *ui.Theme) {
 		s.themeMode = ThemeMode(choice + 1)
 	}
 
+	s.settings.Sources(c, theme)
+
 	ui.Column(c).Gap(10).Children(func() {
-		settingsRow(c, theme, "Playback", "Arrives in #5")
-		settingsRow(c, theme, "Sources", "Arrives in #9")
-		settingsRow(c, theme, "About", "mumu 0.1.0 · M1")
+		settingsRow(c, theme, "Playback", "Watch arrives in #11")
+		settingsRow(c, theme, "About", "mumu 0.1.0 · M2")
 	})
 }
 

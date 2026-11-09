@@ -36,7 +36,7 @@ func TestShellWideNavigation(t *testing.T) {
 	if err := tt.Click("Library"); err != nil {
 		t.Fatal(err)
 	}
-	if !tt.HasText("Nothing saved yet") {
+	if !tt.HasText("No playlists yet") {
 		t.Errorf("texts %q, want the Library empty state", tt.Texts())
 	}
 
@@ -44,7 +44,7 @@ func TestShellWideNavigation(t *testing.T) {
 	if !tt.HasText("Appearance") {
 		t.Errorf("texts %q, want the appearance setting", tt.Texts())
 	}
-	if !tt.HasText("mumu 0.1.0 · M1") {
+	if !tt.HasText("mumu 0.1.0 · M2") {
 		t.Errorf("texts %q, want the About row", tt.Texts())
 	}
 }
@@ -107,7 +107,7 @@ func TestShellKeyboardNavigation(t *testing.T) {
 	tt.Key(0, ui.KeyTab)
 	tt.Key(0, ui.KeyDown)
 
-	if !tt.HasText("Nothing saved yet") {
+	if !tt.HasText("No playlists yet") {
 		t.Fatalf("texts %q, want Library after Down", tt.Texts())
 	}
 }
@@ -122,7 +122,7 @@ func TestShellNarrowRail(t *testing.T) {
 	if err := tt.Click("Library"); err != nil {
 		t.Fatal(err)
 	}
-	if !tt.HasText("Nothing saved yet") {
+	if !tt.HasText("No playlists yet") {
 		t.Errorf("texts %q, want the Library empty state", tt.Texts())
 	}
 	if n := countText(tt.Texts(), "Library"); n != 2 {

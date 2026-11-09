@@ -16,7 +16,8 @@ type Sources struct {
 const sourceColumns = `
 	id, kind, identity, location, display_name, enabled,
 	created_at, updated_at,
-	COALESCE(last_refresh_at, 0), COALESCE(refresh_etag, ''), COALESCE(refresh_error, '')
+	COALESCE(last_refresh_at, 0), COALESCE(last_success_at, 0),
+	COALESCE(refresh_etag, ''), COALESCE(refresh_error, ''), COALESCE(item_count, 0)
 `
 
 // Upsert inserts or updates src, returning the stored row with its
@@ -34,8 +35,10 @@ func (r *Sources) Upsert(ctx context.Context, src Source) (Source, error) {
 	src.UpdatedAt = now
 
 	var (
-		createdAt int64
-		enabled   int
+		createdAt     int64
+		enabled       int
+		lastSuccessAt int64
+		itemCount     int
 	)
 	err = r.db.QueryRowContext(ctx, `
 		INSERT INTO sources (
@@ -49,7 +52,7 @@ func (r *Sources) Upsert(ctx context.Context, src Source) (Source, error) {
 			last_refresh_at = excluded.last_refresh_at,
 			refresh_etag = excluded.refresh_etag,
 			refresh_error = excluded.refresh_error
-		RETURNING id, created_at, enabled
+		RETURNING id, created_at, enabled, COALESCE(last_success_at, 0), COALESCE(item_count, 0)
 	`,
 		src.ID,
 		src.Kind,
@@ -62,13 +65,15 @@ func (r *Sources) Upsert(ctx context.Context, src Source) (Source, error) {
 		nullMillis(src.LastRefreshAt),
 		nullString(src.RefreshETag),
 		nullString(src.RefreshError),
-	).Scan(&src.ID, &createdAt, &enabled)
+	).Scan(&src.ID, &createdAt, &enabled, &lastSuccessAt, &itemCount)
 	if err != nil {
 		return Source{}, fmt.Errorf("upsert source: %w", classifyError(err))
 	}
 
 	src.CreatedAt = timeFromMillis(createdAt)
 	src.Enabled = enabled != 0
+	src.LastSuccessAt = timeFromMillis(lastSuccessAt)
+	src.ItemCount = itemCount
 
 	return src, nil
 }
@@ -125,14 +130,49 @@ func (r *Sources) SetEnabled(ctx context.Context, id string, enabled bool) error
 	return requireChanged(result, "source")
 }
 
-// MarkRefreshed records the outcome of a source refresh. refreshError must
-// already be safe to show; never pass credentials or full URLs.
-func (r *Sources) MarkRefreshed(
+// MarkRefreshSucceeded records a successful source refresh and its item count.
+// refreshError is cleared. etag may be empty.
+func (r *Sources) MarkRefreshSucceeded(
 	ctx context.Context,
 	id string,
 	at time.Time,
 	etag string,
-	refreshError string,
+	itemCount int,
+) error {
+	if at.IsZero() {
+		at = time.Now().UTC()
+	}
+	if itemCount < 0 {
+		itemCount = 0
+	}
+
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE sources
+		SET last_refresh_at = ?, last_success_at = ?, refresh_etag = ?,
+			refresh_error = NULL, item_count = ?, updated_at = ?
+		WHERE id = ?
+	`,
+		unixMillis(at),
+		unixMillis(at),
+		nullString(etag),
+		itemCount,
+		unixMillis(time.Now().UTC()),
+		id,
+	)
+	if err != nil {
+		return fmt.Errorf("mark source refreshed: %w", classifyError(err))
+	}
+
+	return requireChanged(result, "source")
+}
+
+// MarkRefreshFailed records a failed attempt and keeps the last successful
+// metadata and channel rows untouched. message must already be user-safe.
+func (r *Sources) MarkRefreshFailed(
+	ctx context.Context,
+	id string,
+	at time.Time,
+	message string,
 ) error {
 	if at.IsZero() {
 		at = time.Now().UTC()
@@ -140,17 +180,16 @@ func (r *Sources) MarkRefreshed(
 
 	result, err := r.db.ExecContext(ctx, `
 		UPDATE sources
-		SET last_refresh_at = ?, refresh_etag = ?, refresh_error = ?, updated_at = ?
+		SET last_refresh_at = ?, refresh_error = ?, updated_at = ?
 		WHERE id = ?
 	`,
 		unixMillis(at),
-		nullString(etag),
-		nullString(refreshError),
+		nullString(message),
 		unixMillis(time.Now().UTC()),
 		id,
 	)
 	if err != nil {
-		return fmt.Errorf("mark source refreshed: %w", classifyError(err))
+		return fmt.Errorf("mark source refresh failed: %w", classifyError(err))
 	}
 
 	return requireChanged(result, "source")
@@ -191,6 +230,7 @@ func scanSource(scanner rowScanner) (Source, error) {
 		createdAt     int64
 		updatedAt     int64
 		lastRefreshAt sql.NullInt64
+		lastSuccessAt sql.NullInt64
 	)
 
 	err := scanner.Scan(
@@ -203,8 +243,10 @@ func scanSource(scanner rowScanner) (Source, error) {
 		&createdAt,
 		&updatedAt,
 		&lastRefreshAt,
+		&lastSuccessAt,
 		&src.RefreshETag,
 		&src.RefreshError,
+		&src.ItemCount,
 	)
 	if err != nil {
 		return Source{}, err
@@ -215,6 +257,7 @@ func scanSource(scanner rowScanner) (Source, error) {
 	src.CreatedAt = timeFromMillis(createdAt)
 	src.UpdatedAt = timeFromMillis(updatedAt)
 	src.LastRefreshAt = nullableMillis(lastRefreshAt)
+	src.LastSuccessAt = nullableMillis(lastSuccessAt)
 
 	return src, nil
 }
