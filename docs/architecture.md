@@ -4,6 +4,8 @@ Date: 9 November 2026. This document records the maintainer discussion about fea
 
 The engineering constraints remain in [AGENTS.md](../AGENTS.md), and the interaction contract remains in [DESIGN.md](../DESIGN.md). Detailed M0 findings remain authoritative in the [native playback report](architecture/native-playback-feasibility.md), [PiP report](architecture/pip-feasibility.md), and [follow-up QA evidence](architecture/evidence/followup-qa.md).
 
+Bootstrap decisions from #3 are recorded as ADRs: [native-only UI](adr/0001-native-only-ui.md), [modular monolith boundaries](adr/0002-modular-monolith-boundaries.md), and [lifecycle, cancellation and UI dispatch](adr/0003-lifecycle-dispatch-shutdown.md).
+
 ## 1. Feasibility status and permission to proceed
 
 The feasibility scope of issues #1 and #2 is complete for the tested configuration, with a **CONDITIONAL GO** result. This is distinct from production playback/PiP completion and from closing the GitHub issues.

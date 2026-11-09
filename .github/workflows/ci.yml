@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: checks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Check formatting
+        run: |
+          out="$(gofmt -l ./cmd ./internal)"
+          if [ -n "$out" ]; then
+            echo "gofmt needed:"
+            echo "$out"
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        env:
+          CGO_ENABLED: "1"
+        run: go test -race ./...
+
+      - name: Check native UI lifetimes
+        run: go tool mygo vet .
+
+      - name: Cross build
+        run: |
+          for target in darwin/arm64 darwin/amd64 linux/amd64 windows/amd64; do
+            echo "building $target"
+            GOOS="${target%/*}" GOARCH="${target#*/}" CGO_ENABLED=0 go build ./...
+          done
+
+      - name: Guard native-only
+        run: |
+          test ! -e package.json
+          test ! -e index.html
+          test -z "$(git ls-files '*.ts' '*.tsx' '*.js' '*.jsx')"
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
+
+      - name: Lint
+        run: golangci-lint run ./cmd/... ./internal/...

@@ -38,14 +38,18 @@ Design an original tomato mark:
 - **Silhouette:** friendly rounded tomato body, subtle organic asymmetry, not a perfect circle.
 - **Crown:** simplified 3–5 leaf forms, legible at small sizes.
 - **Media association:** a tiny negative-space play triangle or screen cue is optional, but never at the expense of recognizable tomato shape.
-- **Wordmark:** lowercase **mumu**, approachable rounded letterforms, moderate tracking, substantial enough to read beside a 20–24 pt mark.
-- **App icon:** centered tomato with plenty of breathing room; optimize separately for 16, 32, 64 and 1024 px exports. Use simple shapes, no detailed gradients or miniature labels.
+- **Wordmark:** **Mumu**, approachable rounded letterforms, moderate tracking, substantial enough to read beside a 20–24 pt mark.
+- **App icon:** the current mascot in `resources/icon.png`; keep simple shapes, no detailed gradients or miniature labels, and export separately for 16, 32, 64 and 1024 px.
 
 Do not copy an existing TV brand or tomato-logo asset. The first implementations may use a native-drawn placeholder; final vector artwork requires its own asset review.
 
 ### Color tokens
 
 Token names are *language-agnostic design values*, **not CSS instructions**. Implement through MyGo's theme/styling APIs after checking the pinned version.
+
+The app ships **Dark** (default), **Light** and **System** appearances. Video stays on `surface.video` in both.
+
+#### Dark appearance
 
 | Token | Hex | Usage |
 |---|---|---|
@@ -65,8 +69,30 @@ Token names are *language-agnostic design values*, **not CSS instructions**. Imp
 | `state.success` | `#4DC19A` | Confirmed success only |
 | `state.warning` | `#F1B85B` | Partial/limited stream capability |
 | `state.error` | `#F36B68` | Errors and failed playback |
+| `focus.ring` | `#FF4D4D` | Keyboard focus outline |
 
 **Contrast rule:** brand `#FF4D4D` with white text is about **3.27:1**, insufficient for ordinary small text at WCAG AA. Do not place small white labels on raw brand red. Use `action.primary = #D93636` with white text (about **4.63:1**) or dark text on the lighter brand accent when appropriate. Verify exact rendered combinations and focus indicators with accessibility tools.
+
+#### Light appearance
+
+| Token | Hex | Usage |
+|---|---|---|
+| `surface.canvas` | `#F7F7F8` | Main light canvas |
+| `surface.sidebar` | `#EFEFF1` | Navigation area |
+| `surface.raised` | `#FFFFFF` | Cards, controls and popovers |
+| `surface.hover` | `#E7E7EA` | Hover surfaces |
+| `surface.pressed` | `#DDDDE1` | Pressed and selected surfaces |
+| `border.subtle` | `#D5D5DA` | Separators and control outlines |
+| `text.primary` | `#18181B` | Headlines and important text |
+| `text.secondary` | `#52525B` | Descriptions and metadata |
+| `text.muted` | `#62626B` | Secondary labels |
+| `action.primary` | `#D93636` | Primary fill with white text |
+| `state.error` | `#C22B2B` | Errors |
+| `state.warning` | `#A16207` | Partial capability |
+| `state.success` | `#157F5F` | Confirmed success |
+| `focus.ring` | `#D93636` | Keyboard focus outline |
+
+Rendered contrast for both appearances is enforced by `internal/ui/theme_test.go`.
 
 Red is for actionable hierarchy and brand recognition. It must not be the only indication of errors, playback status, or selection. Avoid large red gradients, neon glows, or crimson video overlays.
 
@@ -402,6 +428,8 @@ Actual breakpoints depend on the implemented MyGo layout APIs and measured text 
 ## 14. Implementation notes and references
 
 This document defines the **UX contract and design tokens**, not literal MyGo function signatures. Before implementation, inspect the pinned MyGo `ui` package for themes, inputs, layout, native menus, window options, drawing and accessibility APIs.
+
+Implementation notes for the shell, theme modes and responsive states live in [`docs/ux/shell.md`](docs/ux/shell.md).
 
 - [MyGo Native UI](https://mygo.egoist.dev/docs/ui)
 - [MyGo styling / rendering](https://mygo.egoist.dev/docs/ui/rendering)

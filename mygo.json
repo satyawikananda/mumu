@@ -1,6 +1,8 @@
 {
   "name": "Mumu",
-  "identifier": "com.example.mumu",
+  "slug": "mumu",
+  "identifier": "dev.satyawikananda.mumu",
   "version": "0.1.0",
-  "out": "build"
+  "out": "build",
+  "main": "./cmd/mumu"
 }
