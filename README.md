@@ -8,7 +8,7 @@ mumu is written in Go and draws its entire interface with
 [MyGo](https://mygo.egoist.dev) native UI. It has no WebView, no HTML or
 JavaScript frontend, and no hosted backend.
 
-**Status:** M1 foundation. The native shell, design tokens and Dark/Light/System themes are implemented. Local SQLite stores and the playback controller are implemented behind package boundaries; no Watch, Discover, Library or PiP screen is wired yet. The player and PiP paths remain conditional on the M0 findings in [`docs/architecture/`](docs/architecture/).
+**Status:** M2 sources. The native shell, design tokens and Dark/Light/System themes are implemented. Local SQLite stores, the playback controller and the M3U/catalog pipeline are implemented. Discover shows the cached community catalog; Library manages multiple playlists and custom streams. Search, filters, channel selection, Watch and PiP screens remain #10/#11/#12. The player and PiP paths remain conditional on the M0 findings in [`docs/architecture/`](docs/architecture/).
 
 ## Requirements
 
@@ -52,8 +52,12 @@ internal/ui/          native MyGo shell, theme and shared views
 internal/player/      playback controller, state machine and Engine port
 internal/player/libmpv/  libmpv adapter behind the mumu_mpv build tag
 internal/video/       native video surface boundary; adapter with #11
-internal/catalog/     channel model and provider boundary (#7, #8)
-internal/playlist/    M3U parsing and source classification (#7)
+internal/catalog/     channel domain and provider boundary (#7, #8)
+internal/catalog/iptvorg/  per-country community catalog and blocklist
+internal/netguard/    bounded HTTP client and untrusted-URL policy (#7)
+internal/playlist/    M3U parsing, content detection and source loading (#7)
+internal/sources/     catalog/storage mapping, built-in catalog and source service (#8, #9)
+internal/logos/       bounded logo fetch, decode and cache (#8)
 internal/storage/     local SQLite repositories and migrations (#6)
 docs/architecture/    feasibility reports, evidence and ADRs
 docs/ux/              shell wireframes, states and interaction notes
@@ -71,9 +75,14 @@ Native-only rules and the engineering workflow are in
 
 ## Content rights
 
-Built-in discovery must use reviewed and authorized sources. iptv-org is a
-source-discovery dataset, not blanket content licensing. User-supplied
-playlists are the user's responsibility, and mumu does not bypass DRM,
-paywalls or geographic restrictions.
+Channels from iptv-org are presented as a **community list**, not a cleared or
+verified catalog. The data project is CC0; the streams belong to their owners.
+Discover labels the list, a local blocklist and the upstream iptv-org
+NSFW/DMCA exclusions remove entries, and a setting can hide the community
+catalog entirely. See
+[ADR 0006](docs/architecture/adr/0006-iptv-org-discovery.md).
 
-The M0 spikes use only an original synthetic HLS fixture generated locally.
+User-supplied playlists are the user's responsibility. mumu does not bypass
+DRM, paywalls or geographic restrictions, and it does not re-host or proxy
+third-party video. The M0 spikes use only an original synthetic HLS fixture
+generated locally.

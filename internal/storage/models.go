@@ -38,8 +38,10 @@ type Source struct {
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	LastRefreshAt time.Time
+	LastSuccessAt time.Time
 	RefreshETag   string
 	RefreshError  string
+	ItemCount     int
 }
 
 // Channel is one playable entry scoped to a Source.
@@ -57,8 +59,25 @@ type Channel struct {
 	Country    string
 	Category   string
 	Language   string
+	EPGID      string
 	Live       bool
 	UpdatedAt  time.Time
+}
+
+// Stream is one playable variant of a channel.
+//
+// ProviderID is unique within the channel. Headers holds only the playback
+// headers mumu keeps, never credentials.
+type Stream struct {
+	ID         int64
+	ChannelID  int64
+	ProviderID string
+	URL        string
+	Quality    string
+	HLS        bool
+	Live       bool
+	Position   int
+	Headers    map[string]string
 }
 
 // Recent is a channel the user genuinely played, most recent first.

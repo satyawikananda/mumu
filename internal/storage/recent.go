@@ -105,6 +105,7 @@ func (r *RecentChannels) List(ctx context.Context, limit int) ([]Recent, error) 
 			&channel.Country,
 			&channel.Category,
 			&channel.Language,
+			&channel.EPGID,
 			&live,
 			&updatedAt,
 			&playedAt,

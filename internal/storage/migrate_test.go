@@ -11,11 +11,14 @@ func TestLoadMigrations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadMigrations: %v", err)
 	}
-	if len(migrations) != 1 {
-		t.Fatalf("migration count %d, want 1", len(migrations))
+	if len(migrations) != 2 {
+		t.Fatalf("migration count %d, want 2", len(migrations))
 	}
 	if migrations[0].version != 1 || migrations[0].name != "init" {
 		t.Fatalf("migration = %+v, want version 1 init", migrations[0])
+	}
+	if migrations[1].version != 2 || migrations[1].name != "streams" {
+		t.Fatalf("migration = %+v, want version 2 streams", migrations[1])
 	}
 }
 

@@ -46,8 +46,8 @@ func TestOpenCreatesDatabaseAndSchema(t *testing.T) {
 	if err := store.db.QueryRowContext(t.Context(), `SELECT MAX(version) FROM schema_migrations`).Scan(&version); err != nil {
 		t.Fatalf("read version: %v", err)
 	}
-	if version != 1 {
-		t.Fatalf("version %d, want 1", version)
+	if version != 2 {
+		t.Fatalf("version %d, want 2", version)
 	}
 }
 
@@ -72,8 +72,8 @@ func TestOpenIsIdempotent(t *testing.T) {
 	if err := second.db.QueryRowContext(t.Context(), `SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("count migrations: %v", err)
 	}
-	if count != 1 {
-		t.Fatalf("migration count %d, want 1", count)
+	if count != 2 {
+		t.Fatalf("migration count %d, want 2", count)
 	}
 }
 

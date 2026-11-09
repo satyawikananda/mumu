@@ -16,16 +16,39 @@ type Shell struct {
 	err       string
 	themeMode ThemeMode
 	mark      *ui.Bitmap
+	discover  *Discover
+	library   *Library
+	settings  *Settings
 }
 
 // NewShell returns a shell showing Discover in the dark theme.
 func NewShell() *Shell {
-	return &Shell{
+	s := &Shell{
 		nav:       destDiscover,
 		themeMode: ThemeDark,
 		mark:      brandMark(),
+		discover:  NewDiscover(),
+		library:   NewLibrary(),
+		settings:  NewSettings(),
 	}
+	// Add Playlist from Discover opens the Library and its import sheet.
+	s.discover.OnAddPlaylist = func() {
+		s.nav = destLibrary
+		s.library.OpenAddPlaylist()
+	}
+	s.settings.OnManagePlaylists = func() { s.nav = destLibrary }
+
+	return s
 }
+
+// Discover returns the Discover page for the app to publish state to.
+func (s *Shell) Discover() *Discover { return s.discover }
+
+// Library returns the Library page for the app to publish state to.
+func (s *Shell) Library() *Library { return s.library }
+
+// Settings returns the Settings page for the app to publish state to.
+func (s *Shell) Settings() *Settings { return s.settings }
 
 // View draws the shell on the MyGo main thread.
 func (s *Shell) View(c *ui.Context) {

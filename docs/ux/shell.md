@@ -79,13 +79,16 @@ Reusable `Status` view:
 
 | State | Use | Action |
 |---|---|---|
-| Empty | Watch, Discover, Library placeholders | Browse Discover on Watch |
-| Loading | async catalog or playback work | none until data exists |
+| Empty | Watch, Discover and Library empty states | Browse Discover on Watch |
+| Loading | async catalog, source or playback work | none until data exists |
 | Error | failed work, explicit failure text | Retry or relevant action |
 | Offline | missing network with cached data | Retry |
 
 Errors always include text; color is never the only signal. Loading uses a
 spinner named for assistive technology plus a text label.
+
+Source rows are busy one at a time: only that row's Refresh, Remove and
+enable switch disable, so the rest of the page stays interactive.
 
 ## Keyboard and focus
 
@@ -120,6 +123,10 @@ minimums:
 - The rail loses native sidebar arrow navigation; buttons remain keyboard
   reachable.
 - The wordmark uses the system font until final brand artwork review.
-- Loading and error states are component-tested but not reachable from real
-  data until #9 and #10.
-- Theme preference is not persisted until #6.
+- Discover loads the cached catalog at launch and shows loading, empty, offline
+  and error states. Search, filters and channel selection remain #10.
+- Library manages playlists and custom streams; favorites, recently watched and
+  resume remain #13.
+- Theme preference is not persisted yet.
+- Sheet height and native file-dialog behaviour need a manual macOS pass at the
+  minimum window size.
