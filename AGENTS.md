@@ -102,8 +102,9 @@ Actual tree after #3:
 cmd/mumu/             # Application entry point: wiring and Run only
 internal/app/         # Composition root, window, cancellation, background jobs
 internal/ui/          # Native shell, theme and shared views
-internal/player/      # Playback boundary; libmpv adapter and state machine in #5
-internal/video/       # Native surface presentation boundary; adapter in #5/#11
+internal/player/      # Playback controller, state machine and Engine port (#5)
+internal/player/libmpv/  # libmpv adapter behind the mumu_mpv build tag
+internal/video/       # Native surface presentation boundary; adapter in #11
 internal/catalog/     # Channel model and provider boundary; #7/#8
 internal/playlist/    # M3U parsing and source classification; #7
 internal/storage/     # Local repositories and migrations; #6
@@ -210,7 +211,7 @@ Before claiming completion:
 - **After #1/#2:** M0 feasibility reports and evidence are recorded under `docs/architecture/`.
 - **After #3:** Completed: `cmd/mumu`, `internal/app`, native shell, CI, README and ADRs.
 - **After #4:** Reconcile UI conventions with the implemented theme and update `DESIGN.md`; replace the placeholder shell. Implemented in this change: tokens, Dark/Light/System themes, wide sidebar, 72 pt rail and shared status views.
-- **After #6:** Implemented local SQLite repositories, versioned migrations and launch-time library opening. Player, catalog, playlist, Watch/PiP surface and library UI remain future issues.
+- **After #5/#6:** Implemented: local SQLite repositories and migrations, the playback controller/state machine, and the libmpv adapter behind the `mumu_mpv` build tag. The app wires the local library at launch; Watch/PiP surface and UI wiring remain #11/#12.
 - Changes to player/rendering boundaries or startup UX require updating both relevant docs and acceptance tests.
 
 ## 12. Reference material
