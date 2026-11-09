@@ -90,6 +90,19 @@ spinner named for assistive technology plus a text label.
 Source rows are busy one at a time: only that row's Refresh, Remove and
 enable switch disable, so the rest of the page stays interactive.
 
+## Discover search and filters
+
+- Search field narrows by channel name, group and country.
+- Category and Source selectors carry stable IDs, not display names. Duplicate
+  source names get a numeric suffix so one option maps to one source.
+- The page reports every change through `OnFilter`; the app debounces 150 ms,
+  cancels the previous run and filters off the UI thread.
+- Results are capped at 2000 rows. A capped publish shows how many channels
+  matched, so a large catalog never blocks typing.
+- `Enter` or a double click opens the chosen row. Arrow keys only move the
+  choice; selection follows the row key, not its index, when results change.
+- A narrowed empty result offers **Clear filters** instead of Retry.
+
 ## Keyboard and focus
 
 - Wide sidebar: one Tab stop; Up, Down, Home, End and first-letter typing choose
@@ -124,7 +137,9 @@ minimums:
   reachable.
 - The wordmark uses the system font until final brand artwork review.
 - Discover loads the cached catalog at launch and shows loading, empty, offline
-  and error states. Search, filters and channel selection remain #10.
+  and error states. Search, category and source filters run off the UI thread
+  with a debounce; results stay capped at 2000 rows per publish, and selecting
+  a row opens Watch. Playback, favorites and the channel drawer remain #11.
 - Library manages playlists and custom streams; favorites, recently watched and
   resume remain #13.
 - Theme preference is not persisted yet.

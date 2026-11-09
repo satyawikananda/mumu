@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"image"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"mumu/internal/catalog"
 	"mumu/internal/logos"
@@ -24,6 +26,12 @@ const (
 	discoverLogoWorkers = 4
 	// discoverBitmapLimit bounds the bitmaps kept for the channel list.
 	discoverBitmapLimit = 256
+	// discoverResultLimit caps the rows published for one filter.
+	discoverResultLimit = 2000
+	// discoverFilterDelay debounces typing before the catalog is filtered.
+	discoverFilterDelay = 150 * time.Millisecond
+	// discoverCategoryLimit bounds the category filter options.
+	discoverCategoryLimit = 200
 )
 
 // catalogRefresher fetches one region's community catalog. Tests replace it
@@ -37,6 +45,215 @@ func serviceRefreshBuiltin(
 	region string,
 ) (catalog.Source, error) {
 	return service.RefreshBuiltin(ctx, region)
+}
+
+// discoverFacets are the filter options and row attributions for a catalog.
+type discoverFacets struct {
+	categories []string
+	sources    []ui.DiscoverFacet
+	names      map[string]string
+}
+
+// discoverIndex holds the whole catalog for the current region and narrows it
+// off the UI thread. The app publishes the filtered rows; the page owns only
+// the input values it shows.
+type discoverIndex struct {
+	mu         sync.Mutex
+	channels   []catalog.Channel
+	keys       map[string]catalog.Channel
+	names      map[string]string
+	baseKind   ui.DiscoverKind
+	baseRegion string
+	baseMsg    string
+	filters    ui.DiscoverFilters
+}
+
+// newDiscoverIndex returns an index with no catalog.
+func newDiscoverIndex() *discoverIndex {
+	return &discoverIndex{
+		keys:  map[string]catalog.Channel{},
+		names: map[string]string{},
+	}
+}
+
+// base is the catalog state the filtered rows belong to.
+type discoverBase struct {
+	kind    ui.DiscoverKind
+	region  string
+	message string
+}
+
+// setCatalog replaces the indexed catalog and prunes stale filter values.
+func (i *discoverIndex) setCatalog(
+	channels []catalog.Channel,
+	facets discoverFacets,
+	base discoverBase,
+) ui.DiscoverFilters {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	i.channels = channels
+	i.names = facets.names
+	i.baseKind = base.kind
+	i.baseRegion = base.region
+	i.baseMsg = base.message
+
+	i.keys = make(map[string]catalog.Channel, len(channels))
+	for position, channel := range channels {
+		i.keys[discoverKey(channel, position)] = channel
+	}
+
+	if i.filters.Category != "" && !slices.Contains(facets.categories, i.filters.Category) {
+		i.filters.Category = ""
+	}
+	if i.filters.SourceID != "" && !facetIDExists(facets.sources, i.filters.SourceID) {
+		i.filters.SourceID = ""
+	}
+
+	return i.filters
+}
+
+// setFilters remembers the page's narrowing for refreshes.
+func (i *discoverIndex) setFilters(filters ui.DiscoverFilters) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	i.filters = filters
+}
+
+// base returns the state the filtered rows belong to.
+func (i *discoverIndex) base() discoverBase {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	return discoverBase{kind: i.baseKind, region: i.baseRegion, message: i.baseMsg}
+}
+
+// channel resolves one published row key back to its catalog channel.
+func (i *discoverIndex) channel(key string) (catalog.Channel, bool) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	channel, ok := i.keys[key]
+
+	return channel, ok
+}
+
+// filter narrows the catalog, capped at discoverResultLimit rows.
+func (i *discoverIndex) filter(filters ui.DiscoverFilters) ([]ui.DiscoverChannel, int, bool) {
+	i.mu.Lock()
+	channels := i.channels
+	names := i.names
+	i.mu.Unlock()
+
+	capacity := min(len(channels), discoverResultLimit)
+	rows := make([]ui.DiscoverChannel, 0, capacity)
+	match := catalog.Filter{
+		Query:    filters.Query,
+		Category: filters.Category,
+		SourceID: filters.SourceID,
+	}
+
+	total := 0
+	for position, channel := range channels {
+		if !match.Match(channel) {
+			continue
+		}
+		total++
+		if len(rows) == discoverResultLimit {
+			continue
+		}
+		rows = append(rows, discoverRow(channel, position, names))
+	}
+
+	return rows, total, total > len(rows)
+}
+
+// discoverKey is a row's stable identity across sources.
+func discoverKey(channel catalog.Channel, position int) string {
+	key := channel.ProviderID
+	if key == "" {
+		return fmt.Sprintf("row-%d", position)
+	}
+	if channel.SourceID != "" {
+		return channel.SourceID + ":" + key
+	}
+
+	return key
+}
+
+// facetIDExists reports whether a source facet carries id.
+func facetIDExists(facets []ui.DiscoverFacet, id string) bool {
+	for _, facet := range facets {
+		if facet.ID == id {
+			return true
+		}
+	}
+
+	return false
+}
+
+// discoverFacetsFor builds the category and source options for channels.
+func discoverFacetsFor(
+	ctx context.Context,
+	service *sources.Service,
+	channels []catalog.Channel,
+) discoverFacets {
+	names := map[string]string{}
+	if service != nil {
+		// Display names come from storage; a failure only costs attribution.
+		if stored, err := service.List(ctx); err == nil {
+			for _, source := range stored {
+				names[source.ID] = strings.TrimSpace(source.DisplayName)
+			}
+		}
+	}
+
+	categorySet := map[string]struct{}{}
+	sourceSet := map[string]struct{}{}
+
+	for _, channel := range channels {
+		if category := strings.TrimSpace(channel.Group); category != "" {
+			categorySet[category] = struct{}{}
+		}
+		if channel.SourceID != "" {
+			sourceSet[channel.SourceID] = struct{}{}
+		}
+	}
+
+	categories := make([]string, 0, len(categorySet))
+	for category := range categorySet {
+		categories = append(categories, category)
+	}
+	slices.Sort(categories)
+	if len(categories) > discoverCategoryLimit {
+		categories = categories[:discoverCategoryLimit]
+	}
+
+	sourceIDs := make([]string, 0, len(sourceSet))
+	for id := range sourceSet {
+		sourceIDs = append(sourceIDs, id)
+	}
+	slices.Sort(sourceIDs)
+
+	sources := make([]ui.DiscoverFacet, 0, len(sourceIDs))
+	used := map[string]int{}
+	for _, id := range sourceIDs {
+		name := names[id]
+		if name == "" {
+			name = "Playlist"
+		}
+		// Two sources can share a display name; the selector needs distinct
+		// labels, so a repeat gets a stable numeric suffix.
+		used[name]++
+		if count := used[name]; count > 1 {
+			name = fmt.Sprintf("%s (%d)", name, count)
+		}
+		names[id] = name
+		sources = append(sources, ui.DiscoverFacet{ID: id, Name: name})
+	}
+
+	return discoverFacets{categories: categories, sources: sources, names: names}
 }
 
 // logoCache keeps channel logo bitmaps made on the UI thread, bounded by URL.
@@ -91,6 +308,8 @@ func (a *App) startDiscover() {
 	page := a.shell.Discover()
 	page.OnRegion = a.setDiscoverRegion
 	page.OnRetry = a.retryDiscover
+	page.OnFilter = a.filterDiscover
+	page.OnSelect = a.selectDiscoverChannel
 	page.SetState(ui.DiscoverState{
 		Kind:   ui.DiscoverLoading,
 		Region: sources.DefaultRegion,
@@ -153,7 +372,7 @@ func (a *App) loadDiscover(ctx context.Context, gen uint64) {
 		})
 		users, userErr := service.UserChannels(ctx)
 		if userErr == nil && len(users) > 0 {
-			a.publishDiscover(gen, discoverState(ui.DiscoverReady, region, users))
+			a.publishCatalog(ctx, gen, ui.DiscoverReady, region, users)
 			a.prefetchLogos(ctx, gen, users)
 		} else {
 			a.publishDiscover(gen, ui.DiscoverState{
@@ -190,7 +409,7 @@ func (a *App) loadDiscover(ctx context.Context, gen uint64) {
 	channels := mergeDiscoverChannels(builtin, users)
 	hasChannels := len(channels) > 0
 	if hasChannels {
-		a.publishDiscover(gen, discoverState(ui.DiscoverReady, region, channels))
+		a.publishCatalog(ctx, gen, ui.DiscoverReady, region, channels)
 		a.prefetchLogos(ctx, gen, channels)
 	} else {
 		// No cache yet: keep the loading state until the refresh answers.
@@ -222,7 +441,7 @@ func (a *App) refreshDiscover(
 		slog.Debug("community catalog refresh unavailable", "region", region)
 
 		if hasChannels {
-			a.publishDiscover(gen, discoverState(ui.DiscoverOffline, region, channels))
+			a.publishCatalog(ctx, gen, ui.DiscoverOffline, region, channels)
 		} else {
 			a.publishDiscover(gen, discoverFailure(region))
 		}
@@ -236,7 +455,7 @@ func (a *App) refreshDiscover(
 	_, freshBuiltin, _, err := service.BuiltinSource(ctx, region)
 	if err != nil {
 		if hasChannels {
-			a.publishDiscover(gen, discoverState(ui.DiscoverOffline, region, channels))
+			a.publishCatalog(ctx, gen, ui.DiscoverOffline, region, channels)
 		} else {
 			a.publishDiscover(gen, discoverFailure(region))
 		}
@@ -260,7 +479,7 @@ func (a *App) refreshDiscover(
 		return
 	}
 
-	a.publishDiscover(gen, discoverState(ui.DiscoverReady, region, fresh))
+	a.publishCatalog(ctx, gen, ui.DiscoverReady, region, fresh)
 	a.prefetchLogos(ctx, gen, fresh)
 }
 
@@ -419,6 +638,15 @@ func (a *App) fetchLogos(ctx context.Context, gen uint64, urls []string) {
 
 // publishDiscover shows state on the UI thread unless a newer run replaced it.
 func (a *App) publishDiscover(gen uint64, state ui.DiscoverState) {
+	empty := len(state.Channels) == 0
+	if empty {
+		a.discoverIndex.setCatalog(nil, discoverFacets{}, discoverBase{
+			kind:    state.Kind,
+			region:  state.Region,
+			message: state.Message,
+		})
+	}
+
 	a.publish(func() {
 		if !a.discover.current(gen) {
 			return
@@ -430,12 +658,117 @@ func (a *App) publishDiscover(gen uint64, state ui.DiscoverState) {
 	})
 }
 
-// discoverState maps catalog channels to page rows.
-func discoverState(kind ui.DiscoverKind, region string, channels []catalog.Channel) ui.DiscoverState {
-	return ui.DiscoverState{
-		Kind:     kind,
-		Region:   region,
-		Channels: discoverChannels(channels),
+// publishCatalog indexes a catalog and publishes its narrowed rows. Facet work
+// and filtering stay off the UI thread; only the finished rows are published.
+func (a *App) publishCatalog(
+	ctx context.Context,
+	gen uint64,
+	kind ui.DiscoverKind,
+	region string,
+	channels []catalog.Channel,
+) {
+	service, _ := a.Catalog()
+	facets := discoverFacetsFor(ctx, service, channels)
+
+	a.publishCatalogState(gen, kind, region, "", channels, facets)
+}
+
+// publishCatalogState publishes a catalog with facets already built.
+func (a *App) publishCatalogState(
+	gen uint64,
+	kind ui.DiscoverKind,
+	region string,
+	message string,
+	channels []catalog.Channel,
+	facets discoverFacets,
+) {
+	base := discoverBase{kind: kind, region: region, message: message}
+	filters := a.discoverIndex.setCatalog(channels, facets, base)
+	rows, total, truncated := a.discoverIndex.filter(filters)
+
+	a.publish(func() {
+		if !a.discover.current(gen) {
+			return
+		}
+
+		page := a.shell.Discover()
+		page.SetFacets(facets.categories, facets.sources)
+		page.SetState(ui.DiscoverState{
+			Kind:      kind,
+			Region:    region,
+			Message:   message,
+			Channels:  rows,
+			Total:     total,
+			Truncated: truncated,
+		})
+		page.SetLogos(a.logos.snapshot())
+	})
+}
+
+// filterDiscover narrows the indexed catalog off the UI thread. Typing
+// debounces; a newer filter cancels the previous one.
+func (a *App) filterDiscover(filters ui.DiscoverFilters) {
+	a.discoverIndex.setFilters(filters)
+
+	gen, ctx := a.discoverQuery.begin(a.ctx)
+
+	a.GoQuiet(func(context.Context) {
+		if !sleepContext(ctx, discoverFilterDelay) {
+			return
+		}
+		if ctx.Err() != nil {
+			return
+		}
+
+		rows, total, truncated := a.discoverIndex.filter(filters)
+		base := a.discoverIndex.base()
+
+		switch base.kind {
+		case ui.DiscoverReady, ui.DiscoverOffline:
+		default:
+			return
+		}
+
+		if ctx.Err() != nil || !a.discoverQuery.current(gen) {
+			return
+		}
+
+		a.publish(func() {
+			if !a.discoverQuery.current(gen) {
+				return
+			}
+			a.shell.Discover().SetState(ui.DiscoverState{
+				Kind:      base.kind,
+				Region:    base.region,
+				Message:   base.message,
+				Channels:  rows,
+				Total:     total,
+				Truncated: truncated,
+			})
+		})
+	})
+}
+
+// selectDiscoverChannel resolves a row key and opens Watch on that channel.
+func (a *App) selectDiscoverChannel(key string) {
+	channel, ok := a.discoverIndex.channel(key)
+	if !ok {
+		return
+	}
+
+	a.publish(func() { a.shell.OpenWatchChannel(channel.Name) })
+}
+
+// sleepContext waits for d unless ctx ends first.
+func sleepContext(ctx context.Context, d time.Duration) bool {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+
+	select {
+	case <-timer.C:
+		return true
+	case <-ctx.Done():
+		return false
 	}
 }
 
@@ -444,27 +777,25 @@ func discoverFailure(region string) ui.DiscoverState {
 	return ui.DiscoverState{Kind: ui.DiscoverError, Region: region}
 }
 
+// discoverRow maps one domain channel to a page row.
+func discoverRow(channel catalog.Channel, position int, names map[string]string) ui.DiscoverChannel {
+	return ui.DiscoverChannel{
+		Key:        discoverKey(channel, position),
+		Name:       channel.Name,
+		Country:    channel.Country,
+		Category:   channel.Group,
+		SourceName: names[channel.SourceID],
+		LogoURL:    channel.LogoURL,
+		Live:       channelLive(channel),
+	}
+}
+
 // discoverChannels maps the domain to channel rows.
 func discoverChannels(channels []catalog.Channel) []ui.DiscoverChannel {
 	rows := make([]ui.DiscoverChannel, 0, len(channels))
 
 	for i, channel := range channels {
-		key := channel.ProviderID
-		if key == "" {
-			key = fmt.Sprintf("row-%d", i)
-		} else if channel.SourceID != "" {
-			// Provider IDs are unique within a source, not across sources.
-			key = channel.SourceID + ":" + key
-		}
-
-		rows = append(rows, ui.DiscoverChannel{
-			Key:      key,
-			Name:     channel.Name,
-			Country:  channel.Country,
-			Category: channel.Group,
-			LogoURL:  channel.LogoURL,
-			Live:     channelLive(channel),
-		})
+		rows = append(rows, discoverRow(channel, i, nil))
 	}
 
 	return rows

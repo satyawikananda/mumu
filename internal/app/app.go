@@ -31,6 +31,8 @@ type App struct {
 	catalog        *sources.Service
 	refreshBuiltin catalogRefresher
 	discover       runSession
+	discoverQuery  runSession
+	discoverIndex  *discoverIndex
 	logos          *logoCache
 	library        runSession
 	libraryData    *libraryCache
@@ -52,6 +54,7 @@ func New() *App {
 		cancel:         cancel,
 		refreshBuiltin: serviceRefreshBuiltin,
 		logos:          newDiscoverLogos(),
+		discoverIndex:  newDiscoverIndex(),
 		libraryData:    newLibraryCache(),
 		settingsData:   newSettingsCache(),
 	}
