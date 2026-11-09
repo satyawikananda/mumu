@@ -31,6 +31,8 @@ func (a *App) openWindow() {
 	})
 
 	a.dispatcher = win
+	a.win = win
+	win.OnResize(func() { a.publish(func() {}) })
 	if a.storeErr != nil {
 		a.shell.ShowError(storeMessage(a.storeErr))
 	}

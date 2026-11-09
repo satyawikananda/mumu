@@ -11,9 +11,11 @@ import (
 
 	"github.com/egoist/mygo"
 
+	"mumu/internal/player"
 	"mumu/internal/sources"
 	"mumu/internal/storage"
 	"mumu/internal/ui"
+	"mumu/internal/video"
 )
 
 // shutdownTimeout bounds how long Stop waits for background work.
@@ -38,6 +40,12 @@ type App struct {
 	libraryData    *libraryCache
 	settings       runSession
 	settingsData   *settingsCache
+
+	win        *mygo.Window
+	engine     player.Engine
+	controller *player.Controller
+	surface    video.Surface
+	media      mediaState
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -71,6 +79,7 @@ func (a *App) Run() error {
 		a.startDiscover()
 		a.startLibrary()
 		a.startSettings()
+		a.startWatch()
 	})
 
 	return mygo.App.Run()
@@ -147,5 +156,6 @@ func (a *App) Stop() {
 		slog.Warn("shutdown timed out", "timeout", shutdownTimeout)
 	}
 
+	a.shutdownPlayback()
 	a.closeStore()
 }

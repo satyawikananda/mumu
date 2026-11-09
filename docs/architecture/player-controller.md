@@ -133,6 +133,8 @@ codec support or hardware decoding. The recorded run is
 ## Limitations
 
 - No native video surface in #5; Watch/PiP presentation belongs to #11/#12.
+  The render port and the darwin child-surface adapter are described in
+  [native video surface](video-surface.md).
 - No seek/reverse API in v0.1. Live streams are not assumed seekable.
 - Native teardown can outlive `Close` when a context deadline expires.
 - Event ordering is tested against the pinned libmpv runtime, not every

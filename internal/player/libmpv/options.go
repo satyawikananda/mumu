@@ -13,6 +13,9 @@ const (
 )
 
 // Config controls the libmpv client. The zero value is usable.
+//
+// VideoOutput "null" (the default) keeps playback headless. On-screen frames
+// require "libmpv"; the engine only then provides a render context.
 type Config struct {
 	Volume           int
 	Muted            bool

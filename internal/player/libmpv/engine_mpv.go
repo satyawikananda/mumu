@@ -55,6 +55,9 @@ type Engine struct {
 
 	closeOnce sync.Once
 
+	renderMu sync.Mutex
+	render   *glRender
+
 	mu                sync.Mutex
 	pendingGeneration uint64
 	activeGeneration  uint64

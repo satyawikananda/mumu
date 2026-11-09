@@ -402,8 +402,11 @@ func TestDiscoverSelectionOpensWatch(t *testing.T) {
 	}
 
 	a.selectDiscoverChannel(got.Channels[0].Key)
-	if a.shell.WatchChannel() != "TVRI Nasional" {
-		t.Fatalf("watch channel %q, want TVRI Nasional", a.shell.WatchChannel())
+	if a.shell.Watch().State().Channel != "TVRI Nasional" {
+		t.Fatalf("watch channel %q, want TVRI Nasional", a.shell.Watch().State().Channel)
+	}
+	if a.shell.Destination() != "/watch" {
+		t.Fatalf("destination %q, want Watch", a.shell.Destination())
 	}
 }
 
