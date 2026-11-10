@@ -178,6 +178,31 @@ func TestCandidatesOrder(t *testing.T) {
 	}
 }
 
+// A packaged app searches the bundled library directory before the Resources
+// root, so an app that ships both keeps using its own runtime.
+func TestCandidatesBundleLibraryDirFirst(t *testing.T) {
+	got := library.Candidates(
+		[]string{"libmpv.dylib"},
+		[]string{"/opt/homebrew/lib"},
+		[]string{"/app/Contents/Resources/libmpv", "/app/Contents/Resources"},
+	)
+
+	want := []string{
+		"libmpv.dylib",
+		"/opt/homebrew/lib/libmpv.dylib",
+		"/app/Contents/Resources/libmpv/libmpv.dylib",
+		"/app/Contents/Resources/libmpv.dylib",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("candidates %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("candidate %d = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
 // The default search uses the documented Homebrew prefixes in order.
 func TestCandidatesDefaults(t *testing.T) {
 	got := library.Candidates(nil, nil, nil)

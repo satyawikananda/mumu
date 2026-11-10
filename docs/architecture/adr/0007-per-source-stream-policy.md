@@ -99,7 +99,7 @@ verified on a real libmpv runtime:
   10 November 2026 the adapter needed the `mumu_mpv` tag and panicked at init
   without a dylib; it is now the default `darwin/arm64` build with a lazy
   loader (ADR 0005 amendment).
-- Log: [header-forwarding.log](../evidence/header-forwarding.log).
+- Log: `header-forwarding.log` (local run artifact, not committed).
 
 The M0 findings in [native-playback-feasibility.md](../native-playback-feasibility.md)
 remain the recorded evidence for the renderer and for `http`/`https` playback.

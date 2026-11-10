@@ -18,7 +18,7 @@ The initial record below predates the missing-criteria follow-up. [Follow-up QA]
 | `CGO_ENABLED=0 go vet -tags mumu_spike ./...` | PASS, includes native bridge |
 | `CGO_ENABLED=0 go tool mygo vet .` | PASS |
 | `CGO_ENABLED=0 go test -c -tags mumu_spike -o /private/tmp/mumu-spike-tests ./experiments/nativeplayback` | PASS |
-| `DYLD_LIBRARY_PATH=... /private/tmp/mumu-spike-tests -test.v` | PASS; [raw output](native-unit-tests.log) |
+| `DYLD_LIBRARY_PATH=... /private/tmp/mumu-spike-tests -test.v` | PASS; `raw output` (local run artifact, not committed) |
 | `CGO_ENABLED=0 go build -tags mumu_spike ... ./experiments/nativeplayback` | PASS |
 | `python3 -m py_compile experiments/nativeplayback/measure.py` | PASS |
 | `measure.py ... SOURCE OUTPUT_DIRECTORY` | Live 720p, live 1080p, expanded/final 1080p and unreachable-source runs exited 0 |

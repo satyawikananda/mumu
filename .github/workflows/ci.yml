@@ -73,3 +73,29 @@ jobs:
 
       - name: Lint
         run: golangci-lint run ./cmd/... ./internal/...
+
+  package:
+    name: package (arm64)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Check the runner architecture
+        run: test "$(uname -m)" = arm64
+
+      - name: Install the runtime build tools
+        run: brew install meson pkg-config cmake
+
+      - name: Cache the LGPL runtime
+        uses: actions/cache@v6
+        with:
+          path: build/runtime
+          key: libmpv-${{ hashFiles('packaging/macos/mpv-runtime.json', 'packaging/macos/build-lgpl-runtime.sh', 'packaging/macos/patches/**') }}
+
+      - name: Package and verify
+        run: make package

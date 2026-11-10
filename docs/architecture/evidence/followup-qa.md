@@ -4,7 +4,7 @@
 
 ## Implementation and reproduction
 
-The Go application still uses one libmpv client, one render context and one retained native video view. A recording exposed a native SIGSEGV after first PiP attachment. The bridge now uses native CGL locking alongside its Go mutex and makes the renderer's context current before drawing. The failed [trace](capture-locking-crash.log) is retained. Three subsequent captured exercises completed normally; this supports the mitigation without proving recovery from arbitrary driver/context failure.
+The Go application still uses one libmpv client, one render context and one retained native video view. A recording exposed a native SIGSEGV after first PiP attachment. The bridge now uses native CGL locking alongside its Go mutex and makes the renderer's context current before drawing. The failed `trace` (local run artifact, not committed) is retained. Three subsequent captured exercises completed normally; this supports the mitigation without proving recovery from arbitrary driver/context failure.
 
 The fixture's optional `-continuous-audio` adds a quiet 220 Hz tone to the existing one-second 880 Hz beep/white flash. This makes interruptions during the space between beeps measurable. The separate Swift recorder uses ScreenCaptureKit to select only the spike PID. It does not capture the microphone or add recording UI to mumu. The maintainer approved the OS capture permission and completed OS authentication themselves.
 
@@ -23,8 +23,8 @@ The fixture was stopped before replacing it with `-resolution 1080`. The same me
 ## Recorded outcomes
 
 - [720p](continuous720-cgl/run.json), [1080p](continuous1080-cgl/run.json) and [repeated 1080p](repeat1080-cgl/run.json): app and recorder exit 0, seven transfers each, one session/load/view/context per run, and completed teardown. [Assertions](followup-assertions.json) check these properties against the raw traces.
-- [Manual trace](manual-followup.log): native pointer move/resize callbacks, one session/load, Return and Close PiP with main present, then actual main-window close and completed teardown. The agent observed the native controls return to playing after transfer. The maintained screenshot evidence contains only mumu and the original synthetic fixture.
-- [App hide trace](app-hide-followup.log): one session/load and completed teardown. The trace does not itself prove window visibility; the maintainer observations below supply that evidence.
+- `Manual trace` (local run artifact, not committed): native pointer move/resize callbacks, one session/load, Return and Close PiP with main present, then actual main-window close and completed teardown. The agent observed the native controls return to playing after transfer. The maintained screenshot evidence contains only mumu and the original synthetic fixture.
+- `App hide trace` (local run artifact, not committed): one session/load and completed teardown. The trace does not itself prove window visibility; the maintainer observations below supply that evidence.
 - [Source hashes](followup-source-manifest.json): current diagnostic sources and native binaries after QA. Earlier named traces precede some logging/fatal-error-only changes; without Git metadata this is not a historical commit identifier.
 
 The maintainer explicitly reported:
@@ -42,7 +42,7 @@ These are human observations on one configuration, not independent agent listeni
 
 [Summary](followup-summary.json), [720p analysis](continuous720-cgl/analysis.json) and [1080p analysis](continuous1080-cgl/analysis.json) preserve all detected intervals and paired flash/beep offsets. The content analyzer samples video at 60 Hz and audio in 10 ms RMS windows. It distinguishes the 880 Hz beep from the 220 Hz tone spectrally, so volume changes do not become false beep events.
 
-A generated calibration with +120 ms audio delay measured median +118 ms. The [automated calibration](capture-calibration-test.log) additionally verifies detection of a known 200 ms mute and black interval. This tests the analysis pipeline, not the native player's behavior.
+A generated calibration with +120 ms audio delay measured median +118 ms. The `automated calibration` (local run artifact, not committed) additionally verifies detection of a known 200 ms mute and black interval. This tests the analysis pipeline, not the native player's behavior.
 
 Captured audio-minus-video medians are -15.313 ms at 720p and -44.188 ms at 1080p. Ranges, including transitions, are -131.980 to -15.313 ms and -60.855 to -27.521 ms. The captures detect loading silence, the approximately 990 ms intentional mute, and a final 10 ms audio boundary interval. No further low-audio interval of at least 20 ms appears during the analyzed playing portion. OS capture, AAC and physical output latency limit interpretation.
 

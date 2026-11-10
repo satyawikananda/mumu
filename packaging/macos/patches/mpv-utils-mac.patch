@@ -1,0 +1,16 @@
+Keep the CoreFoundation helpers that CoreAudio and AVFoundation need when
+mpv is built without its Cocoa window backend. Without this, libmpv exports
+undefined cfstr_* symbols and fails to load in a process that uses RTLD_LOCAL.
+
+--- a/meson.build
++++ b/meson.build
+@@ -429,6 +429,9 @@
+ if darwin
+     path_source = files('osdep/path-darwin.c')
+     timer_source = files('osdep/timer-darwin.c')
++    # Needed by CoreAudio and AVFoundation even without the Cocoa backend.
++    sources += files('osdep/utils-mac.c')
++    dependencies += dependency('appleframeworks', modules: ['CoreFoundation'])
+ endif
+ 
+ # osdep

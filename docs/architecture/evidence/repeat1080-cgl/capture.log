@@ -1,5 +1,0 @@
-TARGET_WINDOW id=106825 title= frame=(0.0, 0.0, 0.0, 0.0)
-TARGET_WINDOW id=106824 title=mumu · M0 native spike frame=(255.0, 87.0, 960.0, 710.0)
-CAPTURE_STARTED pid=96067 unix=1794167822.1509051 width=1470 height=956
-CAPTURE_ORIGIN unix=1794167822.0614953
-CAPTURE_OK video=958 audio=1339 dropped=0

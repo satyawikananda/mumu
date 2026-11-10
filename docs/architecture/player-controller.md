@@ -160,7 +160,7 @@ MUMU_MPV_LIBRARY=/private/tmp/mumu-runtime/lib MUMU_MPV_TEST=1 \
 The HLS test verifies load, playing, volume, mute, stop and close over a
 synthetic H.264/AAC HLS stream. It does not render video and does not claim
 universal codec support or hardware decoding. The recorded run is
-[player-controller-smoke.log](evidence/player-controller-smoke.log).
+`player-controller-smoke.log` (local run artifact, not committed).
 
 ## Limitations
 

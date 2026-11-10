@@ -8,20 +8,53 @@ mumu is written in Go and draws its entire interface with
 [MyGo](https://mygo.egoist.dev) native UI. It has no WebView, no HTML or
 JavaScript frontend, and no hosted backend.
 
-**Status:** M3 core UX in progress. The native shell, design tokens and Dark/Light/System themes are implemented. Local SQLite stores, the playback controller, the M3U/catalog pipeline and the per-source network policy are implemented. Discover shows the cached community catalog with search, category and source filters. Watch wires one shared player to a native surface, with explicit resume, favorites, volume/mute and error states. Picture-in-Picture moves the same surface into a floating native window. Native playback and PiP remain conditional on the M0 findings in [`docs/architecture/`](docs/architecture/); the manual macOS Watch and PiP smoke tests are still pending.
+**Status:** M4 packaging in progress. The native shell, design tokens, Dark/Light/System themes, local SQLite stores, the playback controller, the M3U/catalog pipeline and the per-source network policy are implemented. Discover, Watch and Picture-in-Picture use one shared player and native surface. The macOS app now bundles a pinned LGPL libmpv runtime, so a release needs no Homebrew install. Native playback and PiP remain conditional on the M0 findings in [`docs/architecture/`](docs/architecture/); full app playback, PiP and the 60-minute soak still need the manual QA in [`docs/release/qa-matrix.md`](docs/release/qa-matrix.md).
 
 ## Requirements
 
-- macOS 12 or later. M0 was verified on macOS 27.0.1, Apple Silicon.
+- macOS 13 or later. M0 was verified on macOS 27.0.1, Apple Silicon.
 - Go 1.27.3 or later, as pinned in `go.mod`. MyGo 0.8.3 requires it.
-- libmpv for playback (`brew install mpv`, or `MUMU_MPV_LIBRARY=<dir>`). The
-  app and every non-playback screen start without it.
+- A libmpv runtime for playback. Release builds bundle an LGPL one inside the
+  app, so nothing has to be installed to watch; running from source needs a
+  local runtime (`brew install mpv`, or `MUMU_MPV_LIBRARY=<dir>`). The app and
+  every non-playback screen start without it.
 
 Check the toolchain with:
 
 ```sh
 go tool mygo doctor
 ```
+
+## Install
+
+Download the Apple Silicon (arm64) disk image from
+[GitHub Releases](https://github.com/satyawikananda/mumu/releases). The DMG
+already contains the libmpv runtime. v0.1 has no Developer ID and no
+notarization, so macOS asks for approval the first time you open mumu; that is
+expected for an unsigned open-source app, not a sign of a damaged download.
+
+1. Download `mumu-<version>-arm64.dmg` and `SHA256SUMS` from the same release.
+2. Verify the disk image:
+
+   ```sh
+   shasum -a 256 -c SHA256SUMS --ignore-missing
+   ```
+
+3. Open the disk image and drag `Mumu` into `Applications`.
+4. Try to open mumu once, then dismiss the warning.
+5. Open System Settings > Privacy & Security, click **Open Anyway** next to
+   mumu, and confirm.
+
+Right-click > Open no longer bypasses this reliably on macOS 15 and later. If
+you already verified the checksum, you can clear the quarantine flag instead
+and open the app normally:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/Mumu.app
+```
+
+Do not disable Gatekeeper globally. Releases are arm64 only; Intel Macs are not
+supported in v0.1.
 
 ## Develop
 
@@ -35,12 +68,17 @@ go tool mygo vet .          # MyGo native UI lifetime checks
 `mygo dev` creates a development bundle named `Mumu Dev` with the
 identifier `dev.satyawikananda.mumu.dev`, separate from an installed app.
 
-### Watching with libmpv
+### libmpv for source builds (developer-only)
+
+A release bundles its own LGPL libmpv runtime in `Contents/Resources/libmpv`,
+so an installed app needs nothing from Homebrew. Only a build made from source
+needs a local runtime; the rest of this section does not apply to an installed
+app.
 
 The default build includes the libmpv adapter. Playback opens the runtime on the
 first Play, in this order: `MUMU_MPV_LIBRARY`, the loader's own search path
 (`DYLD_LIBRARY_PATH`), `/opt/homebrew/lib`, `/usr/local/lib`, then
-`Contents/Resources` next to the executable.
+`Contents/Resources/libmpv` and `Contents/Resources` next to the executable.
 
 ```sh
 brew install mpv                                        # the usual install
@@ -62,11 +100,18 @@ when you press Play, with a Retry action after you install it.
 
 ## Build
 
+A release build bundles the LGPL runtime. The first run builds it from pinned
+sources; later runs reuse `build/runtime`.
+
 ```sh
-go tool mygo build
+brew install meson pkg-config cmake ninja   # maintainer tools, once
+make package                          # runtime + app + DMG + verification
 ```
 
-The macOS application and disk image are written to `build/`.
+`go tool mygo build` alone still works, but it only includes the runtime after
+`make runtime` has staged it in `resources/darwin-arm64/libmpv`. The macOS
+application and disk image are written to `build/`. See
+[macOS packaging](docs/release/macos.md) for the gate and the pinned versions.
 
 ## Structure
 
@@ -88,13 +133,17 @@ internal/logos/       bounded logo fetch, decode and cache (#8)
 internal/storage/     local SQLite repositories and migrations (#6)
 docs/architecture/    feasibility reports, evidence and ADRs
 docs/ux/              shell wireframes, states and interaction notes
+docs/release/         macOS packaging, QA matrix and release checklist
+packaging/macos/      LGPL runtime build, closure rewrite and bundle gate
+resources/            app icon, third-party notices and license texts
 experiments/          M0 playback/PiP spikes and the test stream fixture
 ```
 
 Only `cmd/mumu` is packaged into the application. The local library lives at
 `~/Library/Application Support/Mumu/mumu.db`. The libmpv adapter is part of the
-default `darwin/arm64` build and needs an installed libmpv runtime; it is
-opened on the first Play and reports an actionable error when missing. See
+default `darwin/arm64` build and is opened on the first Play. A release ships
+its runtime in `Contents/Resources/libmpv`; a source build needs a local one and
+reports an actionable error when it is missing. See
 [playback controller](docs/architecture/player-controller.md).
 
 Native-only rules and the engineering workflow are in

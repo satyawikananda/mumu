@@ -46,9 +46,11 @@ type mediaState struct {
 	attached    bool
 }
 
-// playbackUnavailableMessage tells the viewer what to install. Watch shows it
+// playbackUnavailableMessage tells the viewer what to fix. A release bundles
+// its runtime, so the usual cause is a damaged or incomplete install; the
+// environment override stays available for a custom runtime. Watch shows it
 // only after a Play request, never at launch.
-const playbackUnavailableMessage = "Playback needs the libmpv runtime. Install mpv (brew install mpv) or set MUMU_MPV_LIBRARY, then retry."
+const playbackUnavailableMessage = "Playback needs the libmpv runtime bundled with mumu. Reinstall mumu, or set MUMU_MPV_LIBRARY, then retry."
 
 // startWatch wires the Watch page and offers a resume.
 //
