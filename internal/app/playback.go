@@ -69,6 +69,7 @@ func (a *App) startWatch() {
 	page.OnSelectChannel = a.selectWatchChannel
 	page.OnEnterPiP = a.enterPiP
 	page.OnReturn = a.returnFromPiP
+	a.shell.OnDestinationChanged(a.watchVisibilityChanged)
 
 	pip := a.shell.PiP()
 	pip.OnReturn = a.returnFromPiP
@@ -493,6 +494,37 @@ func (a *App) applyVideoFrame(frame ui.Rect) {
 	a.mu.Unlock()
 
 	a.attachVideoSurface()
+}
+
+// watchVisibilityChanged detaches the native view when Watch is left, so it
+// cannot cover another page, and re-attaches on return without a reload.
+func (a *App) watchVisibilityChanged(watch bool) {
+	if watch {
+		a.attachVideoSurface()
+
+		return
+	}
+
+	a.detachVideoSurface()
+}
+
+// detachVideoSurface hides the retained view but keeps the session alive.
+func (a *App) detachVideoSurface() {
+	a.mu.Lock()
+	surface := a.surface
+	state := a.presentation
+	attached := a.media.attached
+	if surface == nil || !attached || state != video.PresentationMain {
+		a.mu.Unlock()
+
+		return
+	}
+	a.media.attached = false
+	a.mu.Unlock()
+
+	if err := surface.Detach(); err != nil {
+		slog.Debug("detach video surface", "error", err)
+	}
 }
 
 // attachVideoSurface binds the surface to the main window when it is missing

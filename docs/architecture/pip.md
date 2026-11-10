@@ -20,6 +20,10 @@ main ⇄ transitioning → pip
 stopped is terminal during shutdown
 ```
 
+`Surface.Detach` (leaving Watch for another page) is a separate transition from a
+PiP transfer: PiP always moves the view with `Attach`, and both paths reuse the
+same retained view, context, render context and render thread.
+
 `Transfer` commits a target only after `Attach` succeeds. A failed attach rolls
 back to the previous presentation; stopped and reentrant transfers are rejected;
 a duplicate transfer is a no-op. Unit tests cover rollback, duplicates, invalid

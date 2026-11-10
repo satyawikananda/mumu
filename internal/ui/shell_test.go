@@ -227,3 +227,28 @@ func openSettings(t *testing.T, tt *ui.Tester) {
 		t.Fatal(err)
 	}
 }
+
+// Destination changes are reported once, with Watch as a boolean.
+func TestShellDestinationChanged(t *testing.T) {
+	shell := NewShell()
+	var got []bool
+	shell.OnDestinationChanged(func(watch bool) { got = append(got, watch) })
+
+	shell.ShowWatch()
+	shell.ShowDiscover()
+	shell.ShowDiscover()
+	shell.ShowWatch()
+
+	want := []bool{true, false, true}
+	if len(got) != len(want) {
+		t.Fatalf("reports %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("reports %v, want %v", got, want)
+		}
+	}
+	if !shell.IsWatch() {
+		t.Fatal("IsWatch = false after ShowWatch")
+	}
+}

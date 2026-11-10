@@ -55,9 +55,10 @@ type nativeSurface struct {
 	lockContext   func(uintptr) int32
 	unlockContext func(uintptr) int32
 
-	mu            sync.Mutex
-	width, height int
-	dirty         bool
+	mu sync.Mutex
+	// state is guarded by mu: it is the drawable size and pending redraw the
+	// render thread reads under the same lock.
+	state drawable
 
 	driver    *driver
 	closeOnce sync.Once
@@ -191,7 +192,9 @@ func (s *nativeSurface) Attach(window uintptr, frame Rect) error {
 	return nil
 }
 
-// SetFrame resizes the attached view and its drawable.
+// SetFrame resizes the attached view and its drawable. While detached there is
+// no view to resize, so it reports ErrNotAttached and leaves the state alone;
+// the surface's next Attach carries the frame it is given.
 func (s *nativeSurface) SetFrame(frame Rect) error {
 	if err := s.usable(); err != nil {
 		return err
@@ -210,12 +213,43 @@ func (s *nativeSurface) SetFrame(frame Rect) error {
 	return s.unlock()
 }
 
-// Size returns the drawable size in backing pixels.
+// Detach removes the retained view from its window but keeps the surface, the
+// OpenGL context, the render context and the render thread alive.
+//
+// It takes the same Go mutex and CGL lock as Attach, so it never races a frame
+// in flight: the render thread finishes its current draw before the drawable is
+// cleared. The view object stays retained for a later Attach, which rebinds it
+// with setView: and recomputes the backing pixels, so no stream reload, second
+// view, second context or second player is involved.
+//
+// Detach is idempotent and a safe no-op before the first Attach.
+func (s *nativeSurface) Detach() error {
+	if err := s.usable(); err != nil {
+		return err
+	}
+
+	if err := s.lock(); err != nil {
+		return err
+	}
+	s.view.Send(objc.RegisterName("removeFromSuperview"))
+	s.context.Send(objc.RegisterName("clearDrawable"))
+	s.state.detach()
+	unlockErr := s.unlock()
+	if unlockErr != nil {
+		return unlockErr
+	}
+
+	slog.Default().Debug("video: detached native surface", "view", fmt.Sprintf("%x", s.view))
+
+	return nil
+}
+
+// Size returns the drawable size in backing pixels, or 0, 0 while detached.
 func (s *nativeSurface) Size() (int, int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return s.width, s.height
+	return s.state.size()
 }
 
 // Errors forwards renderer failures from the driver.
@@ -278,8 +312,7 @@ func (s *nativeSurface) applyFrameLocked(content objc.ID, frame Rect) {
 	})
 	s.context.Send(objc.RegisterName("update"))
 
-	s.width, s.height = PixelSize(frame, s.backingScaleLocked(content))
-	s.dirty = true
+	s.state.resize(PixelSize(frame, s.backingScaleLocked(content)))
 	s.signal()
 }
 
@@ -333,13 +366,15 @@ func (s *nativeSurface) flushBuffer() {
 	s.context.Send(objc.RegisterName("flushBuffer"))
 }
 
-// drawableLocked returns the drawable size and whether a redraw is pending.
-func (s *nativeSurface) drawableLocked() (int, int, bool) {
-	return s.width, s.height, s.dirty
+// renderFrameLocked reports whether this wakeup draws and, if so, the backing
+// pixels to draw into. It is the single place that decides to skip a frame, so a
+// detached surface never reaches GL or AppKit.
+func (s *nativeSurface) renderFrameLocked(updated bool) (int, int, bool) {
+	return s.state.renderFrame(updated)
 }
 
 func (s *nativeSurface) markCleanLocked() {
-	s.dirty = false
+	s.state.clean()
 }
 
 func (s *nativeSurface) signal() {

@@ -19,6 +19,7 @@ type fakeSurface struct {
 	frames    []video.Rect
 	fail      error
 	errors    chan error
+	detached  bool
 	closed    bool
 }
 
@@ -28,6 +29,12 @@ func (f *fakeSurface) Attach(_ uintptr, frame video.Rect) error {
 	if f.fail != nil {
 		return f.fail
 	}
+
+	return nil
+}
+
+func (f *fakeSurface) Detach() error {
+	f.detached = true
 
 	return nil
 }

@@ -164,6 +164,11 @@ func (a *App) returnFromPiP() {
 	}
 
 	a.publishWatch()
+
+	if !a.shell.IsWatch() {
+		a.detachVideoSurface()
+	}
+
 	main.Focus()
 }
 
