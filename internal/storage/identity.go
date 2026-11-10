@@ -29,12 +29,14 @@ func NewSource(kind SourceKind, location, displayName string) (Source, error) {
 	}
 
 	return Source{
-		ID:          sourceID(kind, identity),
-		Kind:        kind,
-		Identity:    identity,
-		Location:    normalized,
-		DisplayName: displayName,
-		Enabled:     true,
+		ID:             sourceID(kind, identity),
+		Kind:           kind,
+		Identity:       identity,
+		Location:       normalized,
+		DisplayName:    displayName,
+		Enabled:        true,
+		AllowPrivate:   false,
+		AllowedSchemes: strings.Split(defaultAllowedSchemes, ","),
 	}, nil
 }
 

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"mumu/internal/catalog"
+	"mumu/internal/netguard"
 	"mumu/internal/playlist"
 	"mumu/internal/storage"
 )
@@ -22,6 +23,11 @@ var (
 )
 
 // Preview is a parsed source that has not been stored.
+//
+// NeedsPrivate and Schemes are derived from the accepted streams, never from
+// the raw playlist text, so they are credential-free. NeedsPrivate asks the
+// import sheet for explicit consent; AllowPrivate records the answer and is
+// only honoured by Save when NeedsPrivate was true.
 type Preview struct {
 	Kind           catalog.SourceKind
 	Location       string
@@ -33,6 +39,16 @@ type Preview struct {
 	SkippedEntries []playlist.SkippedEntry
 	Truncated      bool
 	ETag           string
+	NeedsPrivate   bool
+	Schemes        []string
+	AllowPrivate   bool
+}
+
+// SaveResult reports what one source save stored.
+type SaveResult struct {
+	Source   catalog.Source
+	Channels int
+	Dropped  int
 }
 
 // RefreshResult reports what one source refresh changed.
@@ -41,12 +57,17 @@ type RefreshResult struct {
 	Channels int
 	Streams  int
 	Removed  int
+	Dropped  int
 }
 
 // PreviewRemote parses a remote M3U playlist without storing it.
+//
+// Private stream hosts are accepted so the preview can report them; nothing is
+// fetched for those streams and Save still requires explicit consent.
 func (s *Service) PreviewRemote(ctx context.Context, rawURL, displayName string) (Preview, error) {
 	loaded, err := s.loader.Load(ctx, rawURL, playlist.LoadOptions{
-		AllowPrivate: true,
+		AllowPrivate:        true,
+		AllowPrivateStreams: true,
 	})
 	if err != nil {
 		return Preview{}, err
@@ -64,7 +85,9 @@ func (s *Service) PreviewRemote(ctx context.Context, rawURL, displayName string)
 
 // PreviewLocal parses a local M3U file without storing it.
 func (s *Service) PreviewLocal(ctx context.Context, path, displayName string) (Preview, error) {
-	loaded, err := s.loader.Load(ctx, path, playlist.LoadOptions{})
+	loaded, err := s.loader.Load(ctx, path, playlist.LoadOptions{
+		AllowPrivateStreams: true,
+	})
 	if err != nil {
 		return Preview{}, err
 	}
@@ -84,6 +107,10 @@ func (s *Service) PreviewLocal(ctx context.Context, path, displayName string) (P
 
 // PreviewStream validates a direct stream URL and builds a one-channel source.
 func (s *Service) PreviewStream(ctx context.Context, rawURL, displayName string) (Preview, error) {
+	if err := checkStreamScheme(rawURL); err != nil {
+		return Preview{}, err
+	}
+
 	info, err := s.loader.Inspect(ctx, rawURL, true)
 	if err != nil {
 		return Preview{}, err
@@ -104,7 +131,7 @@ func (s *Service) PreviewStream(ctx context.Context, rawURL, displayName string)
 		displayName = streamDisplayName(rawURL)
 	}
 
-	return Preview{
+	preview := Preview{
 		Kind:        catalog.SourceCustomStream,
 		Location:    rawURL,
 		DisplayName: displayName,
@@ -117,52 +144,88 @@ func (s *Service) PreviewStream(ctx context.Context, rawURL, displayName string)
 				Live: false,
 			}},
 		}},
-	}, nil
+	}
+	preview.NeedsPrivate, preview.Schemes = analyzeStreams(preview.Channels)
+
+	return preview, nil
 }
 
-// Save stores a preview and replaces that source's channels atomically.
+// Save stores a preview and replaces that source's channels atomically. It
+// reports the stored source only; use SaveSource for the policy outcome.
 func (s *Service) Save(ctx context.Context, preview Preview) (catalog.Source, error) {
-	if err := validatePreview(preview); err != nil {
+	result, err := s.SaveSource(ctx, preview)
+	if err != nil {
 		return catalog.Source{}, err
 	}
 
+	return result.Source, nil
+}
+
+// SaveSource stores a preview and reports what the effective policy kept.
+//
+// The stored policy comes from the preview: allow_private only when the
+// preview reported private hosts and the caller recorded consent, plus the
+// normalized scheme allowlist. Every channel is revalidated against that
+// policy, and a channel whose streams are all outside it is dropped and
+// counted in Dropped.
+func (s *Service) SaveSource(ctx context.Context, preview Preview) (SaveResult, error) {
+	if err := validatePreview(preview); err != nil {
+		return SaveResult{}, err
+	}
+
+	policy := previewPolicy(preview)
+	channels, dropped := applyPolicy(preview.Kind, policy, preview.Channels)
+	if len(channels) == 0 {
+		return SaveResult{}, fmt.Errorf(
+			"%w: every channel is outside the source policy",
+			ErrEmptyPreview,
+		)
+	}
+
 	source, err := ToStorageSource(catalog.Source{
-		Kind:        preview.Kind,
-		Location:    preview.Location,
-		DisplayName: preview.DisplayName,
-		Enabled:     true,
+		Kind:           preview.Kind,
+		Location:       preview.Location,
+		DisplayName:    preview.DisplayName,
+		Enabled:        true,
+		AllowPrivate:   policy.AllowPrivate,
+		AllowedSchemes: policy.Schemes,
 	})
 	if err != nil {
-		return catalog.Source{}, err
+		return SaveResult{}, err
 	}
 
 	stored, err := s.store.Sources().Upsert(ctx, source)
 	if err != nil {
-		return catalog.Source{}, err
+		return SaveResult{}, err
 	}
 
-	batch, err := ToStorageBatch(preview.Channels)
+	batch, err := ToStorageBatch(channels)
 	if err != nil {
-		return catalog.Source{}, err
+		return SaveResult{}, err
 	}
 
 	if _, err := s.store.Channels().ReplaceForSource(ctx, stored.ID, batch, storage.RefreshMeta{
 		RefreshedAt: s.now(),
 		ETag:        preview.ETag,
-		ItemCount:   len(preview.Channels),
+		ItemCount:   len(channels),
 	}); err != nil {
-		return catalog.Source{}, err
+		return SaveResult{}, err
 	}
 
 	saved, found, err := s.store.Sources().Get(ctx, stored.ID)
 	if err != nil {
-		return catalog.Source{}, err
+		return SaveResult{}, err
 	}
 	if !found {
-		return catalog.Source{}, fmt.Errorf("%w: source", storage.ErrNotFound)
+		return SaveResult{}, fmt.Errorf("%w: source", storage.ErrNotFound)
 	}
 
-	return FromStorageSource(saved)
+	mapped, err := FromStorageSource(saved)
+	if err != nil {
+		return SaveResult{}, err
+	}
+
+	return SaveResult{Source: mapped, Channels: len(channels), Dropped: dropped}, nil
 }
 
 // List returns every source, including the built-in catalog.
@@ -230,7 +293,9 @@ func (s *Service) UserChannels(ctx context.Context) ([]catalog.Channel, error) {
 	return channels, nil
 }
 
-// Refresh re-reads one user source and replaces its rows atomically.
+// Refresh re-reads one user source and replaces its rows atomically. The
+// stored per-source policy is reused, so a consent granted at import time
+// survives every later refresh.
 func (s *Service) Refresh(ctx context.Context, sourceID string) (RefreshResult, error) {
 	stored, found, err := s.store.Sources().Get(ctx, sourceID)
 	if err != nil {
@@ -248,15 +313,17 @@ func (s *Service) Refresh(ctx context.Context, sourceID string) (RefreshResult, 
 		return RefreshResult{}, err
 	}
 
+	policy := source.EffectivePolicy()
+
 	var (
 		channels []catalog.Channel
 		etag     string
 	)
 	switch source.Kind {
 	case catalog.SourceRemotePlaylist:
-		channels, etag, err = s.loadRemote(ctx, source)
+		channels, etag, err = s.loadRemote(ctx, source, policy)
 	case catalog.SourceLocalPlaylist:
-		channels, etag, err = s.loadLocal(ctx, source)
+		channels, etag, err = s.loadLocal(ctx, source, policy)
 	case catalog.SourceCustomStream:
 		channels, etag, err = s.inspectStream(ctx, source)
 	default:
@@ -269,6 +336,14 @@ func (s *Service) Refresh(ctx context.Context, sourceID string) (RefreshResult, 
 	}
 	if etag == "" {
 		etag = stored.RefreshETag
+	}
+
+	channels, dropped := applyPolicy(source.Kind, policy, channels)
+	if len(channels) == 0 {
+		err := fmt.Errorf("%w: every channel is outside the stored source policy", ErrEmptyPreview)
+		s.markFailed(ctx, stored.ID, err)
+
+		return RefreshResult{}, err
 	}
 
 	batch, err := ToStorageBatch(channels)
@@ -306,6 +381,7 @@ func (s *Service) Refresh(ctx context.Context, sourceID string) (RefreshResult, 
 		Channels: replaced.Channels,
 		Streams:  replaced.Streams,
 		Removed:  replaced.Removed,
+		Dropped:  dropped,
 	}, nil
 }
 
@@ -344,10 +420,15 @@ func (s *Service) Remove(ctx context.Context, sourceID string) error {
 func (s *Service) loadRemote(
 	ctx context.Context,
 	source catalog.Source,
+	policy catalog.Policy,
 ) ([]catalog.Channel, string, error) {
 	loaded, err := s.loader.Load(ctx, source.Location, playlist.LoadOptions{
-		AllowPrivate: true,
-		ETag:         source.RefreshETag,
+		// The document location is the user's own choice; the streams inside
+		// it follow the stored per-source policy.
+		AllowPrivate:        true,
+		AllowPrivateStreams: policy.AllowPrivate,
+		AllowedSchemes:      policy.Schemes,
+		ETag:                source.RefreshETag,
 	})
 	if err != nil {
 		return nil, "", err
@@ -371,8 +452,12 @@ func (s *Service) loadRemote(
 func (s *Service) loadLocal(
 	ctx context.Context,
 	source catalog.Source,
+	policy catalog.Policy,
 ) ([]catalog.Channel, string, error) {
-	loaded, err := s.loader.Load(ctx, source.Location, playlist.LoadOptions{})
+	loaded, err := s.loader.Load(ctx, source.Location, playlist.LoadOptions{
+		AllowPrivateStreams: policy.AllowPrivate,
+		AllowedSchemes:      policy.Schemes,
+	})
 	if err != nil {
 		return nil, "", err
 	}
@@ -435,7 +520,7 @@ func (s *Service) previewFromLoad(
 		displayName = locationDisplayName(location)
 	}
 
-	return Preview{
+	preview := Preview{
 		Kind:           kind,
 		Location:       location,
 		DisplayName:    displayName,
@@ -447,6 +532,23 @@ func (s *Service) previewFromLoad(
 		Truncated:      loaded.Truncated,
 		ETag:           loaded.ETag,
 	}
+	preview.NeedsPrivate, preview.Schemes = analyzeStreams(preview.Channels)
+
+	return preview
+}
+
+// checkStreamScheme rejects a direct stream URL this release cannot play
+// before any network work happens.
+func checkStreamScheme(rawURL string) error {
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil {
+		return fmt.Errorf("%w: %w", netguard.ErrInvalidURL, err)
+	}
+	if !catalog.SchemeSupported(parsed.Scheme) {
+		return fmt.Errorf("%w: %q", netguard.ErrUnsupportedScheme, parsed.Scheme)
+	}
+
+	return nil
 }
 
 func validatePreview(preview Preview) error {

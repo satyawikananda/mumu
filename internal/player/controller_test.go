@@ -525,6 +525,111 @@ func TestConcurrentAccess(t *testing.T) {
 	}
 }
 
+func TestPlayRejectsUnsupportedScheme(t *testing.T) {
+	controller, engine := newTestController(t)
+
+	for _, source := range []Source{
+		{URL: "file:///tmp/live.m3u8"},
+		{URL: "rtsp://camera.example/live"},
+		{URL: "rtmp://camera.example/live"},
+		{URL: "udp://239.0.0.1:1234"},
+		{URL: "srt://camera.example:9000"},
+		{URL: "https://stream.example/live.m3u8", Scheme: "rtsp"},
+	} {
+		err := controller.Play(source)
+		if !errors.Is(err, ErrUnsupportedScheme) {
+			t.Fatalf("Play(%q, %q) error %v, want ErrUnsupportedScheme", source.URL, source.Scheme, err)
+		}
+	}
+
+	if got := engine.loadCount(); got != 0 {
+		t.Fatalf("loads %d, want none", got)
+	}
+	if state := controller.Snapshot().State; state != StateIdle {
+		t.Fatalf("state %s after rejected plays, want idle", state)
+	}
+}
+
+func TestPlayRejectsSchemeMismatch(t *testing.T) {
+	controller, _ := newTestController(t)
+
+	err := controller.Play(Source{URL: "https://stream.example/live.m3u8", Scheme: "http"})
+	if !errors.Is(err, ErrInvalid) {
+		t.Fatalf("error %v, want ErrInvalid", err)
+	}
+}
+
+func TestPlayAcceptsHTTPAndHTTPS(t *testing.T) {
+	controller, engine := newTestController(t)
+
+	if err := controller.Play(Source{URL: "https://stream.example/live.m3u8", Scheme: "HTTPS"}); err != nil {
+		t.Fatalf("Play https: %v", err)
+	}
+	deadline := time.Now().Add(time.Second)
+	for engine.loadCount() < 1 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if err := controller.Play(Source{URL: "http://stream.example/live.m3u8"}); err != nil {
+		t.Fatalf("Play http: %v", err)
+	}
+	for engine.loadCount() < 2 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if got := engine.loadCount(); got != 2 {
+		t.Fatalf("loads %d, want 2", got)
+	}
+}
+
+func TestPlayForwardsHeaders(t *testing.T) {
+	controller, engine := newTestController(t)
+
+	headers := map[string]string{"User-Agent": "mumu-test", "Referer": "https://example.com/"}
+	if err := controller.Play(Source{URL: "https://stream.example/live.m3u8", Headers: headers}); err != nil {
+		t.Fatalf("Play: %v", err)
+	}
+
+	deadline := time.Now().Add(time.Second)
+	for engine.loadCount() < 1 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+
+	engine.mu.Lock()
+	loads := append([]loadCall(nil), engine.loads...)
+	engine.mu.Unlock()
+	if len(loads) != 1 {
+		t.Fatalf("loads = %+v, want one", loads)
+	}
+	if loads[0].source.Headers["User-Agent"] != "mumu-test" {
+		t.Fatalf("headers = %+v, want the forwarded User-Agent", loads[0].source.Headers)
+	}
+}
+
+func TestSnapshotEqualityWithHeaders(t *testing.T) {
+	base := Snapshot{
+		State:  StateLoading,
+		Source: Source{URL: "https://stream.example/live.m3u8", Headers: map[string]string{"User-Agent": "a", "Referer": "b"}},
+	}
+	same := Snapshot{
+		State:  StateLoading,
+		Source: Source{URL: "https://stream.example/live.m3u8", Headers: map[string]string{"Referer": "b", "User-Agent": "a"}},
+	}
+	if !base.equal(same) {
+		t.Fatal("equal snapshots with the same headers compared unequal")
+	}
+
+	changed := base
+	changed.Source.Headers = map[string]string{"User-Agent": "c"}
+	if base.equal(changed) {
+		t.Fatal("a changed header compared equal")
+	}
+
+	none := base
+	none.Source.Headers = nil
+	if base.equal(none) {
+		t.Fatal("a removed header compared equal")
+	}
+}
+
 func TestStateHelpers(t *testing.T) {
 	if !StateIdle.CanPlay() || !StateError.CanPlay() || !StateStopped.CanPlay() {
 		t.Fatal("idle, error and stopped should allow Play")

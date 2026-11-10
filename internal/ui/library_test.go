@@ -453,3 +453,49 @@ func TestLibraryReopenCancelsPreviousSheet(t *testing.T) {
 		t.Fatal("sheet closed after reopening")
 	}
 }
+
+// A preview with private hosts asks for consent before import, off by default.
+func TestLibraryPrivateConsent(t *testing.T) {
+	l := NewLibrary()
+	l.OpenAddPlaylist()
+	tt := libraryPage(l)
+
+	l.SetPreview(&LibraryPreview{
+		Kind:         LibraryPlaylistURL,
+		Channels:     1,
+		NeedsPrivate: true,
+		Schemes:      []string{"http"},
+	}, "")
+	tt.Frame()
+
+	if !tt.HasText("Allow private and LAN addresses for this source") {
+		t.Fatalf("texts %q, want the consent control", tt.Texts())
+	}
+
+	var got LibraryRequest
+	l.OnImport = func(req LibraryRequest) { got = req }
+
+	if err := tt.Click("Allow private and LAN addresses for this source"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Import"); err != nil {
+		t.Fatal(err)
+	}
+	if !got.AllowPrivate {
+		t.Fatal("import did not carry the consent")
+	}
+}
+
+// A public-only preview shows no private-address consent.
+func TestLibraryNoPrivateConsent(t *testing.T) {
+	l := NewLibrary()
+	l.OpenAddPlaylist()
+	tt := libraryPage(l)
+
+	l.SetPreview(&LibraryPreview{Kind: LibraryPlaylistURL, Channels: 1}, "")
+	tt.Frame()
+
+	if tt.HasText("Allow private and LAN addresses for this source") {
+		t.Fatalf("texts %q, want no consent control", tt.Texts())
+	}
+}

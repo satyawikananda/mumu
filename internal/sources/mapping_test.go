@@ -2,9 +2,11 @@ package sources
 
 import (
 	"errors"
+	"slices"
 	"testing"
 
 	"mumu/internal/catalog"
+	"mumu/internal/storage"
 )
 
 func TestKindRoundTrip(t *testing.T) {
@@ -112,6 +114,79 @@ func TestToStorageBatchRejectsEmptyStreams(t *testing.T) {
 	_, err := ToStorageBatch([]catalog.Channel{{Name: "News"}})
 	if !errors.Is(err, catalog.ErrInvalid) {
 		t.Fatalf("error %v, want catalog.ErrInvalid", err)
+	}
+}
+
+func TestSourcePolicyMappingRoundTrip(t *testing.T) {
+	source := catalog.Source{
+		Kind:           catalog.SourceRemotePlaylist,
+		Location:       "https://example.com/list.m3u",
+		DisplayName:    "Example",
+		Enabled:        true,
+		AllowPrivate:   true,
+		AllowedSchemes: []string{"https", "http", "rtsp", "HTTP"},
+	}
+
+	stored, err := ToStorageSource(source)
+	if err != nil {
+		t.Fatalf("ToStorageSource: %v", err)
+	}
+	if !stored.AllowPrivate {
+		t.Fatal("stored source lost its consent")
+	}
+	if !slices.Equal(stored.AllowedSchemes, []string{"http", "https"}) {
+		t.Fatalf("stored schemes = %v, want the normalized strict list", stored.AllowedSchemes)
+	}
+
+	back, err := FromStorageSource(stored)
+	if err != nil {
+		t.Fatalf("FromStorageSource: %v", err)
+	}
+	if !back.AllowPrivate || !slices.Equal(back.AllowedSchemes, []string{"http", "https"}) {
+		t.Fatalf("mapped source = %+v, want the stored policy", back)
+	}
+}
+
+func TestBuiltinSourcePolicyIsAlwaysStrict(t *testing.T) {
+	builtin := catalog.Source{
+		Kind:           catalog.SourceBuiltin,
+		Location:       "https://iptv.example/id.m3u",
+		DisplayName:    "Community",
+		Enabled:        true,
+		AllowPrivate:   true,
+		AllowedSchemes: []string{"rtsp", "http"},
+	}
+
+	stored, err := ToStorageSource(builtin)
+	if err != nil {
+		t.Fatalf("ToStorageSource: %v", err)
+	}
+	if stored.AllowPrivate {
+		t.Fatal("built-in source stored a consent")
+	}
+	if !slices.Equal(stored.AllowedSchemes, []string{"http", "https"}) {
+		t.Fatalf("built-in schemes = %v, want http https", stored.AllowedSchemes)
+	}
+}
+
+func TestFromStorageSourceIgnoresBuiltinConsent(t *testing.T) {
+	stored := storage.Source{
+		ID:             "builtin:1",
+		Kind:           storage.SourceBuiltin,
+		Location:       "https://iptv.example/id.m3u",
+		AllowPrivate:   true,
+		AllowedSchemes: []string{"rtsp", "udp"},
+	}
+
+	mapped, err := FromStorageSource(stored)
+	if err != nil {
+		t.Fatalf("FromStorageSource: %v", err)
+	}
+	if mapped.AllowPrivate {
+		t.Fatal("a stored built-in consent was presented to callers")
+	}
+	if !slices.Equal(mapped.AllowedSchemes, []string{"http", "https"}) {
+		t.Fatalf("schemes = %v, want http https", mapped.AllowedSchemes)
 	}
 }
 

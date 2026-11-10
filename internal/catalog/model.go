@@ -28,18 +28,24 @@ func (k SourceKind) Valid() bool {
 }
 
 // Source is a playlist, a single stream or the built-in community catalog.
+//
+// AllowPrivate and AllowedSchemes are the stream policy the user consented to
+// for this source. They never widen a built-in source: Source.EffectivePolicy
+// always returns the strict policy for SourceBuiltin.
 type Source struct {
-	ID            string
-	Kind          SourceKind
-	Identity      string
-	Location      string
-	DisplayName   string
-	Enabled       bool
-	LastRefreshAt time.Time
-	LastSuccessAt time.Time
-	RefreshETag   string
-	RefreshError  string
-	ItemCount     int
+	ID             string
+	Kind           SourceKind
+	Identity       string
+	Location       string
+	DisplayName    string
+	Enabled        bool
+	AllowPrivate   bool
+	AllowedSchemes []string
+	LastRefreshAt  time.Time
+	LastSuccessAt  time.Time
+	RefreshETag    string
+	RefreshError   string
+	ItemCount      int
 }
 
 // Channel is one playable entry scoped to a source.

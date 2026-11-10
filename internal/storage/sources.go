@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -15,8 +16,13 @@ const sourceColumns = `
 	id, kind, identity, location, display_name, enabled,
 	created_at, updated_at,
 	COALESCE(last_refresh_at, 0), COALESCE(last_success_at, 0),
-	COALESCE(refresh_etag, ''), COALESCE(refresh_error, ''), COALESCE(item_count, 0)
+	COALESCE(refresh_etag, ''), COALESCE(refresh_error, ''), COALESCE(item_count, 0),
+	allow_private, allowed_schemes
 `
+
+// defaultAllowedSchemes is the stored form of the strict scheme allowlist. It
+// mirrors the column default in migration 0003.
+const defaultAllowedSchemes = "http,https"
 
 // Upsert inserts or updates src, returning the stored row with its
 // deterministic ID and timestamps.
@@ -38,15 +44,18 @@ func (r *Sources) Upsert(ctx context.Context, src Source) (Source, error) {
 	row, found, err := queryRow(ctx, r.store.db, `
 		INSERT INTO sources (
 			id, kind, identity, location, display_name, enabled,
-			created_at, updated_at, last_refresh_at, refresh_etag, refresh_error
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			created_at, updated_at, last_refresh_at, refresh_etag, refresh_error,
+			allow_private, allowed_schemes
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (kind, identity) DO UPDATE SET
 			location = excluded.location,
 			display_name = excluded.display_name,
 			updated_at = excluded.updated_at,
 			last_refresh_at = excluded.last_refresh_at,
 			refresh_etag = excluded.refresh_etag,
-			refresh_error = excluded.refresh_error
+			refresh_error = excluded.refresh_error,
+			allow_private = excluded.allow_private,
+			allowed_schemes = excluded.allowed_schemes
 		RETURNING id
 	`,
 		src.ID,
@@ -60,6 +69,8 @@ func (r *Sources) Upsert(ctx context.Context, src Source) (Source, error) {
 		nullMillis(src.LastRefreshAt),
 		nullString(src.RefreshETag),
 		nullString(src.RefreshError),
+		boolToInt(src.AllowPrivate),
+		encodeSchemeList(src.AllowedSchemes),
 	)
 	if err != nil {
 		return Source{}, fmt.Errorf("upsert source: %w", classifyError(err))
@@ -236,20 +247,58 @@ func normalizeSource(src Source) (Source, error) {
 	src.Identity = identity
 	src.Location = location
 	src.ID = sourceID(src.Kind, identity)
+	src.AllowedSchemes = normalizeSchemeList(src.AllowedSchemes)
 
 	return src, nil
 }
 
+// normalizeSchemeList trims, lowercases and deduplicates a scheme list. An
+// empty list means the strict http/https default; the catalog layer owns the
+// allow/deny decision, not this repository.
+func normalizeSchemeList(schemes []string) []string {
+	seen := make(map[string]struct{}, len(schemes))
+	normalized := make([]string, 0, len(schemes))
+	for _, scheme := range schemes {
+		scheme = strings.ToLower(strings.TrimSpace(scheme))
+		if scheme == "" {
+			continue
+		}
+		if _, exists := seen[scheme]; exists {
+			continue
+		}
+		seen[scheme] = struct{}{}
+		normalized = append(normalized, scheme)
+	}
+	if len(normalized) == 0 {
+		return strings.Split(defaultAllowedSchemes, ",")
+	}
+
+	return normalized
+}
+
+func encodeSchemeList(schemes []string) string {
+	if len(schemes) == 0 {
+		return defaultAllowedSchemes
+	}
+
+	return strings.Join(schemes, ",")
+}
+
+func decodeSchemeList(value string) []string {
+	return normalizeSchemeList(strings.Split(value, ","))
+}
+
 func scanSourceValues(values []any, src *Source) error {
-	if len(values) < 13 {
+	if len(values) < 15 {
 		return fmt.Errorf("%w: source row has %d columns", ErrInvalid, len(values))
 	}
 
 	var (
-		err       error
-		enabled   int64
-		createdAt int64
-		updatedAt int64
+		err          error
+		enabled      int64
+		createdAt    int64
+		updatedAt    int64
+		allowPrivate int64
 	)
 
 	if src.ID, err = valueString(values[0]); err != nil {
@@ -295,6 +344,16 @@ func scanSourceValues(values []any, src *Source) error {
 		return err
 	}
 	src.ItemCount = int(itemCount)
+
+	if allowPrivate, err = valueInt64(values[13]); err != nil {
+		return err
+	}
+	schemes, err := valueString(values[14])
+	if err != nil {
+		return err
+	}
+	src.AllowPrivate = allowPrivate != 0
+	src.AllowedSchemes = decodeSchemeList(schemes)
 
 	src.Enabled = enabled != 0
 	src.CreatedAt = timeFromMillis(createdAt)

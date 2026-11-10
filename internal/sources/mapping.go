@@ -40,6 +40,9 @@ func FromStorageKind(kind storage.SourceKind) (catalog.SourceKind, error) {
 }
 
 // ToStorageSource validates a domain source and returns its stored form.
+//
+// The stream policy is written from Source.EffectivePolicy, so a built-in
+// source can never store a consent or a widened scheme allowlist.
 func ToStorageSource(source catalog.Source) (storage.Source, error) {
 	if err := source.Validate(); err != nil {
 		return storage.Source{}, err
@@ -54,31 +57,44 @@ func ToStorageSource(source catalog.Source) (storage.Source, error) {
 	if err != nil {
 		return storage.Source{}, err
 	}
+
+	policy := source.EffectivePolicy()
 	stored.Enabled = source.Enabled
+	stored.AllowPrivate = policy.AllowPrivate
+	stored.AllowedSchemes = policy.Schemes
 
 	return stored, nil
 }
 
-// FromStorageSource maps a stored source to the domain.
+// FromStorageSource maps a stored source to the domain. The policy is always
+// the effective one: a built-in row that claims a consent is read as strict.
 func FromStorageSource(source storage.Source) (catalog.Source, error) {
 	kind, err := FromStorageKind(source.Kind)
 	if err != nil {
 		return catalog.Source{}, err
 	}
 
-	return catalog.Source{
-		ID:            source.ID,
-		Kind:          kind,
-		Identity:      source.Identity,
-		Location:      source.Location,
-		DisplayName:   source.DisplayName,
-		Enabled:       source.Enabled,
-		LastRefreshAt: source.LastRefreshAt,
-		LastSuccessAt: source.LastSuccessAt,
-		RefreshETag:   source.RefreshETag,
-		RefreshError:  source.RefreshError,
-		ItemCount:     source.ItemCount,
-	}, nil
+	mapped := catalog.Source{
+		ID:             source.ID,
+		Kind:           kind,
+		Identity:       source.Identity,
+		Location:       source.Location,
+		DisplayName:    source.DisplayName,
+		Enabled:        source.Enabled,
+		AllowPrivate:   source.AllowPrivate,
+		AllowedSchemes: source.AllowedSchemes,
+		LastRefreshAt:  source.LastRefreshAt,
+		LastSuccessAt:  source.LastSuccessAt,
+		RefreshETag:    source.RefreshETag,
+		RefreshError:   source.RefreshError,
+		ItemCount:      source.ItemCount,
+	}
+
+	policy := mapped.EffectivePolicy()
+	mapped.AllowPrivate = policy.AllowPrivate
+	mapped.AllowedSchemes = policy.Schemes
+
+	return mapped, nil
 }
 
 // ToStorageBatch maps channels and their streams for one atomic refresh.

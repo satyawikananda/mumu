@@ -233,6 +233,22 @@ func (e *Engine) handleCommand(cmd command) {
 		e.activeEntry = 0
 		e.mu.Unlock()
 
+		// Forward the per-source playback headers immediately before the load
+		// so a previous source cannot leak into this request.
+		if err := e.setPlaybackHeaders(cmd.source.Headers); err != nil {
+			e.mu.Lock()
+			e.pendingGeneration = 0
+			e.activeGeneration = 0
+			e.activeEntry = 0
+			e.mu.Unlock()
+
+			err = fmt.Errorf("set playback headers: %w", err)
+			e.fail(cmd.generation, err)
+			cmd.done <- err
+
+			return
+		}
+
 		err := e.client.CommandAsync(cmd.generation, []string{"loadfile", cmd.source.URL})
 		if err != nil {
 			e.fail(cmd.generation, fmt.Errorf("load source: %w", err))
@@ -245,7 +261,12 @@ func (e *Engine) handleCommand(cmd command) {
 		e.activeEntry = 0
 		e.mu.Unlock()
 
-		cmd.done <- e.client.CommandAsync(0, []string{"stop"})
+		err := e.client.CommandAsync(0, []string{"stop"})
+		// Drop the fields with the session: the next load sets its own.
+		if clearErr := e.setPlaybackHeaders(nil); clearErr != nil {
+			e.cfg.Logger.Debug("clear playback headers", "error", clearErr)
+		}
+		cmd.done <- err
 	case commandVolume:
 		cmd.done <- e.client.SetProperty("volume", mpv.FormatDouble, float64(cmd.volume))
 	case commandMute:
@@ -253,6 +274,17 @@ func (e *Engine) handleCommand(cmd command) {
 	default:
 		cmd.done <- fmt.Errorf("%w: unknown command", player.ErrInvalid)
 	}
+}
+
+// setPlaybackHeaders forwards only the sanitized User-Agent and Referer
+// fields. An empty header set clears the option. The option value carries
+// header content, so it is never logged.
+//
+// mpv documents http-header-fields as a comma-separated string list, and the
+// property form options/<name> is writable at runtime, which is when the pump
+// sets it: immediately before loadfile for one source.
+func (e *Engine) setPlaybackHeaders(headers map[string]string) error {
+	return e.client.SetPropertyString("options/http-header-fields", headerOptionValue(headers))
 }
 
 func (e *Engine) handleEvent(event *mpv.Event) {
