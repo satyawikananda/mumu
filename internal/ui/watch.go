@@ -3,6 +3,7 @@ package ui
 import (
 	"strings"
 
+	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -51,6 +52,9 @@ type WatchState struct {
 	Status string
 	// Error is a credential-free failure message.
 	Error string
+	// Previous names the channel to return to after a failure. It is empty
+	// when no earlier channel was playing, which hides the secondary action.
+	Previous string
 	// Live marks a live stream format, not verified availability.
 	Live     bool
 	Volume   int
@@ -68,6 +72,7 @@ type Watch struct {
 	list       ui.ListState
 	selected   int
 	video      ui.Handle
+	overlay    ui.Handle
 	frame      Rect
 	volume     float64
 	drawerOpen bool
@@ -78,6 +83,8 @@ type Watch struct {
 	OnResume func()
 	// OnRetry reloads the active channel.
 	OnRetry func()
+	// OnBack returns to the channel that played before the failed switch.
+	OnBack func()
 	// OnBrowse sends the viewer to Discover.
 	OnBrowse func()
 	// OnVolume changes the player volume.
@@ -132,7 +139,7 @@ func (w *Watch) ToggleDrawer() { w.drawerOpen = !w.drawerOpen }
 func (w *Watch) View(c *ui.Context, theme *ui.Theme) {
 	w.header(c, theme)
 	ui.Row(c).Grow(1).FillWidth().Gap(12).Children(func() {
-		w.stage(c, theme)
+		w.stage(c)
 		if w.drawerOpen {
 			w.drawer(c, theme)
 		}
@@ -176,8 +183,12 @@ func (w *Watch) header(c *ui.Context, theme *ui.Theme) {
 	})
 }
 
-// stage draws the video box and its quiet placeholder states.
-func (w *Watch) stage(c *ui.Context, _ *ui.Theme) {
+// stage draws the video box and whatever covers it while nothing plays.
+//
+// The native surface is a sibling view above MyGo's layer, so it can only
+// cover what MyGo draws. The app detaches it for every state below, which
+// is what makes these panels visible at all.
+func (w *Watch) stage(c *ui.Context) {
 	box := ui.Box(c).Grow(1).FillHeight().Radius(10).Background(watchVideoColor).
 		Bind(&w.video)
 	box.Children(func() {
@@ -203,24 +214,20 @@ func (w *Watch) stage(c *ui.Context, _ *ui.Theme) {
 				},
 			})
 		case WatchLoading:
-			w.placeholder(c, Status{
-				Kind:    StatusLoading,
-				Title:   "Loading " + w.state.Channel,
-				Message: "The stream is starting. You can switch channels at any time.",
-			})
-		case WatchBuffering:
-			w.placeholder(c, Status{
-				Kind:    StatusLoading,
-				Title:   "Buffering",
-				Message: "Waiting for the stream to continue.",
+			w.overlayPanel(c, overlayPanel{
+				kind:    StatusLoading,
+				title:   w.loadingTitle(),
+				message: "The stream is starting. You can switch channels at any time.",
 			})
 		case WatchError:
-			w.placeholder(c, Status{
-				Kind:     StatusError,
-				Title:    "Stream unavailable",
-				Message:  w.state.Error,
-				Action:   "Retry",
-				OnAction: w.retry,
+			w.overlayPanel(c, overlayPanel{
+				kind:        StatusError,
+				title:       "Stream unavailable",
+				message:     w.state.Error,
+				action:      "Retry",
+				onAction:    w.retry,
+				secondary:   w.backLabel(),
+				onSecondary: w.back,
 			})
 		case WatchStopped:
 			w.placeholder(c, Status{
@@ -234,9 +241,95 @@ func (w *Watch) stage(c *ui.Context, _ *ui.Theme) {
 	})
 }
 
+// loadingTitle names the channel that is starting.
+func (w *Watch) loadingTitle() string {
+	name := strings.TrimSpace(w.state.Channel)
+	if name == "" {
+		return "Loading"
+	}
+
+	return "Loading " + name
+}
+
+// backLabel names the channel a failed switch can return to.
+func (w *Watch) backLabel() string {
+	name := strings.TrimSpace(w.state.Previous)
+	if name == "" {
+		return ""
+	}
+
+	return "Back to " + name
+}
+
+// back dispatches the return intent, when there is somewhere to return to.
+func (w *Watch) back() {
+	if w.state.Previous == "" || w.OnBack == nil {
+		return
+	}
+
+	w.OnBack()
+}
+
 // placeholder centers a status view inside the video area.
 func (w *Watch) placeholder(c *ui.Context, s Status) {
 	s.View(c)
+}
+
+// overlayPanel is the glass panel that covers the video box while the native
+// surface is detached.
+type overlayPanel struct {
+	kind        StatusKind
+	title       string
+	message     string
+	action      string
+	onAction    func()
+	secondary   string
+	onSecondary func()
+}
+
+// overlayPanel floats a centered panel over the empty video box. The glass
+// samples the charcoal stage behind it, never a live frame: the app has
+// already detached the surface in these states.
+func (w *Watch) overlayPanel(c *ui.Context, p overlayPanel) {
+	t := c.Theme()
+
+	ui.Box(c).Absolute().Fill().Center().Children(func() {
+		ui.Column(c).Bind(&w.overlay).Padding(26, 30).Gap(14).Radius(18).
+			AlignItems(ui.Center).MaxWidth(480).
+			Material(glass.Glass{}).Border(1, t.Border).Children(func() {
+			switch p.kind {
+			case StatusLoading:
+				ui.Spinner(c).Size(22, 22).Label("Loading")
+			case StatusError:
+				ui.Text(c, "!").FontSize(t.Rem(1.5)).Bold().
+					TextColor(t.Danger).AccessHidden(true)
+			}
+
+			titleColor := t.Text
+			if p.kind == StatusError {
+				titleColor = t.Danger
+			}
+			ui.Text(c, p.title).FontSize(t.Rem(1.35)).FontWeight(600).
+				TextColor(titleColor).TextAlign(ui.Center)
+
+			if p.message != "" {
+				ui.Text(c, p.message).TextColor(t.TextMuted).
+					TextAlign(ui.Center).MaxWidth(400)
+			}
+
+			if p.action == "" && p.secondary == "" {
+				return
+			}
+			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+				if p.action != "" && p.onAction != nil {
+					ui.PrimaryButton(c, p.action).OnClick(p.onAction)
+				}
+				if p.secondary != "" && p.onSecondary != nil {
+					ui.Button(c, p.secondary).OnClick(p.onSecondary)
+				}
+			})
+		})
+	})
 }
 
 // drawer draws the collapsible channel list beside the video.
@@ -287,6 +380,10 @@ func (w *Watch) drawerRow(c *ui.Context, theme *ui.Theme, i int) {
 // controls draws status and the transport controls below the video.
 func (w *Watch) controls(c *ui.Context, theme *ui.Theme) {
 	ui.Column(c).FillWidth().Gap(8).Padding(6, 0, 0, 0).Children(func() {
+		if w.state.Kind == WatchBuffering {
+			w.bufferingRow(c, theme)
+		}
+
 		if status := w.statusText(); status != "" {
 			ui.Text(c, status).FontSize(theme.Rem(0.85)).
 				TextColor(theme.TextMuted).SingleLine()
@@ -347,10 +444,26 @@ func (w *Watch) canEnterPiP() bool {
 	}
 }
 
+// bufferingRow reports a stall under the video. It stays outside the video
+// box on purpose: the attached surface would cover anything drawn inside it.
+func (w *Watch) bufferingRow(c *ui.Context, theme *ui.Theme) {
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(8).Children(func() {
+		ui.Spinner(c).Size(14, 14).Label("Buffering")
+		ui.Text(c, "Buffering").FontSize(theme.Rem(0.85)).
+			TextColor(theme.TextMuted).SingleLine()
+
+		if detail := strings.TrimSpace(w.state.Status); detail != "" {
+			ui.Text(c, detail).FontSize(theme.Rem(0.85)).
+				TextColor(theme.TextMuted).SingleLine()
+		}
+	})
+}
+
 // statusText names the real player state, nothing when idle.
 func (w *Watch) statusText() string {
 	switch w.state.Kind {
-	case WatchEmpty:
+	case WatchEmpty, WatchBuffering:
+		// Buffering has its own row under the video.
 		return ""
 	case WatchResume:
 		return "Not playing. Resume starts the stream."
@@ -362,6 +475,11 @@ func (w *Watch) statusText() string {
 		return w.state.Status
 	}
 }
+
+// ResetFrame forgets the last reported video box, so a window that was
+// destroyed and recreated reports its box again instead of keeping a stale
+// one.
+func (w *Watch) ResetFrame() { w.frame = Rect{} }
 
 // reportFrame tells the app where the video box is.
 func (w *Watch) reportFrame(c *ui.Context) {

@@ -15,6 +15,10 @@ Issue: [#14](https://github.com/satyawikananda/mumu/issues/14). Packaging:
 - [ ] `packaging/macos/verify-app.sh` passes
 - [ ] `spctl -a` is expected to reject the unsigned app
 - [ ] QA matrix items that can run are recorded with evidence
+- [ ] The v0.1.0 blocker regression checks in [qa-matrix](qa-matrix.md) are
+      recorded: PiP with a closed main window, PiP repaint, closing PiP or
+      quitting while the main window is gone, audible launch, and a failed
+      switch without a stale frame
 - [ ] `THIRD_PARTY_NOTICES.md` matches the runtime manifest
 - [ ] `packaging/macos/mpv-runtime.json` hashes still match the sources
 - [ ] No Homebrew path appears in `otool -L` output

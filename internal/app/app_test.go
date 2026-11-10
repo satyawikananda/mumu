@@ -44,6 +44,16 @@ func (f *fakeDispatcher) waitUpdates(t *testing.T, n int) {
 	t.Fatalf("dispatcher received %d updates, want at least %d", f.updates, n)
 }
 
+// read runs fn while no Update is in flight. A controller notifier publishes on
+// its own goroutine, so a test that reads page state after a Play uses this
+// instead of racing the next frame.
+func (f *fakeDispatcher) read(fn func()) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	fn()
+}
+
 func newTestApp() (*App, *fakeDispatcher) {
 	a := New()
 	f := &fakeDispatcher{}

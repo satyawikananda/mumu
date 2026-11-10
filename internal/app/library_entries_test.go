@@ -352,6 +352,15 @@ func (q *queuedDispatcher) Update(fn func()) { q.fns = append(q.fns, fn) }
 
 func (q *queuedDispatcher) Invalidate() {}
 
+// flush runs every queued update in order, as the UI thread delivers them.
+func (q *queuedDispatcher) flush() {
+	for len(q.fns) > 0 {
+		fn := q.fns[0]
+		q.fns = q.fns[1:]
+		fn()
+	}
+}
+
 // A queued update must read the cache when it runs, not when it was enqueued.
 func TestPublishLibraryUsesNewestCache(t *testing.T) {
 	a := New()

@@ -390,7 +390,7 @@ func TestDiscoverFacetsAndAttribution(t *testing.T) {
 
 // Selecting a row opens Watch with that channel.
 func TestDiscoverSelectionOpensWatch(t *testing.T) {
-	a, _ := discoverTestApp(t)
+	a, f := discoverTestApp(t)
 	seedBuiltinCatalog(t, a)
 	a.refreshBuiltin = failRefresh
 
@@ -403,8 +403,13 @@ func TestDiscoverSelectionOpensWatch(t *testing.T) {
 	}
 
 	a.selectDiscoverChannel(got.Channels[0].Key)
-	if a.shell.Watch().State().Channel != "TVRI Nasional" {
-		t.Fatalf("watch channel %q, want TVRI Nasional", a.shell.Watch().State().Channel)
+
+	// The controller notifier publishes on its own goroutine; read under the
+	// dispatcher lock so the check cannot race the next frame.
+	var channel string
+	f.read(func() { channel = a.shell.Watch().State().Channel })
+	if channel != "TVRI Nasional" {
+		t.Fatalf("watch channel %q, want TVRI Nasional", channel)
 	}
 	if a.shell.Destination() != "/watch" {
 		t.Fatalf("destination %q, want Watch", a.shell.Destination())

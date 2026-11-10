@@ -43,8 +43,19 @@ type App struct {
 	settings       runSession
 	settingsData   *settingsCache
 
-	win          mainWindow
-	pipWindow    pipWindow
+	// mainWin is the native window the current a.win adapts. Compare this
+	// pointer, never the mainWindow interface: a closed window's adapter has a
+	// different dynamic type than the *mygo.Window it came from.
+	mainWin   *mygo.Window
+	win       mainWindow
+	pipWindow pipWindow
+	// pipDispatcher is the floating window as a redraw target. It is set when
+	// the PiP window is created and cleared when it is closed: the main
+	// window's updates stop painting once that window is destroyed.
+	pipDispatcher pipWindow
+	// pipOffClose removes the floating window's close listener. A close the app
+	// asks for must not be prevented by its own handler.
+	pipOffClose  func()
 	engine       player.Engine
 	controller   *player.Controller
 	surface      video.Surface
@@ -56,8 +67,15 @@ type App struct {
 	// on the first Play rather than at launch.
 	openMu sync.Mutex
 	// newEngine builds the playback engine. Tests replace it to run without a
-	// native runtime; the default is the platform adapter.
-	newEngine func(videoOutput string) (player.Engine, error)
+	// native runtime; the default is the platform adapter. The volume is the
+	// effective launch volume, so the engine never starts at its own zero.
+	newEngine func(videoOutput string, volume int) (player.Engine, error)
+	// newMainWindow creates the application window, recreating it after the
+	// viewer closed it during PiP. Tests replace it with a fake.
+	newMainWindow func() (mainWindow, *mygo.Window)
+	// quit requests application shutdown. Tests replace it to count calls
+	// without an event loop.
+	quit func()
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -68,10 +86,11 @@ type App struct {
 func New() *App {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	return &App{
+	a := &App{
 		shell:          ui.NewShell(),
 		presentation:   video.PresentationMain,
 		newEngine:      newPlaybackEngine,
+		quit:           mygo.App.Quit,
 		ctx:            ctx,
 		cancel:         cancel,
 		refreshBuiltin: serviceRefreshBuiltin,
@@ -81,6 +100,9 @@ func New() *App {
 		settingsData:   newSettingsCache(),
 		media:          mediaState{snapshot: player.Snapshot{Volume: player.DefaultVolume}},
 	}
+	a.newMainWindow = a.createMainWindow
+
+	return a
 }
 
 // Run opens the main window and blocks until the app quits.
@@ -157,6 +179,11 @@ func (a *App) Stop() {
 	}
 	a.stopped = true
 	a.mu.Unlock()
+
+	// The quit sequence closes every window after this hook. Releasing the
+	// floating player's close listener lets that close run normally instead of
+	// being prevented by the handler that would ask to close PiP again.
+	a.detachPiPClose()
 
 	a.cancel()
 

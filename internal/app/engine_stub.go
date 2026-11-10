@@ -12,6 +12,6 @@ import (
 var ErrPlaybackUnavailable = fmt.Errorf("native playback is unavailable on this platform: %w", player.ErrRuntimeUnavailable)
 
 // newPlaybackEngine reports that this build has no libmpv adapter.
-func newPlaybackEngine(string) (player.Engine, error) {
+func newPlaybackEngine(string, int) (player.Engine, error) {
 	return nil, ErrPlaybackUnavailable
 }

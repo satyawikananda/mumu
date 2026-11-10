@@ -138,6 +138,10 @@ func New(cfg Config) (*Engine, error) {
 		return nil, fmt.Errorf("initialize libmpv: %w", err)
 	}
 
+	// The actual values handed to mpv, so a silent launch can be traced to the
+	// engine rather than guessed from the UI state.
+	slog.Debug("libmpv audio options", "volume", cfg.Volume, "muted", cfg.Muted)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	engine := &Engine{
 		client:   client,

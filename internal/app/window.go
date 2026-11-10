@@ -1,10 +1,13 @@
 package app
 
 import (
+	"log/slog"
+
 	"github.com/egoist/mygo"
 	myui "github.com/egoist/mygo/ui"
 
 	"mumu/internal/ui"
+	"mumu/internal/video"
 )
 
 // mainWindow is the native main window surface the app presents into.
@@ -29,15 +32,8 @@ func (m nativeMain) ContentBounds() mygo.Rectangle {
 	return m.win.ContentBounds()
 }
 
-// openWindow creates the single application window.
-func (a *App) openWindow() {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	if a.stopped {
-		return
-	}
-
+// createMainWindow builds the single application window and its callbacks.
+func (a *App) createMainWindow() (mainWindow, *mygo.Window) {
 	win := mygo.NewWindow(mygo.WindowOptions{
 		Title:     "mumu",
 		Width:     960,
@@ -52,17 +48,72 @@ func (a *App) openWindow() {
 		BackgroundColor: ui.WindowBackground(),
 	})
 
-	a.dispatcher = win
-	a.win = nativeMain{win: win}
 	win.OnResize(func() { a.publish(func() {}) })
-	win.OnClosed(func() {
-		a.mu.Lock()
-		if a.win == win {
-			a.win = nil
-		}
+	win.OnClosed(func() { a.mainWindowClosed(win) })
+
+	return nativeMain{win: win}, win
+}
+
+// openWindow creates the application window, or recreates it after the viewer
+// closed it while the floating player kept the session alive.
+func (a *App) openWindow() {
+	a.mu.Lock()
+	stopped, open := a.stopped, a.win != nil
+	a.mu.Unlock()
+
+	if stopped || open {
+		return
+	}
+
+	// The native window is created outside the lock; creating it touches
+	// AppKit and may call back into the app.
+	adapter, win := a.newMainWindow()
+
+	a.mu.Lock()
+	if a.stopped {
 		a.mu.Unlock()
-	})
-	if a.storeErr != nil {
-		a.shell.ShowError(storeMessage(a.storeErr))
+
+		return
+	}
+	a.win = adapter
+	a.mainWin = win
+	if win != nil {
+		a.dispatcher = win
+	}
+	storeErr := a.storeErr
+	a.mu.Unlock()
+
+	if storeErr != nil {
+		a.shell.ShowError(storeMessage(storeErr))
+	}
+}
+
+// mainWindowClosed forgets a destroyed main window and releases the surface it
+// presented on. It runs on the UI thread from the window's close callback.
+//
+// The PiP window, the session and the audio keep running: MyGo only quits when
+// the last window closes, and the floating player is still open.
+func (a *App) mainWindowClosed(win *mygo.Window) {
+	a.mu.Lock()
+	if a.mainWin != win {
+		// A newer window already replaced this one; do not clear it.
+		a.mu.Unlock()
+
+		return
+	}
+	a.mainWin = nil
+	a.win = nil
+	surface := a.surface
+	detach := a.media.attached && a.presentation == video.PresentationMain
+	// The view went down with the window; the flag must say so.
+	a.media.attached = false
+	a.mu.Unlock()
+
+	if !detach || surface == nil {
+		return
+	}
+
+	if err := surface.Detach(); err != nil {
+		slog.Debug("detach video surface after the main window closed", "error", err)
 	}
 }

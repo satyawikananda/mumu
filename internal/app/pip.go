@@ -19,8 +19,15 @@ type pipWindow interface {
 	NativeHandle() uintptr
 	ContentBounds() mygo.Rectangle
 	SetContentBounds(bounds mygo.Rectangle)
+	// Invalidate asks the floating window for a new frame without running a
+	// state callback. The app's own publish path already ran that callback on
+	// the main window, whose redraw stops working once it is destroyed.
+	Invalidate()
 	OnResize(fn func())
-	OnClose(fn func(e *mygo.CloseEvent))
+	// OnClose registers a close handler and returns the function that removes
+	// it. A close the app asks for must be able to run without its own handler
+	// preventing it, so the registration is removable.
+	OnClose(fn func(e *mygo.CloseEvent)) (off func())
 }
 
 // nativePip adapts a MyGo window to the presenter's interface.
@@ -30,12 +37,13 @@ func (p nativePip) Show()                                  { p.win.Show() }
 func (p nativePip) Hide()                                  { p.win.Hide() }
 func (p nativePip) Close()                                 { p.win.Close() }
 func (p nativePip) Focus()                                 { p.win.Focus() }
+func (p nativePip) Invalidate()                            { p.win.Invalidate() }
 func (p nativePip) NativeHandle() uintptr                  { return p.win.NativeHandle() }
 func (p nativePip) ContentBounds() mygo.Rectangle          { return p.win.ContentBounds() }
 func (p nativePip) SetContentBounds(bounds mygo.Rectangle) { p.win.SetContentBounds(bounds) }
 func (p nativePip) OnResize(fn func())                     { p.win.OnResize(fn) }
-func (p nativePip) OnClose(fn func(e *mygo.CloseEvent)) {
-	p.win.OnClose(fn)
+func (p nativePip) OnClose(fn func(e *mygo.CloseEvent)) func() {
+	return p.win.OnClose(fn)
 }
 
 const (
@@ -79,6 +87,9 @@ func (a *App) enterPiP() {
 
 		a.mu.Lock()
 		a.pipWindow = pip
+		// The floating window paints independently once the main window is
+		// closed, so it is also the second redraw target for state updates.
+		a.pipDispatcher = pip
 		a.mu.Unlock()
 	}
 
@@ -86,15 +97,27 @@ func (a *App) enterPiP() {
 	state := a.presentation
 	a.mu.Unlock()
 
+	attached := false
 	err := video.Transfer(&state, video.PresentationPiP, func() error {
 		pip.Show()
 		pip.Focus()
 
-		return surface.Attach(pip.NativeHandle(), pipFrame(pip))
+		if err := surface.Attach(pip.NativeHandle(), pipFrame(pip)); err != nil {
+			return err
+		}
+		attached = true
+
+		return nil
 	})
 
 	a.mu.Lock()
 	a.presentation = state
+	if attached {
+		// The retained view is in the floating window now; the main window has
+		// no drawable until a return attaches it again.
+		a.media.attached = false
+		a.media.pipAttached = true
+	}
 	a.mu.Unlock()
 
 	if err != nil {
@@ -109,16 +132,21 @@ func (a *App) enterPiP() {
 
 // returnFromPiP moves the surface back to the main window, recreating it when
 // the viewer closed it earlier.
+//
+// The page reports its video box only on a layout pass, so the app shows Watch,
+// forgets the stale box and then binds the retained view to the new window. A
+// failed attach leaves the presentation in PiP, the floating player untouched
+// and the session playing: there is no half state to clean up.
 func (a *App) returnFromPiP() {
 	a.mu.Lock()
-	surface, pip, frame := a.surface, a.pipWindow, a.mainFrame
+	surface, pip, frame, haveWindow := a.surface, a.pipWindow, a.mainFrame, a.win != nil
 	a.mu.Unlock()
 
 	if surface == nil {
 		return
 	}
 
-	if a.win == nil {
+	if !haveWindow {
 		a.openWindow()
 	}
 
@@ -127,15 +155,24 @@ func (a *App) returnFromPiP() {
 	a.mu.Unlock()
 
 	if main == nil {
-		a.failWatch("The main window could not be restored.")
+		// Stay in PiP rather than dropping the picture or leaving a
+		// transition behind; the viewer can try Return again.
+		slog.Warn("return from picture-in-picture: the main window is unavailable")
 
 		return
 	}
+
+	// Show Watch and forget the box before the transfer, so the recreated page
+	// lays out and reports the video area again. Both calls are UI-thread work,
+	// as is the transfer that follows.
+	a.shell.ShowWatch()
+	a.shell.Watch().ResetFrame()
 
 	a.mu.Lock()
 	state := a.presentation
 	a.mu.Unlock()
 
+	attached := false
 	err := video.Transfer(&state, video.PresentationMain, func() error {
 		main.Restore()
 		main.Show()
@@ -145,16 +182,27 @@ func (a *App) returnFromPiP() {
 			target = contentFrame(main)
 		}
 
-		return surface.Attach(main.NativeHandle(), target)
+		if err := surface.Attach(main.NativeHandle(), target); err != nil {
+			return err
+		}
+		attached = true
+
+		return nil
 	})
 
 	a.mu.Lock()
 	a.presentation = state
+	if attached {
+		a.media.attached = true
+		a.media.pipAttached = false
+	}
 	a.mu.Unlock()
 
 	if err != nil {
+		// The floating player keeps the session and the view: Attach fails
+		// before it reparents, so there is no drawable to repair. The viewer
+		// can press Return again.
 		slog.Warn("return from picture-in-picture", "error", err)
-		a.failWatch("The video could not return to the main window.")
 
 		return
 	}
@@ -174,25 +222,83 @@ func (a *App) returnFromPiP() {
 
 // closePiP ends the mini player. With a main window it returns there; without
 // one it stops playback and quits, as the UX contract requires.
+//
+// It is idempotent: a released PiP window means there is nothing left to close,
+// so a second request never stops playback or asks to quit twice.
 func (a *App) closePiP() {
-	if a.win != nil {
+	a.mu.Lock()
+	pip, haveWindow := a.pipWindow, a.win != nil
+	quit := a.quit
+	a.mu.Unlock()
+
+	if pip == nil {
+		return
+	}
+
+	if haveWindow {
 		a.returnFromPiP()
 
 		return
 	}
 
+	// Stop playback while the floating drawable is still alive: releasing the
+	// native view from a destroyed window is a hang risk the teardown does not
+	// need to take.
+	a.shutdownPlayback()
+	a.releasePiPWindow()
+
+	if quit != nil {
+		quit()
+	}
+}
+
+// releasePiPWindow closes the floating window and forgets it as a redraw
+// target, so no later publish invalidates a destroyed window.
+//
+// The close listener goes first: a close the app asks for must not be prevented
+// by the handler that turns a user close into closePiP, which would call this
+// path again and leave the window open.
+func (a *App) releasePiPWindow() {
+	a.detachPiPClose()
+
 	a.mu.Lock()
 	pip := a.pipWindow
 	a.pipWindow = nil
+	a.pipDispatcher = nil
 	a.presentation = video.PresentationStopped
+	a.media.attached = false
+	a.media.pipAttached = false
 	a.mu.Unlock()
 
 	if pip != nil {
 		pip.Close()
 	}
+}
 
-	a.shutdownPlayback()
-	mygo.RunOnMain(mygo.App.Quit)
+// detachPiPClose removes the floating window's close listener once. Stop calls
+// it too, so the quit sequence can close the window normally instead of having
+// its own request prevented.
+func (a *App) detachPiPClose() {
+	a.mu.Lock()
+	off := a.pipOffClose
+	a.pipOffClose = nil
+	a.mu.Unlock()
+
+	if off != nil {
+		off()
+	}
+}
+
+// pipCloseRequest runs when the floating window asks to close, either from the
+// native title bar or from the panel's own action.
+//
+// AppKit calls the listener from windowShouldClose:, so tearing the window down
+// on the spot would destroy it reentrantly inside its own close request. The
+// request is prevented and the teardown is posted instead, running on the next
+// main-thread turn once the close handler has returned.
+func (a *App) pipCloseRequest(e *mygo.CloseEvent) {
+	e.PreventDefault()
+	a.publish(a.closePiP)
 }
 
 // newPiPWindow creates the native floating player once.
@@ -214,10 +320,12 @@ func (a *App) newPiPWindow() pipWindow {
 
 	adapter := nativePip{win: pip}
 	adapter.OnResize(func() { a.resizePiP(adapter) })
-	adapter.OnClose(func(e *mygo.CloseEvent) {
-		e.PreventDefault()
-		a.closePiP()
-	})
+
+	off := adapter.OnClose(a.pipCloseRequest)
+
+	a.mu.Lock()
+	a.pipOffClose = off
+	a.mu.Unlock()
 
 	return adapter
 }

@@ -133,7 +133,8 @@ Automated:
 - `internal/app` covers launch resume, cross-page favorite consistency,
   source-scoped identity and the disabled-source message.
 - `go test ./...`, `go test -race ./...`, `go vet ./...`,
-  `go tool mygo vet .`, `gofmt -l ./cmd ./internal` and golangci-lint pass.
+  `go tool mygo vet .`, `gofmt -l ./cmd ./internal` pass locally; golangci-lint
+  runs in CI.
 
 Native macOS smoke test (manual, pending with the Watch/PiP run): favorite a
 channel from Discover, check Watch and Library, restart and confirm the resume

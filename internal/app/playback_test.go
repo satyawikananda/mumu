@@ -166,7 +166,7 @@ func TestStreamHeaders(t *testing.T) {
 // engine factory fails, so the result does not depend on a native runtime.
 func TestPlayChannelWithoutEngineReportsError(t *testing.T) {
 	a, _ := discoverTestApp(t)
-	a.newEngine = func(string) (player.Engine, error) {
+	a.newEngine = func(string, int) (player.Engine, error) {
 		return nil, fmt.Errorf("%w: test runtime", player.ErrRuntimeUnavailable)
 	}
 
@@ -199,7 +199,7 @@ func TestStartWatchDoesNotOpenPlayback(t *testing.T) {
 	a, _ := discoverTestApp(t)
 
 	attempts := 0
-	a.newEngine = func(string) (player.Engine, error) {
+	a.newEngine = func(string, int) (player.Engine, error) {
 		attempts++
 
 		return nil, fmt.Errorf("%w: test runtime", player.ErrRuntimeUnavailable)
@@ -223,7 +223,7 @@ func TestStartWatchDoesNotOpenPlayback(t *testing.T) {
 func TestPlayOpensPlayerOnFirstPlay(t *testing.T) {
 	a, _ := discoverTestApp(t)
 	engine := newFakeEngine(t)
-	a.newEngine = func(string) (player.Engine, error) { return engine, nil }
+	a.newEngine = func(string, int) (player.Engine, error) { return engine, nil }
 
 	if a.controller != nil {
 		t.Fatal("controller exists before a Play")
@@ -251,7 +251,7 @@ func TestPlayRetriesAfterRuntimeAppears(t *testing.T) {
 	engine := newFakeEngine(t)
 
 	available := false
-	a.newEngine = func(string) (player.Engine, error) {
+	a.newEngine = func(string, int) (player.Engine, error) {
 		if !available {
 			return nil, fmt.Errorf("%w: test runtime", player.ErrRuntimeUnavailable)
 		}

@@ -55,10 +55,24 @@ Attach(window, frame)  add retained view → clearDrawable → setView: → appl
 Detach()               removeFromSuperview → clearDrawable → drawable size 0
 ```
 
+- The app keeps two attachment facts: the view is in the **main window** or in
+  the **PiP window**. Moving to PiP clears the main flag, returning sets it
+  again, and a closed window clears it. The flag is the only guard for `Detach`,
+  so a navigation detach can never pull the drawable out of the floating player.
+- Attachment follows the **playback state**, not only navigation. The view is
+  attached while the player reports `playing` or `buffering` and detached for
+  `loading`, `error`, `stopping`, `stopped` and idle — and, in the main window,
+  only while Watch is the current page. MyGo draws the loading and error panels
+  inside the same box, and a native subview is always above that layer, so the
+  view must be gone for those panels to be visible. Buffering keeps the last
+  frame and shows its badge below the video instead.
+- The state change and the drawable change happen in one UI-thread closure, and
+  the drawable change comes first. `Attach`/`Detach` must be on the main thread;
+  the app calls them from `Window.Update`, never from a worker.
 - `Detach` keeps the view object, the `NSOpenGLContext`, the render context and
-  the render thread alive. It is the navigation path: when the viewer leaves
-  Watch, the surface stops covering Discover, Library or Settings without a
-  stream reload.
+  the render thread alive. It is the navigation path and the overlay path: when
+  the viewer leaves Watch or the player stops presenting frames, the surface
+  stops covering another page or MyGo's overlay without a stream reload.
 - A later `Attach` rebinds the same view with `setView:`, recomputes the backing
   pixels from the new window's `backingScaleFactor` and signals the render
   thread, so frames resume. No second view, context, render context or player is
@@ -127,10 +141,10 @@ if err := surface.Attach(win.NativeHandle(), video.Fit(area, 16.0/9.0)); err != 
 // resize (main thread, from Window.OnResize)
 _ = surface.SetFrame(video.Fit(newArea, 16.0/9.0))
 
-// leaving Watch (main thread, from the shell's navigation intent)
-_ = surface.Detach() // no view over Discover, Library or Settings; session lives
+// leaving Watch or losing the presenting state (main thread)
+_ = surface.Detach() // no view over Discover, Library, Settings or an overlay; session lives
 
-// returning to Watch (main thread)
+// returning to Watch while frames present (main thread)
 _ = surface.Attach(win.NativeHandle(), video.Fit(area, 16.0/9.0)) // same view
 
 // renderer failures, any goroutine
@@ -156,10 +170,10 @@ Attach before the first `Play`, or on the same layout pass that reveals the
 video area: with no drawable the render thread skips frames and nothing is
 presented, even though audio continues.
 
-`Detach` is the navigation exit, not a shutdown: the player keeps playing and
-the next `Attach` reuses the same session. On a build without a native adapter
-`New` fails with `ErrUnsupported`, so there is nothing to detach; the headless
-engine is unaffected.
+`Detach` is the navigation and overlay exit, not a shutdown: the player keeps
+playing and the next `Attach` reuses the same session. On a build without a
+native adapter `New` fails with `ErrUnsupported`, so there is nothing to detach;
+the headless engine is unaffected.
 
 `vo=null` remains a valid headless engine. Rendering requires
 `Config.VideoOutput == "libmpv"`; anything else fails with

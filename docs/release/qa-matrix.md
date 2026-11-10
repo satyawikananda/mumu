@@ -78,6 +78,23 @@ Still not run: 60-minute soak, rapid PiP toggles, sleep/wake, external
 display, network transitions, invalid/oversized playlists, corrupted database,
 and the Gatekeeper flow from a downloaded release.
 
+### v0.1.0 blocker regression checks
+
+These three defects and their fixes are covered by unit tests but not yet by a
+recorded macOS run. They are release blockers, so the tag waits for them.
+
+| Check | Steps | Expected |
+| --- | --- | --- |
+| PiP survives a closed main window | Play a channel, enter PiP, close the main window, click Return to Window | A new main window opens on Watch, the video returns to its box, PiP hides, audio continues |
+| PiP keeps repainting | With the main window closed, mute and unmute from the floating panel | The mute label and player state change without needing a resize |
+| Launch is audible | Quit while muted at a saved volume, relaunch and play a channel | Audio is audible at the saved volume; mute is off |
+| Failed switch has no stale frame | Play a working channel, switch to an unavailable one | The glass error panel covers the stage, no frame of the previous channel remains, Retry and Back to *previous* are both offered |
+| Back to previous works | From that error, click Back to *previous* | The previous channel plays again through the same controller |
+| Close PiP with no main window | Play, enter PiP, close the main window, click Close in the floating panel | The panel closes once, playback stops and the app quits; nothing freezes |
+| Native close on the PiP panel | With the main window closed, click the panel's native close button | Same as above: one close, one quit, no hang |
+| Quit with PiP open | Play, enter PiP, press Cmd+Q | Every window closes and the process exits |
+
+
 ## Playback checks
 
 The 720p and 1080p cases use the synthetic local HLS fixture from

@@ -17,9 +17,15 @@ type Dispatcher interface {
 var _ Dispatcher = (*mygo.Window)(nil)
 
 // publish runs fn on the UI thread; drops updates with no usable window.
+//
+// The main window's Update still runs fn after that window was destroyed (its
+// redraw is the part that becomes a no-op), so the floating player is told to
+// repaint separately. Invalidating it from here covers both cases: the PiP
+// window is the only one that paints while the main window is closed, and it
+// does not repaint from the main window's updates otherwise.
 func (a *App) publish(fn func()) {
 	a.mu.Lock()
-	stopped, d := a.stopped, a.dispatcher
+	stopped, d, pip := a.stopped, a.dispatcher, a.pipDispatcher
 	a.mu.Unlock()
 
 	if stopped {
@@ -31,4 +37,7 @@ func (a *App) publish(fn func()) {
 	}
 
 	d.Update(fn)
+	if pip != nil {
+		pip.Invalidate()
+	}
 }
