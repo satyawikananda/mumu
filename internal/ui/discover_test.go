@@ -236,14 +236,134 @@ func TestDiscoverKeyboardFocus(t *testing.T) {
 
 	tt := discoverPage(d)
 
-	// Region selector, Add Playlist, then the list.
-	tt.Key(0, ui.KeyTab)
-	tt.Key(0, ui.KeyTab)
-	tt.Key(0, ui.KeyTab)
+	// Region selector, Add Playlist, search field, then the list.
+	for range 4 {
+		tt.Key(0, ui.KeyTab)
+	}
 	tt.Key(0, ui.KeyDown)
 
 	if d.selected != 0 {
 		t.Fatalf("selected row %d after Tab and Down, want 0", d.selected)
+	}
+}
+
+// Typing in the search field reports the new narrowing once.
+func TestDiscoverSearchFilter(t *testing.T) {
+	d := NewDiscover()
+	d.SetCountries(discoverTestCountries())
+	d.SetState(DiscoverState{Kind: DiscoverReady, Region: "ID", Channels: discoverTestChannels()})
+
+	var got []DiscoverFilters
+	d.OnFilter = func(filters DiscoverFilters) { got = append(got, filters) }
+
+	tt := discoverPage(d)
+	for range 3 {
+		tt.Key(0, ui.KeyTab)
+	}
+	tt.Type("tvri")
+
+	if len(got) != 1 {
+		t.Fatalf("filters %+v, want one report", got)
+	}
+	if got[0].Query != "tvri" {
+		t.Fatalf("query %q, want tvri", got[0].Query)
+	}
+}
+
+// A narrowed empty result offers Clear filters instead of Retry.
+func TestDiscoverFilteredEmpty(t *testing.T) {
+	d := NewDiscover()
+	d.SetCountries(discoverTestCountries())
+	d.SetState(DiscoverState{Kind: DiscoverReady, Region: "ID"})
+
+	var got []DiscoverFilters
+	d.OnFilter = func(filters DiscoverFilters) { got = append(got, filters) }
+
+	tt := discoverPage(d)
+	for range 3 {
+		tt.Key(0, ui.KeyTab)
+	}
+	tt.Type("nothing")
+
+	if !tt.HasText("No channels match") {
+		t.Fatalf("texts %q, want the filtered empty state", tt.Texts())
+	}
+	if err := tt.Click("Clear filters"); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) == 0 || !got[len(got)-1].Empty() {
+		t.Fatalf("filters %+v, want a cleared report", got)
+	}
+	if d.Filters().Query != "" {
+		t.Fatalf("query %q, want cleared", d.Filters().Query)
+	}
+}
+
+// Enter opens the chosen row, keeping its source-scoped key.
+func TestDiscoverSelectRow(t *testing.T) {
+	d := NewDiscover()
+	d.SetCountries(discoverTestCountries())
+	d.SetState(DiscoverState{
+		Kind:     DiscoverReady,
+		Region:   "ID",
+		Channels: discoverTestChannels(),
+	})
+
+	var opened []string
+	d.OnSelect = func(key string) { opened = append(opened, key) }
+
+	tt := discoverPage(d)
+	for range 4 {
+		tt.Key(0, ui.KeyTab)
+	}
+	tt.Key(0, ui.KeyDown)
+	tt.Key(0, ui.KeyEnter)
+
+	if len(opened) != 1 || opened[0] != "tvri" {
+		t.Fatalf("opened %v, want [tvri]", opened)
+	}
+}
+
+// Rows attribute their source, and a capped list says so.
+func TestDiscoverRowSourceAndCap(t *testing.T) {
+	d := NewDiscover()
+	rows := []DiscoverChannel{{
+		Key:        "source-a:tvri",
+		Name:       "TVRI Nasional",
+		Country:    "ID",
+		Category:   "General",
+		SourceName: "Community list",
+		Live:       true,
+	}}
+	d.SetState(DiscoverState{
+		Kind:      DiscoverReady,
+		Region:    "ID",
+		Channels:  rows,
+		Total:     42,
+		Truncated: true,
+	})
+
+	tt := discoverPage(d)
+	if !tt.HasText("Community list") {
+		t.Fatalf("texts %q, want the source attribution", tt.Texts())
+	}
+	if !tt.HasText("Showing first 1 of 42 channels") {
+		t.Fatalf("texts %q, want the cap summary", tt.Texts())
+	}
+}
+
+// A facet list drops a selection the new catalog no longer offers.
+func TestDiscoverFacetsDropStaleSelection(t *testing.T) {
+	d := NewDiscover()
+	d.SetFacets([]string{"News"}, []DiscoverFacet{{ID: "source-a", Name: "Community list"}})
+	d.category = "News"
+	d.sourceID = "source-a"
+
+	d.SetFacets([]string{"Sports"}, []DiscoverFacet{{ID: "source-b", Name: "My list"}})
+
+	filters := d.Filters()
+	if filters.Category != "" || filters.SourceID != "" {
+		t.Fatalf("filters %+v, want cleared", filters)
 	}
 }
 
@@ -256,5 +376,28 @@ func TestDiscoverNotice(t *testing.T) {
 	tt := discoverPage(d)
 	if !tt.HasText("Community channel list · iptv-org · not verified") {
 		t.Fatalf("texts %q, want the community notice", tt.Texts())
+	}
+}
+
+// Selection follows the row key when new results reorder the list.
+func TestDiscoverSelectionFollowsKey(t *testing.T) {
+	first := DiscoverChannel{Key: "a", Name: "Alpha"}
+	second := DiscoverChannel{Key: "b", Name: "Bravo"}
+
+	d := NewDiscover()
+	d.SetCountries(discoverTestCountries())
+	d.SetState(DiscoverState{Kind: DiscoverReady, Region: "ID", Channels: []DiscoverChannel{first, second}})
+
+	tt := discoverPage(d)
+	for range 4 {
+		tt.Key(0, ui.KeyTab)
+	}
+	tt.Key(0, ui.KeyDown)
+
+	d.SetState(DiscoverState{Kind: DiscoverReady, Region: "ID", Channels: []DiscoverChannel{second, first}})
+	tt.Frame()
+
+	if d.selected != 1 {
+		t.Fatalf("selected row %d, want the same key at row 1", d.selected)
 	}
 }

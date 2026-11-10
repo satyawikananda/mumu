@@ -282,3 +282,135 @@ func TestDiscoverIncludesEnabledUserSources(t *testing.T) {
 		t.Fatalf("channels %+v, want the user channel", got.Channels)
 	}
 }
+
+// Narrowing runs off the UI thread and republishes matching rows.
+func TestDiscoverFiltersChannels(t *testing.T) {
+	a, f := discoverTestApp(t)
+	seedBuiltinCatalog(t, a)
+	seedUserSource(t, a)
+	a.refreshBuiltin = failRefresh
+
+	gen, ctx := a.discover.begin(a.ctx)
+	a.loadDiscover(ctx, gen)
+
+	before := f.updates
+	a.filterDiscover(ui.DiscoverFilters{Query: "my news"})
+	f.waitUpdates(t, before+1)
+
+	got := a.shell.Discover().State()
+	if len(got.Channels) != 1 || got.Channels[0].Name != "My News" {
+		t.Fatalf("channels %+v, want only the matching user channel", got.Channels)
+	}
+	if got.Total != 1 {
+		t.Fatalf("total %d, want 1", got.Total)
+	}
+	if got.Kind != ui.DiscoverOffline {
+		t.Fatalf("state kind %v, want the catalog state kept", got.Kind)
+	}
+}
+
+// A newer query replaces an older one; the stale result is never published.
+func TestDiscoverFilterCancelsStaleQuery(t *testing.T) {
+	a, f := discoverTestApp(t)
+	seedBuiltinCatalog(t, a)
+	seedUserSource(t, a)
+	a.refreshBuiltin = failRefresh
+
+	gen, ctx := a.discover.begin(a.ctx)
+	a.loadDiscover(ctx, gen)
+
+	before := f.updates
+	a.filterDiscover(ui.DiscoverFilters{Query: "tvri"})
+	a.filterDiscover(ui.DiscoverFilters{Query: "my news"})
+	f.waitUpdates(t, before+1)
+
+	got := a.shell.Discover().State()
+	if len(got.Channels) != 1 || got.Channels[0].Name != "My News" {
+		t.Fatalf("channels %+v, want only the newest query result", got.Channels)
+	}
+}
+
+// The row cap keeps one publish bounded while Total counts every match.
+func TestDiscoverFilterCap(t *testing.T) {
+	index := newDiscoverIndex()
+	channels := make([]catalog.Channel, discoverResultLimit+25)
+	for i := range channels {
+		channels[i] = catalog.Channel{
+			SourceID:   "source-a",
+			ProviderID: fmt.Sprintf("provider-%d", i),
+			Name:       fmt.Sprintf("Channel %d", i),
+		}
+	}
+	index.setCatalog(channels, discoverFacets{}, discoverBase{
+		kind:   ui.DiscoverReady,
+		region: "ID",
+	})
+
+	rows, total, truncated := index.filter(ui.DiscoverFilters{})
+	if len(rows) != discoverResultLimit {
+		t.Fatalf("rows %d, want %d", len(rows), discoverResultLimit)
+	}
+	if total != len(channels) {
+		t.Fatalf("total %d, want %d", total, len(channels))
+	}
+	if !truncated {
+		t.Fatal("cap did not report a truncated result")
+	}
+}
+
+// Facets carry distinct labels and the row attribution.
+func TestDiscoverFacetsAndAttribution(t *testing.T) {
+	a, _ := discoverTestApp(t)
+	seedUserSource(t, a)
+
+	service, err := a.Catalog()
+	if err != nil {
+		t.Fatalf("Catalog: %v", err)
+	}
+	ctx := context.Background()
+	users, err := service.UserChannels(ctx)
+	if err != nil {
+		t.Fatalf("UserChannels: %v", err)
+	}
+
+	facets := discoverFacetsFor(ctx, service, users)
+	if len(facets.sources) != 1 || facets.sources[0].Name != "My list" {
+		t.Fatalf("sources %+v, want My list", facets.sources)
+	}
+	if facets.names[users[0].SourceID] != "My list" {
+		t.Fatalf("names %+v, want the source name", facets.names)
+	}
+
+	rows, _, _ := newDiscoverIndexWith(users, facets).filter(ui.DiscoverFilters{})
+	if len(rows) != 1 || rows[0].SourceName != "My list" {
+		t.Fatalf("rows %+v, want source attribution", rows)
+	}
+}
+
+// Selecting a row opens Watch with that channel.
+func TestDiscoverSelectionOpensWatch(t *testing.T) {
+	a, _ := discoverTestApp(t)
+	seedBuiltinCatalog(t, a)
+	a.refreshBuiltin = failRefresh
+
+	gen, ctx := a.discover.begin(a.ctx)
+	a.loadDiscover(ctx, gen)
+
+	got := a.shell.Discover().State()
+	if len(got.Channels) == 0 {
+		t.Fatal("no rows to select")
+	}
+
+	a.selectDiscoverChannel(got.Channels[0].Key)
+	if a.shell.WatchChannel() != "TVRI Nasional" {
+		t.Fatalf("watch channel %q, want TVRI Nasional", a.shell.WatchChannel())
+	}
+}
+
+// newDiscoverIndexWith indexes channels and their facets for filter tests.
+func newDiscoverIndexWith(channels []catalog.Channel, facets discoverFacets) *discoverIndex {
+	index := newDiscoverIndex()
+	index.setCatalog(channels, facets, discoverBase{kind: ui.DiscoverReady, region: "ID"})
+
+	return index
+}

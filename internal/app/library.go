@@ -567,7 +567,7 @@ func (a *App) refreshDiscoverFromCache() {
 			return
 		}
 
-		a.publishDiscover(gen, discoverState(ui.DiscoverReady, region, channels))
+		a.publishCatalog(ctx, gen, ui.DiscoverReady, region, channels)
 		a.prefetchLogos(ctx, gen, channels)
 	})
 }

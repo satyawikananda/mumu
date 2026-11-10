@@ -12,13 +12,14 @@ const (
 
 // Shell is the native application shell.
 type Shell struct {
-	nav       string
-	err       string
-	themeMode ThemeMode
-	mark      *ui.Bitmap
-	discover  *Discover
-	library   *Library
-	settings  *Settings
+	nav          string
+	err          string
+	themeMode    ThemeMode
+	mark         *ui.Bitmap
+	discover     *Discover
+	library      *Library
+	settings     *Settings
+	watchChannel string
 }
 
 // NewShell returns a shell showing Discover in the dark theme.
@@ -49,6 +50,15 @@ func (s *Shell) Library() *Library { return s.library }
 
 // Settings returns the Settings page for the app to publish state to.
 func (s *Shell) Settings() *Settings { return s.settings }
+
+// OpenWatchChannel shows Watch for the selected channel name.
+func (s *Shell) OpenWatchChannel(name string) {
+	s.watchChannel = name
+	s.nav = destWatch
+}
+
+// WatchChannel returns the selected channel name, empty when none.
+func (s *Shell) WatchChannel() string { return s.watchChannel }
 
 // View draws the shell on the MyGo main thread.
 func (s *Shell) View(c *ui.Context) {
