@@ -3,6 +3,11 @@
   "slug": "mumu",
   "identifier": "dev.satyawikananda.mumu",
   "version": "0.1.0",
+  "copyright": "Copyright © 2026 Satya Wikananda",
+  "license": "MIT",
   "out": "build",
-  "main": "./cmd/mumu"
+  "main": "./cmd/mumu",
+  "macos": {
+    "minimumSystemVersion": "13.0"
+  }
 }

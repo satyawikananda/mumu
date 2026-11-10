@@ -3,3 +3,7 @@
 mygo_windows_*.syso
 __pycache__/
 .DS_Store
+/resources/darwin-arm64/libmpv/
+
+# Local run artifacts never belong in the repository.
+*.log

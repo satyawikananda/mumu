@@ -73,7 +73,7 @@ The spike commands live in [its README](experiments/nativeplayback/README.md). T
 | MyGo | `github.com/egoist/mygo` 0.8.3 | Pinned; latest release at bootstrap |
 | Playback engine | libmpv | Conditional native child-surface path proven in M0 |
 | Go mpv binding | `gen2brain/go-mpv` 0.4.0, patched in `third_party/go-mpv` | Default darwin/arm64 adapter; the runtime is opened explicitly, never in a package init |
-| libmpv runtime | Discovered at runtime: `MUMU_MPV_LIBRARY`, the loader's own search path (`DYLD_LIBRARY_PATH`), `/opt/homebrew/lib`, `/usr/local/lib`, then `Contents/Resources` | Implemented; a missing runtime is an actionable error, not a panic |
+| libmpv runtime | Bundled LGPL build in `Contents/Resources/libmpv`; discovered at runtime through `MUMU_MPV_LIBRARY`, the loader's own search path (`DYLD_LIBRARY_PATH`), `/opt/homebrew/lib`, `/usr/local/lib`, then `Contents/Resources/libmpv` and `Contents/Resources` | Implemented (#14); a missing runtime is an actionable error, not a panic |
 | Renderer on macOS | MyGo Metal UI + separate native OpenGL video view | Conditional M0 result; no direct Metal interop claim |
 | PiP | Floating native window with one retained view/session | Conditional M0 result; lifecycle/Spaces/stacking observed on tested Mac |
 | Persistence | SQLite via the MyGo plugin, local only | Implemented (#6, refactor) |
@@ -99,11 +99,15 @@ runtime when the viewer asks to play. The search order is:
 2. the dynamic loader's own search path, which honours `DYLD_LIBRARY_PATH`;
 3. `/opt/homebrew/lib/libmpv.dylib`, then `/usr/local/lib/libmpv.dylib`
    (and the `.2.dylib` variant of each);
-4. `Contents/Resources` next to the executable, when it already exists.
+4. `Contents/Resources/libmpv` and `Contents/Resources` next to the executable,
+   when they already exist.
 
 `MUMU_MPV_LIBRARY` exists because the `go` command removes `DYLD_LIBRARY_PATH`
 from the environment of the binaries it runs, so `go test` cannot use the
-loader's own search path. Packaging and redistribution stay #14's decision.
+loader's own search path. Packaging and redistribution are implemented in
+#14: the app ships a pinned LGPL runtime, never a GPL build. See
+[ADR 0008](docs/architecture/adr/0008-bundled-libmpv-runtime.md) and
+[macOS packaging](docs/release/macos.md).
 
 ```sh
 # Run the app with a libmpv runtime in a non-standard directory. The go
@@ -149,7 +153,9 @@ internal/storage/     # Local repositories and migrations; #6
 docs/architecture/    # ADRs, feasibility reports, evidence
 docs/ux/              # Shell wireframes, states and interaction notes
 experiments/          # M0 spikes and the synthetic HLS fixture
-resources/            # Packaged app icon
+resources/            # Packaged icon, licenses, third-party notices
+packaging/            # LGPL runtime build and macOS release gates (#14)
+docs/release/         # Packaging notes, QA matrix and release checklist
 ```
 
 `internal/player`, `video`, `catalog`, `netguard`, `playlist`, `sources` and
@@ -223,7 +229,8 @@ Before claiming completion:
   - `go vet ./...` and `go tool mygo vet .` for MyGo UI lifetime checks.
   - `gofmt -l ./cmd ./internal` (must print nothing).
   - `golangci-lint run ./cmd/... ./internal/...` when the tool is installed, or `make lint`.
-  - `go tool mygo build` for a packaged macOS app.
+  - `make package` for the full release: LGPL runtime, `go tool mygo build`,
+    and `packaging/macos/verify-app.sh`.
   - On a machine with libmpv, `MUMU_MPV_LIBRARY=<dir>` plus `MUMU_MPV_TEST=1`/`MUMU_MPV_HEADER_TEST=1` for the gated `internal/player/libmpv` integration tests. A skip is not a pass.
 - For native media work, record **OS, architecture, MyGo/libmpv versions, command, observable output, and tested stream type**.
 - Report a clear summary: changed files, tests actually run, constraints met, unverified items, and follow-up risks.

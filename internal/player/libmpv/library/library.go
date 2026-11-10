@@ -72,7 +72,7 @@ func (e *NotFoundError) Error() string {
 		name = tried[0]
 	}
 
-	message += "; install mpv with Homebrew, or set " + EnvLibrary +
+	message += "; reinstall mumu, or set " + EnvLibrary +
 		" (or DYLD_LIBRARY_PATH) to the directory containing " + name
 
 	if e.Detail != "" {

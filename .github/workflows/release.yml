@@ -1,0 +1,108 @@
+name: Release
+
+# A tag such as v0.1.0 builds the arm64 app and its LGPL runtime, verifies the
+# bundle, and uploads a draft release. The app is ad hoc signed: no Developer
+# ID and no notarization. See docs/release/macos.md.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Check the runner architecture
+        run: |
+          arch="$(uname -m)"
+          if [ "$arch" != "arm64" ]; then
+            echo "::error::this workflow needs an arm64 runner, got $arch"
+            exit 1
+          fi
+
+      - name: Install the runtime build tools
+        run: brew install meson pkg-config cmake
+
+      - name: Cache the LGPL runtime
+        uses: actions/cache@v6
+        with:
+          path: build/runtime
+          key: libmpv-${{ hashFiles('packaging/macos/mpv-runtime.json', 'packaging/macos/build-lgpl-runtime.sh', 'packaging/macos/patches/**') }}
+
+      - name: Build the runtime
+        run: make runtime
+
+      - name: Package and verify
+        run: make package
+
+      - name: Check the version
+        id: version
+        run: |
+          version="$(jq -r .version mygo.json)"
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ] && [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match mygo.json $version"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Collect the release assets
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          app="build/darwin-arm64/Mumu.app"
+          dmg="build/darwin-arm64/mumu-${VERSION}-arm64.dmg"
+          stage="build/release"
+          mkdir -p "$stage"
+
+          cp "$dmg" "$stage/"
+          cp THIRD_PARTY_NOTICES.md "$stage/"
+
+          tar -czf "$stage/mumu-libmpv-${VERSION}-arm64.tar.gz" \
+            -C build/runtime/lib .
+
+          ./packaging/macos/collect-sources.sh "$VERSION" "$stage"
+
+          (
+            cd "$stage"
+            shasum -a 256 mumu-*.dmg mumu-libmpv-*.tar.gz THIRD_PARTY_NOTICES.md > SHA256SUMS
+          )
+
+          digest="$(shasum -a 256 "$stage/mumu-${VERSION}-arm64.dmg" | awk '{print $1}')"
+          jq -n \
+            --arg version "$VERSION" \
+            --arg dmg "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/mumu-${VERSION}-arm64.dmg" \
+            --arg sha "$digest" \
+            --arg notes "https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}" \
+            '{version:$version,arch:"arm64",minimumSystemVersion:"13.0",signed:false,dmg:$dmg,sha256:$sha,notes:$notes}' \
+            >"$stage/latest.json"
+
+          ls -lh "$stage"
+
+      - name: Upload the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          if [ "${GITHUB_REF_TYPE:-}" != "tag" ]; then
+            tag="v${VERSION}"
+          fi
+          if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --draft \
+              --title "mumu $VERSION" --generate-notes
+          fi
+          gh release upload "$tag" --repo "$GITHUB_REPOSITORY" --clobber \
+            build/release/*

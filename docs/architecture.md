@@ -8,6 +8,8 @@ Bootstrap decisions from #3 are recorded as ADRs: [native-only UI](adr/0001-nati
 
 Foundation decisions from #5/#6 are recorded as [local SQLite storage](adr/0004-local-sqlite-storage.md) and [playback controller and engine boundary](adr/0005-playback-controller.md). Implementation notes live in [local storage](storage.md) and [playback controller](player-controller.md).
 
+The release decision from #14 is [ADR 0008](adr/0008-bundled-libmpv-runtime.md): the macOS app bundles a pinned LGPL libmpv runtime and ships unsigned through GitHub Releases. Packaging and verification steps are in [macOS packaging](../release/macos.md); the QA matrix and release checklist are in [`docs/release/`](../release/). Runtime evidence is under [`evidence/release-2026-11-10`](evidence/release-2026-11-10/).
+
 ## 1. Feasibility status and permission to proceed
 
 The feasibility scope of issues #1 and #2 is complete for the tested configuration, with a **CONDITIONAL GO** result. This is distinct from production playback/PiP completion and from closing the GitHub issues.

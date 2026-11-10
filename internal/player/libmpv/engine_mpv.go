@@ -34,10 +34,14 @@ const (
 	commandMute
 )
 
-// bundleDir is where a packaged app may carry libmpv, next to the existing
-// Resources payload. The search only uses it when it already exists; packaging
-// and redistribution belong to #14.
+// bundleDir is where a packaged app may carry libmpv. The search only uses it
+// when it already exists; packaging and redistribution live in packaging/macos.
 const bundleDir = "Resources"
+
+// bundledLibraryDir is the subdirectory of bundleDir that ships the LGPL
+// libmpv runtime and its dependencies. Keeping them together leaves
+// Contents/Resources root for the app's icons and notices.
+const bundledLibraryDir = "libmpv"
 
 type command struct {
 	kind       commandKind
@@ -110,8 +114,19 @@ func New(cfg Config) (*Engine, error) {
 		options["ao"] = cfg.AudioOutput
 	}
 
+	// A build without Lua, JavaScript or C plugins does not register these
+	// scripting options at all. They are still set when present, so a runtime
+	// that has scripting never auto-loads a script.
+	optional := map[string]bool{
+		"load-scripts": true,
+		"ytdl":         true,
+	}
+
 	for name, value := range options {
 		if err := client.SetOptionString(name, value); err != nil {
+			if optional[name] {
+				continue
+			}
 			client.TerminateDestroy()
 
 			return nil, fmt.Errorf("set libmpv option %s: %w", name, err)
@@ -166,7 +181,9 @@ func bundleDirs() []string {
 		return nil
 	}
 
-	return []string{filepath.Join(filepath.Dir(executable), "..", bundleDir)}
+	resources := filepath.Join(filepath.Dir(executable), "..", bundleDir)
+
+	return []string{filepath.Join(resources, bundledLibraryDir), resources}
 }
 
 // Load starts a source for generation. The actual result arrives as events.
