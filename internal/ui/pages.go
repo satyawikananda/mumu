@@ -40,29 +40,7 @@ func pageStatus(c *ui.Context, s Status) {
 func (s *Shell) drawPage(c *ui.Context, theme *ui.Theme) {
 	switch s.nav {
 	case destWatch:
-		pageHeading(c, "Watch")
-		if s.watchChannel != "" {
-			pageStatus(c, Status{
-				Kind:    StatusEmpty,
-				Title:   "Ready to play",
-				Message: s.watchChannel + ". Native playback arrives in #11.",
-				Action:  "Browse Discover",
-				OnAction: func() {
-					s.nav = destDiscover
-				},
-			})
-
-			return
-		}
-		pageStatus(c, Status{
-			Kind:    StatusEmpty,
-			Title:   "Nothing playing",
-			Message: "Choose a channel in Discover. Playback arrives in #11.",
-			Action:  "Browse Discover",
-			OnAction: func() {
-				s.nav = destDiscover
-			},
-		})
+		s.watch.View(c, theme)
 	case destLibrary:
 		s.library.View(c, theme)
 	case destSettings:

@@ -12,14 +12,15 @@ const (
 
 // Shell is the native application shell.
 type Shell struct {
-	nav          string
-	err          string
-	themeMode    ThemeMode
-	mark         *ui.Bitmap
-	discover     *Discover
-	library      *Library
-	settings     *Settings
-	watchChannel string
+	nav       string
+	err       string
+	themeMode ThemeMode
+	mark      *ui.Bitmap
+	discover  *Discover
+	library   *Library
+	settings  *Settings
+	watch     *Watch
+	pip       *PiP
 }
 
 // NewShell returns a shell showing Discover in the dark theme.
@@ -31,6 +32,8 @@ func NewShell() *Shell {
 		discover:  NewDiscover(),
 		library:   NewLibrary(),
 		settings:  NewSettings(),
+		watch:     NewWatch(),
+		pip:       NewPiP(),
 	}
 	// Add Playlist from Discover opens the Library and its import sheet.
 	s.discover.OnAddPlaylist = func() {
@@ -38,6 +41,7 @@ func NewShell() *Shell {
 		s.library.OpenAddPlaylist()
 	}
 	s.settings.OnManagePlaylists = func() { s.nav = destLibrary }
+	s.watch.OnBrowse = func() { s.nav = destDiscover }
 
 	return s
 }
@@ -51,14 +55,28 @@ func (s *Shell) Library() *Library { return s.library }
 // Settings returns the Settings page for the app to publish state to.
 func (s *Shell) Settings() *Settings { return s.settings }
 
-// OpenWatchChannel shows Watch for the selected channel name.
-func (s *Shell) OpenWatchChannel(name string) {
-	s.watchChannel = name
-	s.nav = destWatch
-}
+// Watch returns the Watch page for the app to publish state to.
+func (s *Shell) Watch() *Watch { return s.watch }
 
-// WatchChannel returns the selected channel name, empty when none.
-func (s *Shell) WatchChannel() string { return s.watchChannel }
+// PiP returns the mini player for the app to publish state to.
+func (s *Shell) PiP() *PiP { return s.pip }
+
+// ShowWatch makes Watch the current destination.
+func (s *Shell) ShowWatch() { s.nav = destWatch }
+
+// ShowDiscover makes Discover the current destination.
+func (s *Shell) ShowDiscover() { s.nav = destDiscover }
+
+// Destination returns the current destination ID, for the app and tests.
+func (s *Shell) Destination() string { return s.nav }
+
+// PiPView draws the floating player with the app's theme.
+func (s *Shell) PiPView(c *ui.Context) {
+	theme := themeFor(s.themeMode, c.Theme().Dark)
+	ui.Themed(c, theme).Fill().Background(watchVideoColor).Children(func() {
+		s.pip.View(c, theme)
+	})
+}
 
 // View draws the shell on the MyGo main thread.
 func (s *Shell) View(c *ui.Context) {

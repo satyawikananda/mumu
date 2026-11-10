@@ -129,6 +129,42 @@ func (i *discoverIndex) base() discoverBase {
 	return discoverBase{kind: i.baseKind, region: i.baseRegion, message: i.baseMsg}
 }
 
+// drawerChannels maps the indexed catalog to Watch drawer rows.
+func (i *discoverIndex) drawerChannels(limit int) []ui.WatchChannel {
+	i.mu.Lock()
+	channels := i.channels
+	names := i.names
+	i.mu.Unlock()
+
+	count := min(len(channels), limit)
+	rows := make([]ui.WatchChannel, 0, count)
+	for position := 0; position < count; position++ {
+		channel := channels[position]
+		meta := strings.TrimSpace(channel.Group)
+		if name := names[channel.SourceID]; name != "" {
+			if meta != "" {
+				meta += " · "
+			}
+			meta += name
+		}
+		rows = append(rows, ui.WatchChannel{
+			Key:  discoverKey(channel, position),
+			Name: channel.Name,
+			Meta: meta,
+		})
+	}
+
+	return rows
+}
+
+// sourceName returns a source's display name, or an empty string.
+func (i *discoverIndex) sourceName(id string) string {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	return i.names[id]
+}
+
 // channel resolves one published row key back to its catalog channel.
 func (i *discoverIndex) channel(key string) (catalog.Channel, bool) {
 	i.mu.Lock()
@@ -685,6 +721,7 @@ func (a *App) publishCatalogState(
 	base := discoverBase{kind: kind, region: region, message: message}
 	filters := a.discoverIndex.setCatalog(channels, facets, base)
 	rows, total, truncated := a.discoverIndex.filter(filters)
+	drawer := a.discoverIndex.drawerChannels(discoverResultLimit)
 
 	a.publish(func() {
 		if !a.discover.current(gen) {
@@ -702,6 +739,11 @@ func (a *App) publishCatalogState(
 			Truncated: truncated,
 		})
 		page.SetLogos(a.logos.snapshot())
+
+		a.mu.Lock()
+		a.media.drawer = drawer
+		a.mu.Unlock()
+		a.shell.Watch().SetState(a.watchState())
 	})
 }
 
@@ -756,7 +798,7 @@ func (a *App) selectDiscoverChannel(key string) {
 		return
 	}
 
-	a.publish(func() { a.shell.OpenWatchChannel(channel.Name) })
+	a.playChannel(channel, a.discoverIndex.sourceName(channel.SourceID))
 }
 
 // sleepContext waits for d unless ctx ends first.
