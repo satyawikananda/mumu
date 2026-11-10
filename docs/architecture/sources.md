@@ -204,7 +204,7 @@ list escaped with backslash. The option value is never logged.
 
 Whether those headers actually reach a server through libmpv is verified by
 `internal/player/libmpv/headers_integration_test.go`, gated by
-`MUMU_MPV_HEADER_TEST=1` on `darwin/arm64` with the `mumu_mpv` tag. It has not
+`MUMU_MPV_HEADER_TEST=1` on `darwin/arm64` with a libmpv runtime. It has not
 been run in this change; see the ADR evidence gap.
 
 ## Storage mapping
@@ -376,7 +376,8 @@ go vet ./...
 The libmpv header path additionally has a gated integration test:
 
 ```sh
-MUMU_MPV_HEADER_TEST=1 go test -tags mumu_mpv ./internal/player/libmpv -run TestIntegrationPlaybackHeaders
+MUMU_MPV_LIBRARY=/private/tmp/mumu-runtime/lib MUMU_MPV_HEADER_TEST=1 \
+  go test ./internal/player/libmpv -run TestIntegrationPlaybackHeaders -v
 ```
 
 `BenchmarkParse` on the Apple M3 test machine parses 1,000 channels in about

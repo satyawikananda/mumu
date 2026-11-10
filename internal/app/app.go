@@ -41,7 +41,7 @@ type App struct {
 	settings       runSession
 	settingsData   *settingsCache
 
-	win          *mygo.Window
+	win          mainWindow
 	pipWindow    pipWindow
 	engine       player.Engine
 	controller   *player.Controller
@@ -49,6 +49,13 @@ type App struct {
 	presentation video.Presentation
 	mainFrame    video.Rect
 	media        mediaState
+
+	// openMu serializes engine, controller and surface creation, which happen
+	// on the first Play rather than at launch.
+	openMu sync.Mutex
+	// newEngine builds the playback engine. Tests replace it to run without a
+	// native runtime; the default is the platform adapter.
+	newEngine func(videoOutput string) (player.Engine, error)
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -62,6 +69,7 @@ func New() *App {
 	return &App{
 		shell:          ui.NewShell(),
 		presentation:   video.PresentationMain,
+		newEngine:      newPlaybackEngine,
 		ctx:            ctx,
 		cancel:         cancel,
 		refreshBuiltin: serviceRefreshBuiltin,
@@ -69,6 +77,7 @@ func New() *App {
 		discoverIndex:  newDiscoverIndex(),
 		libraryData:    newLibraryCache(),
 		settingsData:   newSettingsCache(),
+		media:          mediaState{snapshot: player.Snapshot{Volume: player.DefaultVolume}},
 	}
 }
 

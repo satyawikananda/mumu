@@ -26,7 +26,7 @@ unzip -q /private/tmp/mumu-libmpv.zip -d /private/tmp/mumu-runtime
 export DYLD_LIBRARY_PATH=/private/tmp/mumu-runtime/lib
 ```
 
-Keep all dylibs together. The binding calls `dlopen("libmpv.dylib")` / `libmpv.2.dylib` at package initialization; missing/incompatible libraries panic before `main`. The tested bundle reported mpv 0.41.0, client API 2.5, FFmpeg 9.0.2. Media-kit v0.7.3 lacked `mpv_get_time_ns` and was rejected. An attempted Homebrew install was canceled during fetching because it proposed many unrelated upgrades.
+Keep all dylibs together. The spike calls `mpv.Load(nil)`, which opens `libmpv.dylib` / `libmpv.2.dylib` through the dynamic loader, then `mpv.New()`; an incompatible library is reported as an error. The application adapter uses the same patched binding but searches more locations (see `docs/architecture/player-controller.md`). The tested bundle reported mpv 0.41.0, client API 2.5, FFmpeg 9.0.2. Media-kit v0.7.3 lacked `mpv_get_time_ns` and was rejected. An attempted Homebrew install was canceled during fetching because it proposed many unrelated upgrades.
 
 ## Build and run
 

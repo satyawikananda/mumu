@@ -1,18 +1,19 @@
-//go:build darwin && arm64 && mumu_mpv
+//go:build darwin && arm64
 
 // Package libmpv implements the player engine with one libmpv client.
 //
-// The package loads libmpv at init when built with CGO_ENABLED=0. Import it
-// only from the composition root, never from packages whose tests run without
-// the native runtime. The real adapter requires the mumu_mpv build tag; the
-// default build uses a stub so existing tests and cross-builds stay clean.
+// The package opens the libmpv runtime on the first New, never in a package
+// init: a machine without mpv must get an error, not a panic, and a build
+// without a runtime must still start. Import it only from the composition
+// root, so packages whose tests never touch native code stay clean.
 package libmpv
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,6 +22,7 @@ import (
 	mpv "github.com/gen2brain/go-mpv"
 
 	"mumu/internal/player"
+	"mumu/internal/player/libmpv/library"
 )
 
 type commandKind uint8
@@ -31,6 +33,11 @@ const (
 	commandVolume
 	commandMute
 )
+
+// bundleDir is where a packaged app may carry libmpv, next to the existing
+// Resources payload. The search only uses it when it already exists; packaging
+// and redistribution belong to #14.
+const bundleDir = "Resources"
 
 type command struct {
 	kind       commandKind
@@ -67,12 +74,20 @@ type Engine struct {
 var _ player.Engine = (*Engine)(nil)
 
 // New creates and initializes one libmpv client. The caller must close it.
+//
+// It fails with an error wrapping player.ErrRuntimeUnavailable when this
+// machine has no usable libmpv; the runtime is searched on every attempt, so a
+// viewer who installs mpv can retry without restarting the app.
 func New(cfg Config) (*Engine, error) {
 	cfg = cfg.withDefaults()
 
+	if err := openRuntime(); err != nil {
+		return nil, err
+	}
+
 	client := mpv.New()
 	if client == nil {
-		return nil, errors.New("create libmpv client")
+		return nil, fmt.Errorf("%w: create libmpv client", player.ErrRuntimeUnavailable)
 	}
 
 	options := map[string]string{
@@ -122,6 +137,36 @@ func New(cfg Config) (*Engine, error) {
 	go engine.run()
 
 	return engine, nil
+}
+
+// openRuntime opens libmpv from the first location that works: the dynamic
+// loader's own search path (which honours DYLD_LIBRARY_PATH), the Homebrew
+// prefixes, then the app bundle. A failure reports the names it tried, never a
+// full path, so a log line cannot reveal where the app was launched from.
+func openRuntime() error {
+	candidate, err := library.Resolve(library.Search{
+		Override: library.FromEnv(os.Getenv),
+		Bundle:   bundleDirs(),
+		Open: func(candidate string) error {
+			return mpv.Load([]string{candidate})
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("%w: %w", player.ErrRuntimeUnavailable, err)
+	}
+	slog.Debug("libmpv runtime ready", "library", filepath.Base(candidate))
+
+	return nil
+}
+
+// bundleDirs returns the directories a packaged app may carry libmpv in.
+func bundleDirs() []string {
+	executable, err := os.Executable()
+	if err != nil {
+		return nil
+	}
+
+	return []string{filepath.Join(filepath.Dir(executable), "..", bundleDir)}
 }
 
 // Load starts a source for generation. The actual result arrives as events.

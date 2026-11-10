@@ -21,6 +21,8 @@ type Shell struct {
 	settings  *Settings
 	watch     *Watch
 	pip       *PiP
+
+	onDestinationChanged func(watch bool)
 }
 
 // NewShell returns a shell showing Discover in the dark theme.
@@ -37,11 +39,11 @@ func NewShell() *Shell {
 	}
 	// Add Playlist from Discover opens the Library and its import sheet.
 	s.discover.OnAddPlaylist = func() {
-		s.nav = destLibrary
+		s.navigate(destLibrary)
 		s.library.OpenAddPlaylist()
 	}
-	s.settings.OnManagePlaylists = func() { s.nav = destLibrary }
-	s.watch.OnBrowse = func() { s.nav = destDiscover }
+	s.settings.OnManagePlaylists = func() { s.navigate(destLibrary) }
+	s.watch.OnBrowse = func() { s.navigate(destDiscover) }
 
 	return s
 }
@@ -62,10 +64,31 @@ func (s *Shell) Watch() *Watch { return s.watch }
 func (s *Shell) PiP() *PiP { return s.pip }
 
 // ShowWatch makes Watch the current destination.
-func (s *Shell) ShowWatch() { s.nav = destWatch }
+func (s *Shell) ShowWatch() { s.navigate(destWatch) }
 
 // ShowDiscover makes Discover the current destination.
-func (s *Shell) ShowDiscover() { s.nav = destDiscover }
+func (s *Shell) ShowDiscover() { s.navigate(destDiscover) }
+
+// OnDestinationChanged reports every destination change. The callback runs on
+// the UI thread and receives whether Watch is now visible.
+func (s *Shell) OnDestinationChanged(fn func(watch bool)) {
+	s.onDestinationChanged = fn
+}
+
+// IsWatch reports whether Watch is the current destination.
+func (s *Shell) IsWatch() bool { return s.nav == destWatch }
+
+// navigate switches destinations and reports the change once.
+func (s *Shell) navigate(id string) {
+	if s.nav == id {
+		return
+	}
+
+	s.nav = id
+	if s.onDestinationChanged != nil {
+		s.onDestinationChanged(id == destWatch)
+	}
+}
 
 // Destination returns the current destination ID, for the app and tests.
 func (s *Shell) Destination() string { return s.nav }
@@ -116,7 +139,7 @@ func (s *Shell) wideSidebar(c *ui.Context, p palette) {
 				ui.SidebarItem(c, destSettings, icons().settings, "Settings")
 			})
 		}).Width(wideSidebarWidth).Grow(1).Background(p.sidebar).Changed() {
-			s.nav = page
+			s.navigate(page)
 		}
 	})
 }
@@ -158,7 +181,7 @@ func (s *Shell) railItem(c *ui.Context, d destination, p palette) {
 		button.Children(func() {
 			ui.Icon(c, iconFor(d.id)).FontSize(18)
 		}).Label(d.label).Tooltip(d.label).AccessSelected(selected).OnClick(func() {
-			s.nav = d.id
+			s.navigate(d.id)
 		})
 	})
 }

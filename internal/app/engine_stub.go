@@ -1,15 +1,15 @@
-//go:build !(darwin && arm64 && mumu_mpv)
+//go:build !(darwin && arm64)
 
 package app
 
 import (
-	"errors"
+	"fmt"
 
 	"mumu/internal/player"
 )
 
 // ErrPlaybackUnavailable reports a build without the native engine.
-var ErrPlaybackUnavailable = errors.New("native playback requires the mumu_mpv build tag on darwin/arm64")
+var ErrPlaybackUnavailable = fmt.Errorf("native playback is unavailable on this platform: %w", player.ErrRuntimeUnavailable)
 
 // newPlaybackEngine reports that this build has no libmpv adapter.
 func newPlaybackEngine(string) (player.Engine, error) {

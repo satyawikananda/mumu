@@ -82,8 +82,9 @@ Automated:
 
 Native macOS smoke test (manual, pending):
 
-1. Build with `CGO_ENABLED=0 go build -tags mumu_mpv ./cmd/mumu` and run with
-   the pinned libmpv runtime on `DYLD_LIBRARY_PATH`.
+1. Build with `go build ./cmd/mumu` and run with the pinned libmpv runtime on
+   `DYLD_LIBRARY_PATH` (or `MUMU_MPV_LIBRARY`). The adapter is part of the
+   default `darwin/arm64` build; no build tag is needed.
 2. Play a synthetic HLS fixture, then check: video and audio start, the surface
    sits in the box at 16:9, resize and fullscreen keep it aligned, rapid channel
    switches show only the newest selection, favorite and volume/mute persist,

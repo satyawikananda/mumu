@@ -1,4 +1,4 @@
-//go:build !(darwin && arm64 && mumu_mpv)
+//go:build !(darwin && arm64)
 
 package libmpv
 

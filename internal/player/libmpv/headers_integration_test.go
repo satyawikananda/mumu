@@ -1,4 +1,4 @@
-//go:build darwin && arm64 && mumu_mpv
+//go:build darwin && arm64
 
 package libmpv_test
 
@@ -24,7 +24,7 @@ const (
 // Referer reach a real HTTP server through libmpv, and that no other header is
 // forwarded.
 //
-// It needs a machine with libmpv installed, the mumu_mpv build tag, and
+// It needs a machine with libmpv, which the adapter discovers, and
 // MUMU_MPV_HEADER_TEST=1. The environment recorded in
 // docs/architecture/adr/0007-per-source-stream-policy.md is the only evidence
 // this test provides; a skip is not a passing result.

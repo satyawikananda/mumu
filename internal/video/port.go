@@ -19,7 +19,8 @@ var (
 	// ErrNoContentView reports a window handle without a content view, which
 	// can happen when the window is already closing.
 	ErrNoContentView = errors.New("video: window has no content view")
-	// ErrNotAttached reports SetFrame before Attach.
+	// ErrNotAttached reports SetFrame before Attach or while the surface is
+	// detached.
 	ErrNotAttached = errors.New("video: surface is not attached to a window")
 )
 
@@ -37,19 +38,29 @@ type Rect struct {
 // draws the player's frames. It is not a second player: the same engine, stream
 // and decoder keep running, so a future PiP presentation can reuse it.
 //
-// Threading contract: New, Attach, SetFrame and Close must run on the main
-// thread, because they touch native widgets. Errors reports renderer failures
-// from the render thread and closes when the render thread stops. Close is
-// idempotent and must run before the player engine closes, otherwise the render
-// context is freed too late.
+// Threading contract: New, Attach, Detach, SetFrame and Close must run on the
+// main thread, because they touch native widgets. Errors reports renderer
+// failures from the render thread and closes when the render thread stops.
+// Close is idempotent and must run before the player engine closes, otherwise
+// the render context is freed too late.
 type Surface interface {
 	// Attach moves the retained view into window and applies frame. The window
 	// is the native handle of an NSWindow; frame is in window DIPs. Attach
-	// clears and rebinds the drawable, so it is safe on a re-shown window.
+	// clears and rebinds the drawable, so it is safe on a re-shown window and
+	// after Detach: it reuses the same view, context and render context.
 	Attach(window uintptr, frame Rect) error
+	// Detach removes the retained view from its window but keeps the surface,
+	// its OpenGL context, its render context and the render thread alive, so a
+	// later Attach resumes without a stream reload or a new render context.
+	// The drawable size becomes zero and the render thread skips frames while
+	// detached. Detach is idempotent, and a no-op before the first Attach.
+	Detach() error
 	// SetFrame resizes the attached view; the drawable is updated immediately.
+	// It returns ErrNotAttached before Attach or while detached, and does not
+	// change the frame that a later Attach applies.
 	SetFrame(frame Rect) error
-	// Size returns the current drawable size in backing pixels, not DIPs.
+	// Size returns the current drawable size in backing pixels, not DIPs. A
+	// detached surface reports 0, 0.
 	Size() (width, height int)
 	// Errors reports renderer failures. It closes when the render thread stops.
 	Errors() <-chan error

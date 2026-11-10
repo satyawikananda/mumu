@@ -138,14 +138,16 @@ func (d *driver) newRenderContext(renderer player.Renderer) (player.FrameRendere
 }
 
 // draw renders one frame when the engine has a new one or the drawable changed.
+// While the surface is detached the drawable is size zero, so the frame is
+// skipped: nothing touches the cleared drawable and nothing is logged.
 func (d *driver) draw(render player.FrameRenderer) error {
 	updated := render.Update()
 
 	if err := d.surface.lock(); err != nil {
 		return err
 	}
-	width, height, dirty := d.surface.drawableLocked()
-	if (!updated && !dirty) || width <= 0 || height <= 0 {
+	width, height, ok := d.surface.renderFrameLocked(updated)
+	if !ok {
 		return d.surface.unlock()
 	}
 

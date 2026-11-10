@@ -24,6 +24,11 @@ type snapshot struct {
 }
 
 func runSession(ctx context.Context, surface *videoSurface, source string, commands <-chan intent, publish func(snapshot)) {
+	// The patched binding opens libmpv explicitly; see third_party/go-mpv.
+	if err := mpv.Load(nil); err != nil {
+		publish(snapshot{state: "error", detail: fmt.Sprintf("libmpv load: %v", err)})
+		return
+	}
 	m := mpv.New()
 	if m == nil {
 		publish(snapshot{state: "error", detail: "mpv_create failed"})

@@ -91,18 +91,43 @@ thread.
 
 ## Libmpv adapter
 
-`internal/player/libmpv` uses pinned `gen2brain/go-mpv` 0.4.0. The real
-adapter is compiled with:
+`internal/player/libmpv` uses pinned `gen2brain/go-mpv` 0.4.0 through the local
+patch in `third_party/go-mpv` (a `replace` in `go.mod`), and the real adapter is
+part of the **default `darwin/arm64` build**. `darwin/amd64`, `linux` and
+`windows` compile a stub that reports `player.ErrRuntimeUnavailable`, so
+cross-builds stay free of native code. No build tag is needed; the old
+`mumu_mpv` tag is accepted but has no effect. CGO is not required.
+
+Upstream 0.4.0 opens libmpv from a package `init()` and panics when the dylib is
+missing (`purego_darwin.go`), which would crash every launch on a machine
+without mpv. The patch replaces that init with `mpv.Load(candidates)`: it
+resolves the first working candidate, registers the entry points, checks
+`mpv_client_api_version` (major 2, minor 1 or newer) and returns an error
+instead of panicking. Loading is retryable, so installing mpv and pressing
+Retry works without restarting the app.
+
+`internal/player/libmpv/library` owns the search order, uses injected
+`Exists`/`Open` functions and is unit-tested without a dylib:
+
+1. `MUMU_MPV_LIBRARY`, a dylib file or `:`-separated directories;
+2. the dynamic loader's own path, which honours `DYLD_LIBRARY_PATH`;
+3. `/opt/homebrew/lib`, then `/usr/local/lib`;
+4. `Contents/Resources` next to the executable, only when it already exists
+   (packaging and redistribution stay #14).
+
+`MUMU_MPV_LIBRARY` exists because the `go` command strips `DYLD_LIBRARY_PATH`
+from the binaries it runs, so `go test` cannot rely on the loader path. Errors
+name the library files that were tried and never a full path, so a log line
+cannot reveal where the app was launched from.
+
+Engine, controller and video surface are created on the **first Play**, not at
+launch: a launch never opens the runtime, logs a playback warning or shows a
+playback error. A missing runtime surfaces as one actionable Watch message.
 
 ```sh
-CGO_ENABLED=0 go build -tags mumu_mpv ./...
+go build ./cmd/mumu
+DYLD_LIBRARY_PATH=/private/tmp/mumu-runtime/lib ./mumu
 ```
-
-Without the tag, a stub returns `ErrUnavailable`. This keeps `go test ./...`
-and the CI cross-build free of libmpv headers and dylibs. The purego build
-loads `libmpv.dylib` at package init; a missing runtime still panics before
-`main`, as documented in the M0 report. Runtime-loader UX remains a release
-issue.
 
 Default options follow M0: `config=no`, `load-scripts=no`, `ytdl=no`, no
 terminal/input bindings, `idle=yes`, `keep-open=no`, `network-timeout=10`,
@@ -113,21 +138,28 @@ assumed.
 ## Smoke test
 
 The fixture and runtime from `experiments/nativeplayback/README.md` are
-required. The test is skipped when `MUMU_HLS_TEST_URL` is unset, but the
-package init still requires the dylib.
+required. Both tests need `MUMU_MPV_LIBRARY` (or an installed runtime) because
+`go test` drops `DYLD_LIBRARY_PATH`; a skip is not a passing result.
 
 ```sh
 /private/tmp/mumu-hlsfixture -seconds 30
 
-DYLD_LIBRARY_PATH=/private/tmp/mumu-runtime/lib \
+MUMU_MPV_LIBRARY=/private/tmp/mumu-runtime/lib \
 MUMU_HLS_TEST_URL=http://127.0.0.1:18765/index.m3u8 \
-CGO_ENABLED=0 go test -tags mumu_mpv -run TestIntegrationHLS -v \
-  ./internal/player/libmpv
+  go test -run TestIntegrationHLS -v ./internal/player/libmpv
 ```
 
-The test verifies load, playing, volume, mute, stop and close over a synthetic
-H.264/AAC HLS stream. It does not render video and does not claim universal
-codec support or hardware decoding. The recorded run is
+`TestIntegrationEngineCreateLoadStop` (gated by `MUMU_MPV_TEST=1`) creates a
+real engine, loads a local playlist, receives a load event, stops and closes.
+
+```sh
+MUMU_MPV_LIBRARY=/private/tmp/mumu-runtime/lib MUMU_MPV_TEST=1 \
+  go test -run TestIntegrationEngineCreateLoadStop -v ./internal/player/libmpv
+```
+
+The HLS test verifies load, playing, volume, mute, stop and close over a
+synthetic H.264/AAC HLS stream. It does not render video and does not claim
+universal codec support or hardware decoding. The recorded run is
 [player-controller-smoke.log](evidence/player-controller-smoke.log).
 
 ## Limitations

@@ -1,18 +1,19 @@
-//go:build !(darwin && arm64 && mumu_mpv)
+//go:build !(darwin && arm64)
 
 // Package libmpv provides either the real libmpv adapter or a stub that
-// reports it is unavailable. The real adapter requires the mumu_mpv tag.
+// reports it is unavailable. The real adapter is built for darwin/arm64; every
+// other target keeps this stub so cross-builds stay free of native code.
 package libmpv
 
 import (
 	"context"
-	"errors"
+	"fmt"
 
 	"mumu/internal/player"
 )
 
 // ErrUnavailable reports a build without the real libmpv adapter.
-var ErrUnavailable = errors.New("libmpv adapter requires the mumu_mpv build tag on darwin/arm64")
+var ErrUnavailable = fmt.Errorf("libmpv adapter is unavailable on this platform: %w", player.ErrRuntimeUnavailable)
 
 // Engine is unavailable in this build.
 type Engine struct{}

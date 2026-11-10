@@ -164,6 +164,11 @@ func (a *App) returnFromPiP() {
 	}
 
 	a.publishWatch()
+
+	if !a.shell.IsWatch() {
+		a.detachVideoSurface()
+	}
+
 	main.Focus()
 }
 
@@ -252,7 +257,7 @@ func pipFrame(pip pipWindow) video.Rect {
 }
 
 // contentFrame is the fallback main-window frame before the page reports one.
-func contentFrame(win *mygo.Window) video.Rect {
+func contentFrame(win mainWindow) video.Rect {
 	bounds := win.ContentBounds()
 
 	return video.Fit(video.Rect{

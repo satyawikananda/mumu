@@ -47,7 +47,15 @@ type mediaState struct {
 	attached    bool
 }
 
-// startWatch wires the Watch page, opens the player and offers a resume.
+// playbackUnavailableMessage tells the viewer what to install. Watch shows it
+// only after a Play request, never at launch.
+const playbackUnavailableMessage = "Playback needs the libmpv runtime. Install mpv (brew install mpv) or set MUMU_MPV_LIBRARY, then retry."
+
+// startWatch wires the Watch page and offers a resume.
+//
+// Playback is not opened here: the engine and its runtime are created on the
+// first Play attempt, so a launch that never plays stays quiet and a machine
+// without libmpv only hears about it when the viewer asks for playback.
 func (a *App) startWatch() {
 	page := a.shell.Watch()
 	page.OnFrame = a.applyVideoFrame
@@ -61,13 +69,14 @@ func (a *App) startWatch() {
 	page.OnSelectChannel = a.selectWatchChannel
 	page.OnEnterPiP = a.enterPiP
 	page.OnReturn = a.returnFromPiP
+	a.shell.OnDestinationChanged(a.watchVisibilityChanged)
 
 	pip := a.shell.PiP()
 	pip.OnReturn = a.returnFromPiP
 	pip.OnClose = a.closePiP
 	pip.OnToggleMute = a.togglePiPMute
 
-	a.openPlayback()
+	a.loadPlaybackSettings()
 
 	a.Go(func(ctx context.Context) error {
 		a.loadWatchResume(ctx)
@@ -76,31 +85,62 @@ func (a *App) startWatch() {
 	})
 }
 
-// openPlayback builds one engine and one controller for the whole app.
-func (a *App) openPlayback() {
+// playerController returns the one controller, creating it on demand.
+//
+// The first successful call builds the engine, the controller and, on a
+// platform with a native renderer, the video surface. A failure leaves nothing
+// half-built, so a later attempt (Retry, or a new channel) can succeed after
+// the viewer installs the runtime.
+func (a *App) playerController() (*player.Controller, error) {
 	a.mu.Lock()
+	controller := a.controller
 	stopped := a.stopped
 	a.mu.Unlock()
+
+	if controller != nil {
+		return controller, nil
+	}
 	if stopped {
-		return
+		return nil, player.ErrClosed
 	}
 
+	a.openMu.Lock()
+	defer a.openMu.Unlock()
+
+	a.mu.Lock()
+	controller = a.controller
+	a.mu.Unlock()
+	if controller != nil {
+		return controller, nil
+	}
+
+	return a.openPlayer()
+}
+
+// openPlayer builds one engine and one controller for the whole app. The
+// caller holds openMu.
+func (a *App) openPlayer() (*player.Controller, error) {
 	output := "null"
 	surfaceSupported := video.Supported()
 	if surfaceSupported {
 		output = "libmpv"
 	}
 
-	engine, err := newPlaybackEngine(output)
+	engine, err := a.newEngine(output)
 	if err != nil {
-		slog.Warn("native playback unavailable", "error", err)
-		a.setPlaybackError("Native playback is unavailable in this build.")
-		a.publishWatch()
-
-		return
+		return nil, err
 	}
 
-	controller := player.New(engine, player.WithFullscreenHandler(a.fullscreenHandler))
+	a.mu.Lock()
+	volume, muted := a.media.snapshot.Volume, a.media.snapshot.Muted
+	a.mu.Unlock()
+
+	controller := player.New(
+		engine,
+		player.WithInitialVolume(volume),
+		player.WithInitialMuted(muted),
+		player.WithFullscreenHandler(a.fullscreenHandler),
+	)
 
 	var surface video.Surface
 	if surfaceSupported {
@@ -108,7 +148,7 @@ func (a *App) openPlayback() {
 		if ok {
 			surface, err = video.New(renderer)
 			if err != nil {
-				slog.Warn("video surface unavailable", "error", err)
+				slog.Debug("video surface unavailable", "error", err)
 			}
 		}
 	}
@@ -124,11 +164,14 @@ func (a *App) openPlayback() {
 	}
 
 	controller.Subscribe(a.playerSnapshot)
-	a.loadPlaybackSettings(controller)
+
+	return controller, nil
 }
 
-// loadPlaybackSettings restores the last volume and mute choice.
-func (a *App) loadPlaybackSettings(controller *player.Controller) {
+// loadPlaybackSettings restores the last volume and mute choice. It runs
+// before any controller exists, so it also primes the state the Watch page and
+// a later controller read.
+func (a *App) loadPlaybackSettings() {
 	a.GoQuiet(func(ctx context.Context) {
 		store, err := a.Store()
 		if err != nil || store == nil {
@@ -142,12 +185,30 @@ func (a *App) loadPlaybackSettings(controller *player.Controller) {
 		if err != nil {
 			return
 		}
-		if volume, err := strconv.Atoi(settings[playbackSettingVolume]); err == nil {
-			_ = controller.SetVolume(volume)
+
+		volume, errVolume := strconv.Atoi(settings[playbackSettingVolume])
+		muted, errMuted := strconv.ParseBool(settings[playbackSettingMuted])
+
+		a.mu.Lock()
+		if errVolume == nil {
+			a.media.snapshot.Volume = volume
 		}
-		if muted, err := strconv.ParseBool(settings[playbackSettingMuted]); err == nil {
-			_ = controller.SetMuted(muted)
+		if errMuted == nil {
+			a.media.snapshot.Muted = muted
 		}
+		controller := a.controller
+		a.mu.Unlock()
+
+		if controller != nil {
+			if errVolume == nil {
+				_ = controller.SetVolume(volume)
+			}
+			if errMuted == nil {
+				_ = controller.SetMuted(muted)
+			}
+		}
+
+		a.publishWatch()
 	})
 }
 
@@ -235,7 +296,6 @@ func (a *App) playStream(channel catalog.Channel, stream catalog.Stream, sourceN
 	}
 
 	a.mu.Lock()
-	controller := a.controller
 	a.media.channel = channel
 	a.media.stream = stream
 	a.media.sourceName = sourceName
@@ -249,11 +309,23 @@ func (a *App) playStream(channel catalog.Channel, stream catalog.Stream, sourceN
 	a.publishWatch()
 	a.refreshFavorite(channel)
 
-	if controller == nil {
-		a.failWatch("Native playback is unavailable in this build.")
+	// Playback is the first thing that may touch the native runtime, so a
+	// machine without libmpv reports it here and only here.
+	controller, err := a.playerController()
+	if err != nil {
+		if errors.Is(err, player.ErrClosed) {
+			return
+		}
+
+		slog.Warn("native playback unavailable", "error", err)
+		a.failWatch(playbackUnavailableMessage)
 
 		return
 	}
+
+	// The surface exists now. Attach it before the first frame arrives; the
+	// page already reported the video box on an earlier pass.
+	a.attachVideoSurface()
 
 	source := player.Source{
 		URL:     stream.URL,
@@ -411,40 +483,68 @@ func (a *App) failWatch(message string) {
 	a.publishWatch()
 }
 
-// setPlaybackError records a build or runtime playback limitation.
-func (a *App) setPlaybackError(message string) {
-	a.mu.Lock()
-	a.media.playbackErr = message
-	a.mu.Unlock()
-}
-
 // applyVideoFrame places the native surface over the page's video box.
 func (a *App) applyVideoFrame(frame ui.Rect) {
 	a.mu.Lock()
+	// Keep the box even before a channel is chosen: the first Play attaches
+	// the surface with this frame instead of waiting for another layout pass.
+	if frame.W > 0 && frame.H > 0 {
+		a.mainFrame = video.Rect{X: frame.X, Y: frame.Y, W: frame.W, H: frame.H}
+	}
+	a.mu.Unlock()
+
+	a.attachVideoSurface()
+}
+
+// watchVisibilityChanged detaches the native view when Watch is left, so it
+// cannot cover another page, and re-attaches on return without a reload.
+func (a *App) watchVisibilityChanged(watch bool) {
+	if watch {
+		a.attachVideoSurface()
+
+		return
+	}
+
+	a.detachVideoSurface()
+}
+
+// detachVideoSurface hides the retained view but keeps the session alive.
+func (a *App) detachVideoSurface() {
+	a.mu.Lock()
+	surface := a.surface
+	state := a.presentation
+	attached := a.media.attached
+	if surface == nil || !attached || state != video.PresentationMain {
+		a.mu.Unlock()
+
+		return
+	}
+	a.media.attached = false
+	a.mu.Unlock()
+
+	if err := surface.Detach(); err != nil {
+		slog.Debug("detach video surface", "error", err)
+	}
+}
+
+// attachVideoSurface binds the surface to the main window when it is missing
+// or has moved. It runs on the UI thread.
+func (a *App) attachVideoSurface() {
+	a.mu.Lock()
 	surface, win := a.surface, a.win
+	state := a.presentation
 	active := a.media.channel.ProviderID != ""
 	attached := a.media.attached
+	frame := a.mainFrame
 	a.mu.Unlock()
 
-	if surface == nil || win == nil || !active {
+	if surface == nil || win == nil || state != video.PresentationMain || !active {
 		return
 	}
 
-	a.mu.Lock()
-	a.mainFrame = video.Rect{X: frame.X, Y: frame.Y, W: frame.W, H: frame.H}
-	state := a.presentation
-	a.mu.Unlock()
-	if state != video.PresentationMain {
-		return
-	}
-
-	target := video.Fit(video.Rect{
-		X: frame.X,
-		Y: frame.Y,
-		W: frame.W,
-		H: frame.H,
-	}, videoAspect)
+	target := video.Fit(frame, videoAspect)
 	if target.W <= 0 || target.H <= 0 {
+		// The page has not reported its box yet; the next frame does.
 		return
 	}
 
@@ -555,14 +655,18 @@ func (a *App) toggleWatchFavorite() {
 	})
 }
 
-// setPlaybackVolume changes the volume and remembers it.
+// setPlaybackVolume changes the volume and remembers it. Without a controller
+// it still updates the page, so the choice survives until the first Play.
 func (a *App) setPlaybackVolume(volume int) {
 	a.mu.Lock()
 	controller := a.controller
+	a.media.snapshot.Volume = volume
 	a.mu.Unlock()
 
 	if controller != nil {
 		_ = controller.SetVolume(volume)
+	} else {
+		a.publishWatch()
 	}
 	a.savePlaybackSetting(playbackSettingVolume, strconv.Itoa(volume))
 }
@@ -571,12 +675,14 @@ func (a *App) setPlaybackVolume(volume int) {
 func (a *App) togglePlaybackMute() {
 	a.mu.Lock()
 	controller := a.controller
-	muted := a.media.snapshot.Muted
+	muted := !a.media.snapshot.Muted
+	a.media.snapshot.Muted = muted
 	a.mu.Unlock()
 
-	muted = !muted
 	if controller != nil {
 		_ = controller.SetMuted(muted)
+	} else {
+		a.publishWatch()
 	}
 	a.savePlaybackSetting(playbackSettingMuted, strconv.FormatBool(muted))
 }
