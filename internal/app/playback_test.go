@@ -48,6 +48,13 @@ func TestLoadWatchResume(t *testing.T) {
 	if a.shell.Destination() != "/watch" {
 		t.Fatalf("destination %q, want Watch", a.shell.Destination())
 	}
+
+	a.mu.Lock()
+	started := a.controller != nil || a.engine != nil
+	a.mu.Unlock()
+	if started {
+		t.Fatal("the resume card started playback")
+	}
 }
 
 // Without a recent channel Watch stays idle and Discover stays current.

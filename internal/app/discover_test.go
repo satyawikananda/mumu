@@ -24,6 +24,7 @@ func discoverTestApp(t *testing.T) (*App, *fakeDispatcher) {
 	a := New()
 	a.openStoreAt(filepath.Join(t.TempDir(), "mumu.db"))
 	a.openCatalog()
+	a.openUserLibrary()
 	t.Cleanup(a.closeStore)
 
 	f := &fakeDispatcher{}

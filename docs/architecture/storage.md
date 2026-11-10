@@ -119,8 +119,17 @@ result, err := store.Channels().ReplaceForSource(ctx, sourceID, batch, storage.R
 
 1. upsert channels by `(source_id, provider_id)`;
 2. delete and reinsert the source's stream rows;
-3. delete channels that disappeared from the playlist;
-4. record refresh metadata.
+3. remap favorites and recent entries whose provider ID disappeared onto a new
+   channel with the same primary `stream_url` in the same source;
+4. delete channels that disappeared from the playlist;
+5. record refresh metadata.
+
+Remapping keeps a favorite when a provider adds or removes an explicit ID such
+as `tvg-id`. It matches an exact primary stream URL only, never a display name,
+and it does not survive a rotated URL token. When two new channels share the
+URL, each receives a copy of the favorite and of the recent entry; per-channel
+conflicts keep the original favorite timestamp, the newest `played_at` and the
+highest `play_count`, so history is never inflated.
 
 Favorites and recent entries reference the channel row, not the stream row.
 A channel with a stable provider ID keeps its local ID and therefore its

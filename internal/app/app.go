@@ -11,6 +11,7 @@ import (
 
 	"github.com/egoist/mygo"
 
+	"mumu/internal/library"
 	"mumu/internal/player"
 	"mumu/internal/sources"
 	"mumu/internal/storage"
@@ -31,6 +32,7 @@ type App struct {
 	store          *storage.Store
 	storeErr       error
 	catalog        *sources.Service
+	userLibrary    *library.Service
 	refreshBuiltin catalogRefresher
 	discover       runSession
 	discoverQuery  runSession
@@ -88,6 +90,7 @@ func (a *App) Run() error {
 	mygo.App.WhenReady(func() {
 		a.openLocalStore()
 		a.openCatalog()
+		a.openUserLibrary()
 		a.openWindow()
 		a.startDiscover()
 		a.startLibrary()

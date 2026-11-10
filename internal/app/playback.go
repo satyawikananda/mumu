@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"mumu/internal/catalog"
+	"mumu/internal/library"
 	"mumu/internal/player"
-	"mumu/internal/sources"
 	"mumu/internal/ui"
 	"mumu/internal/video"
 )
@@ -39,7 +39,6 @@ type mediaState struct {
 	stream      catalog.Stream
 	sourceName  string
 	snapshot    player.Snapshot
-	favorite    bool
 	playbackErr string
 	drawer      []ui.WatchChannel
 	resume      *watchResume
@@ -214,36 +213,24 @@ func (a *App) loadPlaybackSettings() {
 
 // loadWatchResume offers the last played channel without starting it.
 func (a *App) loadWatchResume(ctx context.Context) {
-	store, err := a.Store()
-	if err != nil || store == nil {
+	service, err := a.UserLibrary()
+	if err != nil {
 		return
 	}
 
 	readCtx, cancel := context.WithTimeout(ctx, playbackTimeout)
 	defer cancel()
 
-	recent, found, err := store.Recent().Last(readCtx)
-	if err != nil || !found {
-		return
-	}
-
-	source, found, err := store.Sources().Get(readCtx, recent.Channel.SourceID)
-	if err != nil || !found || !source.Enabled {
-		return
-	}
-
-	streams, err := store.Channels().ListStreams(readCtx, recent.Channel.ID)
-	if err != nil || len(streams) == 0 {
-		return
-	}
-
-	channel := sources.FromStorageChannel(recent.Channel, streams)
-	if _, ok := pickStream(channel); !ok {
+	entry, found, err := service.Last(readCtx)
+	if err != nil || !found || !entry.Playable {
 		return
 	}
 
 	a.mu.Lock()
-	a.media.resume = &watchResume{channel: channel, sourceName: source.DisplayName}
+	a.media.resume = &watchResume{
+		channel:    entry.Channel,
+		sourceName: libraryDisplayName(entry.Source),
+	}
 	a.mu.Unlock()
 
 	a.publishWatch()
@@ -299,7 +286,6 @@ func (a *App) playStream(channel catalog.Channel, stream catalog.Stream, sourceN
 	a.media.channel = channel
 	a.media.stream = stream
 	a.media.sourceName = sourceName
-	a.media.favorite = false
 	a.media.markedGen = 0
 	a.media.playbackErr = ""
 	a.media.resume = nil
@@ -307,7 +293,6 @@ func (a *App) playStream(channel catalog.Channel, stream catalog.Stream, sourceN
 
 	a.shell.ShowWatch()
 	a.publishWatch()
-	a.refreshFavorite(channel)
 
 	// Playback is the first thing that may touch the native runtime, so a
 	// machine without libmpv reports it here and only here.
@@ -394,7 +379,17 @@ func (a *App) recordRecent(ctx context.Context, channel catalog.Channel) {
 	}
 	if err := store.Recent().MarkPlayed(writeCtx, stored.ID, time.Now().UTC()); err != nil {
 		slog.Debug("record recent channel", "error", err)
+
+		return
 	}
+
+	// Keep an open Library in step without waiting for a manual reload.
+	if err := a.loadLibraryEntries(ctx); err != nil {
+		slog.Debug("reload recent entries", "error", err)
+
+		return
+	}
+	a.publishLibrary()
 }
 
 // watchState builds the page state on the UI thread.
@@ -410,7 +405,7 @@ func (a *App) watchState() ui.WatchState {
 		Source:    media.sourceName,
 		Volume:    media.snapshot.Volume,
 		Muted:     media.snapshot.Muted,
-		Favorite:  media.favorite,
+		Favorite:  a.libraryData.favorite(channelKey(media.channel)),
 		Live:      media.stream.Live || media.snapshot.Capabilities.Live,
 		Status:    media.snapshot.Detail,
 	}
@@ -579,79 +574,19 @@ func (a *App) watchSurfaceErrors(surface video.Surface) {
 	}
 }
 
-// watchFavorite reports whether the active channel is a favorite.
-func (a *App) refreshFavorite(channel catalog.Channel) {
-	a.GoQuiet(func(ctx context.Context) {
-		store, err := a.Store()
-		if err != nil || store == nil {
-			return
-		}
-
-		readCtx, cancel := context.WithTimeout(ctx, playbackTimeout)
-		defer cancel()
-
-		stored, found, err := store.Channels().FindByProvider(readCtx, channel.SourceID, channel.ProviderID)
-		if err != nil || !found {
-			return
-		}
-		favorite, err := store.Favorites().Has(readCtx, stored.ID)
-		if err != nil {
-			return
-		}
-
-		a.mu.Lock()
-		if a.media.channel.ProviderID == channel.ProviderID {
-			a.media.favorite = favorite
-		}
-		a.mu.Unlock()
-
-		a.publishWatch()
-	})
-}
-
 // toggleWatchFavorite adds or removes the active channel.
 func (a *App) toggleWatchFavorite() {
 	a.mu.Lock()
-	channel, favorite := a.media.channel, a.media.favorite
+	channel := a.media.channel
 	a.mu.Unlock()
 
 	if channel.ProviderID == "" {
 		return
 	}
 
-	a.GoQuiet(func(ctx context.Context) {
-		store, err := a.Store()
-		if err != nil || store == nil {
-			return
-		}
-
-		writeCtx, cancel := context.WithTimeout(ctx, playbackTimeout)
-		defer cancel()
-
-		stored, found, err := store.Channels().FindByProvider(writeCtx, channel.SourceID, channel.ProviderID)
-		if err != nil || !found {
-			return
-		}
-
-		var errFavorite error
-		if favorite {
-			errFavorite = store.Favorites().Remove(writeCtx, stored.ID)
-		} else {
-			errFavorite = store.Favorites().Add(writeCtx, stored.ID, time.Now().UTC())
-		}
-		if errFavorite != nil {
-			slog.Debug("toggle favorite", "error", errFavorite)
-
-			return
-		}
-
-		a.mu.Lock()
-		if a.media.channel.ProviderID == channel.ProviderID {
-			a.media.favorite = !favorite
-		}
-		a.mu.Unlock()
-
-		a.publishWatch()
+	a.toggleFavorite(library.Entry{
+		Key:     channelKey(channel),
+		Channel: channel,
 	})
 }
 

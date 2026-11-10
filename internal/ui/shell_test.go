@@ -36,8 +36,8 @@ func TestShellWideNavigation(t *testing.T) {
 	if err := tt.Click("Library"); err != nil {
 		t.Fatal(err)
 	}
-	if !tt.HasText("No playlists yet") {
-		t.Errorf("texts %q, want the Library empty state", tt.Texts())
+	if !tt.HasText("No favorites yet") {
+		t.Errorf("texts %q, want the Library favorites empty state", tt.Texts())
 	}
 
 	openSettings(t, tt)
@@ -107,7 +107,7 @@ func TestShellKeyboardNavigation(t *testing.T) {
 	tt.Key(0, ui.KeyTab)
 	tt.Key(0, ui.KeyDown)
 
-	if !tt.HasText("No playlists yet") {
+	if !tt.HasText("No favorites yet") {
 		t.Fatalf("texts %q, want Library after Down", tt.Texts())
 	}
 }
@@ -122,8 +122,11 @@ func TestShellNarrowRail(t *testing.T) {
 	if err := tt.Click("Library"); err != nil {
 		t.Fatal(err)
 	}
+	if err := tt.Click("Playlists"); err != nil {
+		t.Fatal(err)
+	}
 	if !tt.HasText("No playlists yet") {
-		t.Errorf("texts %q, want the Library empty state", tt.Texts())
+		t.Errorf("texts %q, want the playlists empty state", tt.Texts())
 	}
 	if n := countText(tt.Texts(), "Library"); n != 2 {
 		t.Errorf("texts %q show Library %d times, want the rail item and heading", tt.Texts(), n)

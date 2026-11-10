@@ -52,16 +52,23 @@ func libraryTestState() LibraryState {
 	}
 }
 
-// A new page keeps the empty state and every import path.
+// A new page keeps the empty favorites state and every Library tab.
 func TestLibraryEmptyState(t *testing.T) {
 	l := NewLibrary()
 	tt := libraryPage(l)
 
-	if !tt.HasText("Library") || !tt.HasText("My Playlists") {
-		t.Fatalf("texts %q, want the Library heading and section", tt.Texts())
+	if !tt.HasText("Library") || !tt.HasText("Favorites") {
+		t.Fatalf("texts %q, want the Library heading and tabs", tt.Texts())
+	}
+	if !tt.HasText("No favorites yet") {
+		t.Fatalf("texts %q, want the favorites empty state", tt.Texts())
+	}
+
+	if err := tt.Click("Playlists"); err != nil {
+		t.Fatal(err)
 	}
 	if !tt.HasText("No playlists yet") {
-		t.Fatalf("texts %q, want the empty state", tt.Texts())
+		t.Fatalf("texts %q, want the playlists empty state", tt.Texts())
 	}
 	for _, action := range []string{"Add Playlist", "Import M3U file", "Add Stream"} {
 		if !tt.HasText(action) {
@@ -70,10 +77,11 @@ func TestLibraryEmptyState(t *testing.T) {
 	}
 }
 
-// Rows show name, kind, count, relative success and the last error.
+// Playlist rows show name, kind, count, relative success and the last error.
 func TestLibraryRows(t *testing.T) {
 	l := NewLibrary()
 	l.now = libraryTestNow
+	l.ShowPlaylists()
 	l.SetState(libraryTestState())
 
 	tt := libraryPage(l)
@@ -96,6 +104,7 @@ func TestLibraryRows(t *testing.T) {
 // The switch dispatches the opposite enabled state.
 func TestLibraryToggle(t *testing.T) {
 	l := NewLibrary()
+	l.ShowPlaylists()
 	l.SetState(LibraryState{Kind: LibraryReady, Sources: []LibrarySource{{
 		ID: "remote", Name: "Indonesia IPTV", Kind: LibraryPlaylistURL, Enabled: true, Channels: 3,
 	}}})
@@ -121,6 +130,7 @@ func TestLibraryToggle(t *testing.T) {
 // Refresh dispatches the row's source.
 func TestLibraryRefreshAction(t *testing.T) {
 	l := NewLibrary()
+	l.ShowPlaylists()
 	l.SetState(LibraryState{Kind: LibraryReady, Sources: []LibrarySource{{
 		ID: "remote", Name: "Indonesia IPTV", Kind: LibraryPlaylistURL, Enabled: true, Channels: 3,
 	}}})
@@ -363,6 +373,7 @@ func TestLibraryFileTab(t *testing.T) {
 // Remove asks for confirmation by name before dispatching.
 func TestLibraryRemoveConfirmation(t *testing.T) {
 	l := NewLibrary()
+	l.ShowPlaylists()
 	l.SetState(libraryTestState())
 
 	var removed string
@@ -419,13 +430,13 @@ func TestLibrarySheetTyping(t *testing.T) {
 // A page-level failure offers Retry.
 func TestLibraryLoadError(t *testing.T) {
 	l := NewLibrary()
-	l.SetState(LibraryState{Kind: LibraryFailed, Message: "mumu could not read the saved playlists."})
+	l.SetState(LibraryState{Kind: LibraryFailed, Message: "mumu could not read the saved library."})
 
 	var reloads int
 	l.OnReload = func() { reloads++ }
 
 	tt := libraryPage(l)
-	if !tt.HasText("Playlists unavailable") || !tt.HasText("mumu could not read the saved playlists.") {
+	if !tt.HasText("Library unavailable") || !tt.HasText("mumu could not read the saved library.") {
 		t.Fatalf("texts %q, want the failure state", tt.Texts())
 	}
 
@@ -497,5 +508,214 @@ func TestLibraryNoPrivateConsent(t *testing.T) {
 
 	if tt.HasText("Allow private and LAN addresses for this source") {
 		t.Fatalf("texts %q, want no consent control", tt.Texts())
+	}
+}
+
+// libraryChannelState is one favorite, one recent channel and the sources.
+func libraryChannelState() LibraryState {
+	state := libraryTestState()
+	state.Favorites = []LibraryChannel{
+		{
+			Key: "remote:tvri", Name: "TVRI Nasional", SourceName: "Indonesia IPTV",
+			Meta: "News", Live: true, Favorite: true, Playable: true, SourceEnabled: true,
+		},
+		{
+			Key: "file:metro", Name: "Metro TV", SourceName: "Local channels",
+			Meta: "News", Playable: true, SourceEnabled: true,
+		},
+	}
+	state.Recent = []LibraryChannel{
+		{
+			Key: "remote:tvri", Name: "TVRI Nasional", SourceName: "Indonesia IPTV",
+			Meta: "News", Playable: true, SourceEnabled: true,
+			PlayedAt: libraryTestNow().Add(-2 * time.Hour),
+		},
+	}
+
+	return state
+}
+
+// The page opens on Favorites and names both the channel and its source.
+func TestLibraryFavoritesSection(t *testing.T) {
+	l := NewLibrary()
+	l.now = libraryTestNow
+	l.SetState(libraryChannelState())
+
+	tt := libraryPage(l)
+	for _, want := range []string{
+		"TVRI Nasional", "Indonesia IPTV", "News", "LIVE",
+		"Remove from Favorites", "Add to Favorites",
+	} {
+		if !tt.HasText(want) {
+			t.Fatalf("texts %q, want %q", tt.Texts(), want)
+		}
+	}
+}
+
+// Favorites dispatch their favorite state and their play intent.
+func TestLibraryFavoriteActions(t *testing.T) {
+	l := NewLibrary()
+	l.SetState(libraryChannelState())
+
+	var (
+		favorites []string
+		played    []string
+	)
+	l.OnToggleFavorite = func(key string) { favorites = append(favorites, key) }
+	l.OnPlay = func(key string) { played = append(played, key) }
+
+	tt := libraryPage(l)
+	if err := tt.Click("Remove from Favorites"); err != nil {
+		t.Fatal(err)
+	}
+	if len(favorites) != 1 || favorites[0] != "remote:tvri" {
+		t.Fatalf("favorites %v, want [remote:tvri]", favorites)
+	}
+
+	if err := tt.Click("Add to Favorites"); err != nil {
+		t.Fatal(err)
+	}
+	if len(favorites) != 2 || favorites[1] != "file:metro" {
+		t.Fatalf("favorites %v, want the second channel", favorites)
+	}
+
+	if err := tt.Click("TVRI Nasional"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(0, ui.KeyEnter)
+	if len(played) != 1 || played[0] != "remote:tvri" {
+		t.Fatalf("played %v, want [remote:tvri]", played)
+	}
+}
+
+// The recent tab shows playback time and offers the same actions.
+func TestLibraryRecentSection(t *testing.T) {
+	l := NewLibrary()
+	l.now = libraryTestNow
+	l.section = int(LibraryRecent)
+	l.SetState(libraryChannelState())
+
+	tt := libraryPage(l)
+	if !tt.HasText("watched 2h ago") {
+		t.Fatalf("texts %q, want the relative playback time", tt.Texts())
+	}
+	if !tt.HasText("Add to Favorites") {
+		t.Fatalf("texts %q, want the favorite action on a recent row", tt.Texts())
+	}
+}
+
+// Empty favorites offer Discover, and empty recent says why it is empty.
+func TestLibraryChannelEmptyStates(t *testing.T) {
+	l := NewLibrary()
+
+	var browsed int
+	l.OnBrowse = func() { browsed++ }
+
+	tt := libraryPage(l)
+	if !tt.HasText("No favorites yet") {
+		t.Fatalf("texts %q, want the favorites empty state", tt.Texts())
+	}
+	if err := tt.Click("Browse Discover"); err != nil {
+		t.Fatal(err)
+	}
+	if browsed != 1 {
+		t.Fatalf("browse dispatches %d, want 1", browsed)
+	}
+
+	l.section = int(LibraryRecent)
+	tt.Frame()
+	if !tt.HasText("Nothing watched yet") {
+		t.Fatalf("texts %q, want the recent empty state", tt.Texts())
+	}
+}
+
+// Two channels with the same name stay distinguishable by their source.
+func TestLibraryDuplicateNames(t *testing.T) {
+	state := LibraryState{
+		Kind: LibraryReady,
+		Favorites: []LibraryChannel{
+			{Key: "a:news", Name: "News", SourceName: "Playlist A", Playable: true, SourceEnabled: true},
+			{Key: "b:news", Name: "News", SourceName: "Playlist B", Playable: true, SourceEnabled: true},
+		},
+	}
+
+	l := NewLibrary()
+	l.SetState(state)
+
+	tt := libraryPage(l)
+	for _, want := range []string{"Playlist A", "Playlist B"} {
+		if !tt.HasText(want) {
+			t.Fatalf("texts %q, want %q", tt.Texts(), want)
+		}
+	}
+}
+
+// A disabled source or a missing stream explains itself instead of playing.
+func TestLibraryUnavailableChannel(t *testing.T) {
+	l := NewLibrary()
+	l.SetState(LibraryState{
+		Kind: LibraryReady,
+		Favorites: []LibraryChannel{
+			{Key: "a:1", Name: "Disabled source", SourceName: "Playlist", Favorite: true, SourceEnabled: false},
+			{Key: "b:2", Name: "No stream", SourceName: "Playlist", Favorite: true, SourceEnabled: true},
+		},
+	})
+
+	tt := libraryPage(l)
+	if !tt.HasText("Source disabled. Enable it in Playlists.") {
+		t.Fatalf("texts %q, want the disabled-source reason", tt.Texts())
+	}
+	if !tt.HasText("No supported stream.") {
+		t.Fatalf("texts %q, want the missing-stream reason", tt.Texts())
+	}
+}
+
+// Search narrows one section and offers a way back.
+func TestLibrarySearch(t *testing.T) {
+	l := NewLibrary()
+	l.SetState(libraryChannelState())
+
+	tt := libraryPage(l)
+	if err := tt.Click("Search favorites"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type("metro")
+	tt.Frame()
+
+	if !tt.HasText("Metro TV") {
+		t.Fatalf("texts %q, want the matching channel", tt.Texts())
+	}
+	if tt.HasText("TVRI Nasional") {
+		t.Fatalf("texts %q, want the other channel filtered out", tt.Texts())
+	}
+
+	l.query = "missing"
+	l.refreshRows()
+	tt.Frame()
+	if !tt.HasText("No matches") {
+		t.Fatalf("texts %q, want the no-matches state", tt.Texts())
+	}
+	if err := tt.Click("Clear search"); err != nil {
+		t.Fatal(err)
+	}
+	if l.query != "" || !tt.HasText("TVRI Nasional") {
+		t.Fatalf("clear search left query %q", l.query)
+	}
+}
+
+// The import sheet still opens when the library read failed.
+func TestLibrarySheetFromFailedState(t *testing.T) {
+	l := NewLibrary()
+	l.SetState(LibraryState{Kind: LibraryFailed, Message: "mumu could not read the saved library."})
+
+	tt := libraryPage(l)
+	if err := tt.Click("Add Playlist"); err != nil {
+		t.Fatal(err)
+	}
+	if !l.SheetOpen() {
+		t.Fatal("Add Playlist did not open the sheet")
+	}
+	if !tt.HasText("Validate and Preview") {
+		t.Fatalf("texts %q, want the import sheet above the failure", tt.Texts())
 	}
 }

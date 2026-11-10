@@ -15,6 +15,7 @@ import (
 	"github.com/egoist/mygo"
 
 	"mumu/internal/catalog"
+	"mumu/internal/library"
 	"mumu/internal/netguard"
 	"mumu/internal/playlist"
 	"mumu/internal/sources"
@@ -38,20 +39,30 @@ type libraryPending struct {
 }
 
 // libraryCache is the Library page's shared state. The mutex keeps the
-// source rows, per-row busy flags and the pending preview consistent while
-// background jobs and the UI thread publish them.
+// source rows, favorite and recent entries, per-row busy flags and the pending
+// preview consistent while background jobs and the UI thread publish them.
 type libraryCache struct {
-	mu      sync.Mutex
-	sources []catalog.Source
-	busy    map[string]bool
-	loaded  bool
-	loadErr string
-	message string
-	pending libraryPending
+	mu           sync.Mutex
+	sources      []catalog.Source
+	favorites    []library.Entry
+	recent       []library.Entry
+	entries      map[string]library.Entry
+	favoriteKey  map[string]bool
+	favoriteBusy map[string]bool
+	busy         map[string]bool
+	loaded       bool
+	loadErr      string
+	message      string
+	pending      libraryPending
 }
 
 func newLibraryCache() *libraryCache {
-	return &libraryCache{busy: map[string]bool{}}
+	return &libraryCache{
+		entries:      map[string]library.Entry{},
+		favoriteKey:  map[string]bool{},
+		favoriteBusy: map[string]bool{},
+		busy:         map[string]bool{},
+	}
 }
 
 // snapshot builds the page state; callers publish it on the UI thread.
@@ -87,19 +98,33 @@ func (c *libraryCache) snapshot() ui.LibraryState {
 		})
 	}
 
-	return ui.LibraryState{Kind: ui.LibraryReady, Sources: rows, Message: c.message}
+	favorites := make([]ui.LibraryChannel, 0, len(c.favorites))
+	for _, entry := range c.favorites {
+		favorites = append(favorites, libraryChannelRow(entry, true))
+	}
+
+	recent := make([]ui.LibraryChannel, 0, len(c.recent))
+	for _, entry := range c.recent {
+		recent = append(recent, libraryChannelRow(entry, c.favoriteKey[entry.Key]))
+	}
+
+	return ui.LibraryState{
+		Kind:      ui.LibraryReady,
+		Sources:   rows,
+		Favorites: favorites,
+		Recent:    recent,
+		Message:   c.message,
+	}
 }
 
 // setSources replaces the cached rows; loaded reports a successful read.
-func (c *libraryCache) setSources(list []catalog.Source, loaded bool) {
+func (c *libraryCache) setSources(list []catalog.Source) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	c.sources = list
-	if loaded {
-		c.loaded = true
-		c.loadErr = ""
-	}
+	c.loaded = true
+	c.loadErr = ""
 }
 
 // setLoadError records why the list could not be read.
@@ -198,6 +223,109 @@ func (c *libraryCache) clearPending() {
 	c.pending = libraryPending{}
 }
 
+// setEntries replaces the favorite and recent entries and their index.
+func (c *libraryCache) setEntries(favorites, recent []library.Entry) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.favorites = favorites
+	c.recent = recent
+	c.entries = make(map[string]library.Entry, len(favorites)+len(recent))
+	optimistic := make(map[string]bool, len(c.favoriteBusy))
+	for key := range c.favoriteBusy {
+		optimistic[key] = c.favoriteKey[key]
+	}
+
+	c.favoriteKey = make(map[string]bool, len(favorites))
+	for _, entry := range favorites {
+		c.entries[entry.Key] = entry
+		c.favoriteKey[entry.Key] = true
+	}
+	for _, entry := range recent {
+		c.entries[entry.Key] = entry
+	}
+	for key, favorite := range optimistic {
+		if favorite {
+			c.favoriteKey[key] = true
+		} else {
+			delete(c.favoriteKey, key)
+		}
+	}
+}
+
+// entry returns one cached favorite or recent entry by key.
+func (c *libraryCache) entry(key string) (library.Entry, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	entry, ok := c.entries[key]
+
+	return entry, ok
+}
+
+// favorite reports whether key is a favorite.
+func (c *libraryCache) favorite(key string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.favoriteKey[key]
+}
+
+// favoriteKeys copies the favorite set for Discover and Watch.
+func (c *libraryCache) favoriteKeys() map[string]bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	out := make(map[string]bool, len(c.favoriteKey))
+	for key, favorite := range c.favoriteKey {
+		out[key] = favorite
+	}
+
+	return out
+}
+
+// setFavorite updates one key optimistically.
+func (c *libraryCache) setFavorite(key string, favorite bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if favorite {
+		c.favoriteKey[key] = true
+
+		return
+	}
+	delete(c.favoriteKey, key)
+}
+
+// beginFavorite claims one favorite toggle, reporting false when it runs.
+func (c *libraryCache) beginFavorite(key string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.favoriteBusy[key] {
+		return false
+	}
+	c.favoriteBusy[key] = true
+
+	return true
+}
+
+// favoriteRunning reports whether one key's toggle is still writing.
+func (c *libraryCache) favoriteRunning(key string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.favoriteBusy[key]
+}
+
+// endFavorite releases one favorite toggle.
+func (c *libraryCache) endFavorite(key string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	delete(c.favoriteBusy, key)
+}
+
 // startLibrary wires the Library page and publishes its saved sources.
 func (a *App) startLibrary() {
 	page := a.shell.Library()
@@ -209,6 +337,9 @@ func (a *App) startLibrary() {
 	page.OnPreview = a.previewLibrarySource
 	page.OnImport = a.importLibrarySource
 	page.OnSheetClose = a.cancelLibraryPreview
+	page.OnPlay = a.playLibraryChannel
+	page.OnToggleFavorite = a.toggleFavoriteKey
+	page.OnBrowse = a.shell.ShowDiscover
 	page.SetState(ui.LibraryState{Kind: ui.LibraryLoading})
 
 	a.Go(func(ctx context.Context) error {
@@ -248,9 +379,42 @@ func (a *App) loadLibrary(ctx context.Context) {
 		return
 	}
 
-	a.libraryData.setSources(list, true)
-	a.libraryData.setMessage("")
+	a.libraryData.setSources(list)
+	if err := a.loadLibraryEntries(ctx); err != nil {
+		if ctx.Err() == nil {
+			a.libraryData.setMessage("mumu could not read favorites and recent channels.")
+		}
+	} else {
+		a.libraryData.setMessage("")
+	}
 	a.publishLibrary()
+}
+
+// loadLibraryEntries reloads favorites and recent channels into the cache.
+func (a *App) loadLibraryEntries(ctx context.Context) error {
+	service, err := a.UserLibrary()
+	if err != nil {
+		return err
+	}
+
+	readCtx, cancel := context.WithTimeout(ctx, libraryTimeout)
+	defer cancel()
+
+	favorites, err := service.Favorites(readCtx)
+	if err != nil {
+		return err
+	}
+	recent, err := service.Recent(readCtx, 0)
+	if err != nil {
+		return err
+	}
+
+	a.libraryData.setEntries(favorites, recent)
+	// Every reload can change the favorite set (remap, cascade, another tab),
+	// so Watch and Discover follow the same write.
+	a.publishFavorites()
+
+	return nil
 }
 
 // loadLibraryRows refreshes the rows without changing a loaded page's kind.
@@ -267,13 +431,15 @@ func (a *App) loadLibraryRows(ctx context.Context, service *sources.Service) {
 		return
 	}
 
-	a.libraryData.setSources(list, true)
+	a.libraryData.setSources(list)
+	if err := a.loadLibraryEntries(ctx); err != nil && ctx.Err() == nil {
+		a.libraryData.setMessage("mumu could not read favorites and recent channels.")
+	}
 }
 
 // publishLibrary shows the cached rows on the UI thread.
 func (a *App) publishLibrary() {
-	state := a.libraryData.snapshot()
-	a.publish(func() { a.shell.Library().SetState(state) })
+	a.publish(func() { a.shell.Library().SetState(a.libraryData.snapshot()) })
 }
 
 // refreshLibrarySource re-reads one source without blocking the page.
@@ -368,7 +534,13 @@ func (a *App) removeLibrarySource(id string) {
 			}
 		} else {
 			a.libraryData.drop(id)
-			a.libraryData.setMessage("")
+			// Removing a source cascades to its channels, so the favorite and
+			// recent rows must be re-read instead of left stale.
+			if entriesErr := a.loadLibraryEntries(ctx); entriesErr != nil && ctx.Err() == nil {
+				a.libraryData.setMessage("mumu could not re-read favorites after removing that source.")
+			} else {
+				a.libraryData.setMessage("")
+			}
 		}
 
 		a.libraryData.clearBusy(id)
@@ -640,6 +812,8 @@ func libraryErrorText(err error) string {
 		return "The source took too long to answer. Try again."
 	case errors.Is(err, playlist.ErrUnreadable):
 		return "The selected file could not be read."
+	case errors.Is(err, sources.ErrEmptyPreview):
+		return "Every channel is outside this source's policy. Allow private addresses for it, or choose another source."
 	case errors.Is(err, storage.ErrNotFound):
 		return "That source no longer exists."
 	default:
@@ -822,4 +996,143 @@ func libraryDisplayName(source catalog.Source) string {
 	}
 
 	return libraryKind(source.Kind).Label()
+}
+
+// publishFavorites mirrors the current favorite set on Discover and Watch.
+func (a *App) publishFavorites() {
+	a.publish(func() {
+		a.shell.Discover().SetFavorites(a.libraryData.favoriteKeys())
+		a.shell.Watch().SetState(a.watchState())
+	})
+}
+
+// playLibraryChannel opens one favorite or recent channel by key.
+func (a *App) playLibraryChannel(key string) {
+	entry, ok := a.libraryData.entry(key)
+	if !ok {
+		return
+	}
+
+	if !entry.Source.Enabled {
+		a.libraryData.setMessage("That source is disabled. Enable it in Playlists, then try again.")
+		a.publishLibrary()
+
+		return
+	}
+	if !entry.Playable {
+		a.libraryData.setMessage("That channel has no supported stream. Refresh its source in Playlists.")
+		a.publishLibrary()
+
+		return
+	}
+
+	a.libraryData.setMessage("")
+	a.publishLibrary()
+	a.playChannel(entry.Channel, libraryDisplayName(entry.Source))
+}
+
+// toggleFavoriteKey toggles one channel by its stable key.
+func (a *App) toggleFavoriteKey(key string) {
+	if entry, ok := a.libraryData.entry(key); ok {
+		a.toggleFavorite(entry)
+
+		return
+	}
+
+	// Discover and Watch can toggle a channel that is not in the Library cache
+	// yet. Resolve it through the published catalog instead.
+	channel, ok := a.discoverIndex.channel(key)
+	if !ok {
+		return
+	}
+
+	a.toggleFavorite(library.Entry{Key: key, Channel: channel})
+}
+
+// toggleFavorite stores the opposite favorite state and republishes the pages.
+func (a *App) toggleFavorite(entry library.Entry) {
+	key := entry.Key
+	if key == "" {
+		key = channelKey(entry.Channel)
+	}
+	if !a.libraryData.beginFavorite(key) {
+		return
+	}
+
+	favorite := !a.libraryData.favorite(key)
+	a.libraryData.setFavorite(key, favorite)
+	a.publishFavorites()
+	a.publishLibrary()
+
+	a.GoQuiet(func(ctx context.Context) {
+		defer a.libraryData.endFavorite(key)
+
+		service, err := a.UserLibrary()
+		if err != nil {
+			a.revertFavorite(key, favorite)
+
+			return
+		}
+
+		opCtx, cancel := context.WithTimeout(ctx, libraryTimeout)
+		_, err = service.ToggleFavorite(opCtx, entry.Channel.SourceID, entry.Channel.ProviderID)
+		cancel()
+
+		if err != nil {
+			if ctx.Err() != nil {
+				return
+			}
+			if errors.Is(err, storage.ErrNotFound) {
+				a.missingFavorite(key)
+				if err := a.loadLibraryEntries(ctx); err == nil {
+					a.publishLibrary()
+				}
+
+				return
+			}
+			a.revertFavorite(key, favorite)
+
+			return
+		}
+
+		if err := a.loadLibraryEntries(ctx); err != nil && ctx.Err() == nil {
+			a.libraryData.setMessage("mumu could not re-read favorites. Try again.")
+			a.publishLibrary()
+
+			return
+		}
+
+		a.publishLibrary()
+	})
+}
+
+// missingFavorite drops a key whose channel row no longer exists.
+func (a *App) missingFavorite(key string) {
+	a.libraryData.setFavorite(key, false)
+	a.libraryData.setMessage("That channel is no longer in your library. Refresh the source, or remove it.")
+	a.publishFavorites()
+	a.publishLibrary()
+}
+
+// revertFavorite restores one key after a failed write.
+func (a *App) revertFavorite(key string, favorite bool) {
+	a.libraryData.setFavorite(key, !favorite)
+	a.libraryData.setMessage("mumu could not update that favorite. Try again.")
+	a.publishFavorites()
+	a.publishLibrary()
+}
+
+// libraryChannelRow maps one entry to the page's channel row.
+func libraryChannelRow(entry library.Entry, favorite bool) ui.LibraryChannel {
+	return ui.LibraryChannel{
+		Key:           entry.Key,
+		Name:          strings.TrimSpace(entry.Channel.Name),
+		SourceName:    libraryDisplayName(entry.Source),
+		Meta:          strings.TrimSpace(entry.Channel.Group),
+		Live:          channelLive(entry.Channel),
+		Favorite:      favorite,
+		Playable:      entry.Playable,
+		SourceEnabled: entry.Source.Enabled,
+		PlayedAt:      entry.PlayedAt,
+	}
 }

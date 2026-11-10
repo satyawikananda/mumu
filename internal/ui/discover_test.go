@@ -401,3 +401,39 @@ func TestDiscoverSelectionFollowsKey(t *testing.T) {
 		t.Fatalf("selected row %d, want the same key at row 1", d.selected)
 	}
 }
+
+// Favorite rows show their state and dispatch the row's stable key.
+func TestDiscoverFavoriteToggle(t *testing.T) {
+	d := NewDiscover()
+	d.SetCountries(discoverTestCountries())
+	d.SetState(DiscoverState{
+		Kind:     DiscoverReady,
+		Region:   "ID",
+		Channels: discoverTestChannels(),
+	})
+	d.SetFavorites(map[string]bool{"tvri": true})
+
+	var toggled []string
+	d.OnToggleFavorite = func(key string) { toggled = append(toggled, key) }
+
+	tt := discoverPage(d)
+	if !tt.HasText("Remove from Favorites") || !tt.HasText("Add to Favorites") {
+		t.Fatalf("texts %q, want both favorite actions", tt.Texts())
+	}
+
+	if err := tt.Click("Add to Favorites"); err != nil {
+		t.Fatal(err)
+	}
+	if len(toggled) != 1 || toggled[0] == "" || toggled[0] == "tvri" {
+		t.Fatalf("toggled %v, want the non-favorite row key", toggled)
+	}
+
+	d.SetFavorites(map[string]bool{})
+	tt.Frame()
+	if d.Favorite("tvri") {
+		t.Fatal("clearing the map did not clear the page state")
+	}
+	if tt.HasText("Remove from Favorites") {
+		t.Fatal("a stale favorite label stayed after clearing the map")
+	}
+}
