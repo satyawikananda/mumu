@@ -67,3 +67,7 @@ reproduce the commands instead.
 
 Unfinished boxes block calling #14 complete. They do not block publishing a
 pre-release alpha, but the limitation must be stated in the release notes.
+
+Planned label: `v0.1.0-alpha.1`. The unticked boxes above are listed as known
+limitations in its notes; `v0.1.0-rc.1` expects them closed. Asset names keep the
+bundle version `0.1.0`; the tag carries the prerelease suffix.

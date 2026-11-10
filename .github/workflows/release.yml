@@ -50,9 +50,17 @@ jobs:
         id: version
         run: |
           version="$(jq -r .version mygo.json)"
-          if [ "${GITHUB_REF_TYPE:-}" = "tag" ] && [ "$GITHUB_REF_NAME" != "v$version" ]; then
-            echo "::error::tag $GITHUB_REF_NAME does not match mygo.json $version"
-            exit 1
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+            # A prerelease tag carries a suffix: v0.1.0-alpha, v0.1.0-rc.1.
+            # mygo.json stays the bundle version, which macOS requires to be
+            # period-separated integers.
+            case "$GITHUB_REF_NAME" in
+              "v$version" | "v$version"-*) ;;
+              *)
+                echo "::error::tag $GITHUB_REF_NAME does not match mygo.json $version"
+                exit 1
+                ;;
+            esac
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
@@ -101,8 +109,14 @@ jobs:
             tag="v${VERSION}"
           fi
           if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --draft \
-              --title "mumu $VERSION" --generate-notes
+            # A suffix marks a prerelease: v0.1.0-alpha.1, v0.1.0-rc.1.
+            if [ "${tag#*-}" != "$tag" ]; then
+              gh release create "$tag" --repo "$GITHUB_REPOSITORY" --draft --prerelease \
+                --title "mumu $tag" --generate-notes
+            else
+              gh release create "$tag" --repo "$GITHUB_REPOSITORY" --draft \
+                --title "mumu $VERSION" --generate-notes
+            fi
           fi
           gh release upload "$tag" --repo "$GITHUB_REPOSITORY" --clobber \
             build/release/*

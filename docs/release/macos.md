@@ -132,6 +132,25 @@ uploads a draft release:
 }
 ```
 
+### Prerelease tags
+
+A suffix marks a prerelease, and CI creates the draft with `--prerelease`:
+
+| Tag | Meaning |
+| --- | --- |
+| `v0.1.0-alpha.1` | First alpha, blockers fixed, full QA matrix still open |
+| `v0.1.0-rc.1` | Release candidate, matrix expected to be complete |
+| `v0.1.0` | Stable |
+
+`mygo.json` keeps the bundle version (`0.1.0`), because macOS reads
+`CFBundleShortVersionString` as period-separated integers. The tag carries the
+suffix instead, and asset names keep the bundle version:
+`mumu-0.1.0-arm64.dmg` inside the `v0.1.0-alpha.1` release.
+
+`latest.json` from a prerelease must **not** be published to the landing page as
+the current download: it points at a release the maintainer has not accepted as
+stable yet. Publish it with the stable tag.
+
 ## Unsigned distribution
 
 There is no Developer ID and no notarization for v0.1. Ad-hoc signing is still

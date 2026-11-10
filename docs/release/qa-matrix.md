@@ -94,6 +94,12 @@ recorded macOS run. They are release blockers, so the tag waits for them.
 | Native close on the PiP panel | With the main window closed, click the panel's native close button | Same as above: one close, one quit, no hang |
 | Quit with PiP open | Play, enter PiP, press Cmd+Q | Every window closes and the process exits |
 
+Status: the maintainer reported these checks pass on 11 November 2026 (macOS
+27.0.1, Apple M3). Per-check timings and logs were not recorded, so this is a
+maintainer statement rather than a captured run. The rest of the matrix, notably
+the 60-minute soak, resource metrics and the downloaded-DMG Gatekeeper flow,
+stays open and is stated as a known limitation in the `v0.1.0-alpha.1` notes.
+
 
 ## Playback checks
 
