@@ -1,35 +1,79 @@
-# Library and source management (#9)
+# Library: favorites, recent viewing and sources
 
-Native MyGo notes for the source-management slice. The full Library
-(favorites, recently watched, resume) is #13; this document covers playlists
-and custom streams.
+Covers [#9](https://github.com/satyawikananda/mumu/issues/9) and
+[#13](https://github.com/satyawikananda/mumu/issues/13). The playback and
+identity rules live in [`docs/architecture/library.md`](../architecture/library.md).
 
 ## Layout
 
 ```text
 ┌─ Library ───────────────────────────────────────────────────────────────┐
 │ Library                                          [+ Add Playlist]        │
+│ [Favorites]  [Recently watched]  [Playlists]                             │
 │                                                                          │
-│ My Playlists                                                            │
+│ Favorites                                                                │
 │ ┌──────────────────────────────────────────────────────────────────────┐ │
-│ │ Indonesia IPTV        M3U URL   Enabled · 214 channels · 2h ago     │ │
-│ │ Local channels        File      Disabled · 12 channels · failed     │ │
+│ │ (TV) TVRI Nasional          News · Indonesia IPTV  [LIVE] [Remove]   │ │
+│ │ (TV) Metro TV               News · Local channels        [Add]       │ │
 │ └──────────────────────────────────────────────────────────────────────┘ │
-│ [Add M3U URL]   [Import M3U file]   [Add Stream URL]                     │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-- One row per user source. Built-in community sources never appear here.
-- Row: display name, kind label, enabled state, item count, last success and
-  the last error when present.
-- Actions: Refresh and Remove. Enable/disable is a checkbox or switch with an
-  accessible label.
-- Remove uses a themed in-app confirmation dialog and states that favorites and
-  recent entries for its channels are removed too.
+- One tab at a time keeps a single virtualized list, so scroll, selection and
+  keyboard order stay predictable.
+- Every channel row shows the display name, its group, its source name and a
+  favorite action. The source name keeps two channels with the same name apart.
+- Recent rows add when the channel was watched. Played time is relative for the
+  first week, then an absolute date.
+- Icons always carry a label: `Add to Favorites` and `Remove from Favorites` are
+  distinct accessible names.
+
+## Tabs
+
+| Tab | Rows | Empty state |
+|---|---|---|
+| Favorites | favorite channels, most recently added first | No favorites yet · Browse Discover |
+| Recently watched | channels that genuinely played, newest first | Nothing watched yet · Browse Discover |
+| Playlists | user sources only; built-ins never appear | No playlists yet · every import path |
+
+Favorites and recently watched have a search field. It filters the visible rows
+by channel or source name on the UI thread. The Playlists tab keeps Refresh,
+Remove, enable/disable and the import sheet.
+
+## Channel row actions
+
+- `Enter` or a double click plays the row through the same controller as
+  Discover and Watch.
+- `Add to Favorites` and `Remove from Favorites` update the row, Watch and
+  Discover through one shared favorite cache.
+- A disabled source shows `Source disabled. Enable it in Playlists.`
+- A channel with no supported stream shows `No supported stream.`
+- Rows that cannot play stay readable and keep their favorite action. Activating
+  one publishes the guidance as an inline banner instead of starting playback.
+
+## Removal and unavailable sources
+
+- Removing a playlist also removes its channels, favorites and recent entries.
+  The confirmation states this before the removal.
+- Deleting a source never leaves a dead Library row: storage cascades.
+- A refresh that drops a channel removes its rows. A refresh that changes only
+  the provider ID remaps the favorite to the new channel when the primary stream
+  URL is unchanged.
+- A disabled source keeps its channels; rows stay visible but not playable.
+
+## Playlists
+
+Row: display name, kind label, enabled state, item count, last success and the
+last error when present.
+
+- Actions: Refresh and Remove. Enable/disable is a switch with an accessible
+  label.
 - Busy state disables only that row's actions; the rest of the app stays
   interactive.
+- Refresh parses into memory first, then replaces the source in one SQLite
+  transaction. A failure keeps the previous rows.
 
-## Add Playlist
+## Add Playlist and Add Stream
 
 ```text
 [Add Playlist]
@@ -50,13 +94,10 @@ Preview shows:
 Import is enabled only after a successful preview. Import saves immediately and
 closes the sheet. A failed import never leaves a partial source row.
 
-## Add Stream
-
-- URL and display name.
-- Validation is an inspection, not a full download: HLS manifest or a
-  supported direct media response.
-- A channel-list URL is rejected with "add it as a playlist".
-- One channel is created under a `custom_stream` source.
+Add Stream takes a URL and a display name. Validation is an inspection, not a
+full download: HLS manifest or a supported direct media response. A channel-list
+URL is rejected with "add it as a playlist". One channel is created under a
+`custom_stream` source.
 
 ## States
 
@@ -66,28 +107,29 @@ closes the sheet. A failed import never leaves a partial source row.
 | Refreshing | spinner, actions disabled for that row |
 | Success | item count and relative last-success time |
 | Failure with cache | error text, "Showing last known channels", Refresh enabled |
-| Failure without cache | error text, Retry and Remove |
+| Failure without cache | error text, Refresh and Remove |
 | Disabled | dimmed but readable; Discover excludes it |
 | Removed | confirmation, row disappears, navigation unaffected |
+| Library read failed | full-page error, Retry |
 
 Errors must be actionable and credential-free. Never show a full URL with a
 query token, a header value, or a stack trace.
 
-## Behaviour
-
-- Refresh parses into memory first, then replaces the source in one SQLite
-  transaction. A network or parse failure keeps the previous rows.
-- Stable provider IDs keep favorites and recent entries across a refresh.
-- Enabling/disabling a source changes Discover immediately and never blocks
-  playback or the UI thread.
-- Starting an import or refresh is cancellable when the sheet closes or the
-  app stops.
-- No autoplay, no WebView, no login, no external backend.
-
 ## Keyboard and accessibility
 
-- Tab reaches every action; Enter/Space activates.
+- Tab reaches the tabs, the search field and every row action; Enter/Space
+  activates.
+- Arrow keys move inside the visible list; Enter opens the focused channel.
+- A cancelled dialog returns focus to the control that opened it.
 - The file picker is the native macOS dialog.
 - Remove confirmation names the source.
 - Error banners use text, not colour alone.
-- Focus returns to the row after refresh or cancel.
+- Icons and favorite buttons expose their state, not just their colour.
+
+## Behaviour
+
+- No autoplay, no WebView, no login, no external backend.
+- Favorite and recent writes are local and bounded. History keeps at most 100
+  entries and records only playback that reaches `playing`.
+- Starting an import or refresh is cancellable when the sheet closes or the app
+  stops.

@@ -255,6 +255,7 @@ Before claiming completion:
 - **After #7/#8/#9:** Implemented: M3U domain/parser with bounded network policy, variant streams, the iptv-org community catalog with cache/blocklist/attribution, source management (import, preview, atomic refresh, toggle, remove), and native Discover/Library source UI. See `docs/architecture/sources.md` and ADR 0006.
 - **After #10/#11a/#11b:** Implemented: Discover search, category/source filters and channel selection; per-source private-host consent and scheme allowlist (ADR 0007); Watch with one shared controller, native video surface, resume, favorites, volume/mute and explicit error states. See `docs/architecture/watch.md` and `docs/architecture/video-surface.md`.
 - **After #12:** Implemented: PiP as a presentation change of the same surface and session, with a native floating panel, rollback on a failed attach, Return/Close behavior and unit-tested rapid toggles. The manual macOS Watch and PiP smoke tests are still pending. See `docs/architecture/pip.md`.
+- **After #13:** Implemented: `internal/library` for favorites, recent viewing and the resume reference; Library with Favorites, Recently watched and Playlists tabs; one source-scoped favorite cache shared by Watch, Discover and Library; provider-ID remapping on refresh in `internal/storage`. See `docs/architecture/library.md` and `docs/ux/library.md`.
 - Changes to player/rendering boundaries or startup UX require updating both relevant docs and acceptance tests.
 
 ## 12. Reference material

@@ -37,8 +37,9 @@ type ReplaceResult struct {
 
 // ReplaceForSource replaces every channel and stream of sourceID in one
 // transaction. Channels keep their local IDs when provider IDs are stable, so
-// favorites and recent entries survive a refresh. A failure leaves the
-// previous rows untouched.
+// favorites and recent entries survive a refresh. A channel whose provider ID
+// changed but whose primary stream URL stayed the same in that source keeps its
+// favorite and history too. A failure leaves the previous rows untouched.
 func (r *Channels) ReplaceForSource(
 	ctx context.Context,
 	sourceID string,
@@ -121,6 +122,7 @@ func (r *Channels) ReplaceForSource(
 			missing = append(missing, id)
 		}
 	}
+	statements = append(statements, remapStatements(missing)...)
 	statements = append(statements, deleteChannelStatements(missing)...)
 	statements = append(statements, refreshSucceededStatement(sourceID, meta))
 
@@ -293,20 +295,79 @@ func deleteChannelStatements(ids []int64) []sqlite.Statement {
 		end := min(start+deleteChunkSize, len(ids))
 		chunk := ids[start:end]
 
-		placeholders := strings.TrimSuffix(strings.Repeat("?,", len(chunk)), ",")
-		args := make([]any, len(chunk))
-		for i, id := range chunk {
-			args[i] = id
-		}
-
 		statements = append(statements, sqlite.Statement{
-			SQL:  `DELETE FROM channels WHERE id IN (` + placeholders + `)`,
-			Args: args,
+			SQL:  `DELETE FROM channels WHERE id IN (` + placeholders(len(chunk)) + `)`,
+			Args: idArgs(chunk),
 		})
 	}
 
 	return statements
 }
+
+// remapStatements moves favorites and recent entries from the stale channel
+// rows in ids to a channel of the same source that kept the primary stream
+// URL, then removes the rows still bound to those stale ids.
+//
+// A provider that starts or stops publishing a tvg-id changes the channel
+// identity without changing the stream, so the user's favorite and history
+// must follow the stream rather than the identity. Display names are never
+// used: a rename alone does not move user data. A stale channel whose stream
+// URL disappeared keeps no row at all.
+func remapStatements(ids []int64) []sqlite.Statement {
+	statements := make([]sqlite.Statement, 0, len(ids)/deleteChunkSize*4+4)
+
+	for start := 0; start < len(ids); start += deleteChunkSize {
+		end := min(start+deleteChunkSize, len(ids))
+		chunk := ids[start:end]
+		args := idArgs(chunk)
+		in := `(` + placeholders(len(chunk)) + `)`
+
+		statements = append(statements,
+			sqlite.Statement{SQL: remapFavoritesHead + in + remapFavoritesTail, Args: args},
+			sqlite.Statement{SQL: `DELETE FROM favorites WHERE channel_id IN ` + in, Args: args},
+			sqlite.Statement{SQL: remapRecentHead + in + remapRecentTail, Args: args},
+			sqlite.Statement{SQL: `DELETE FROM recent_channels WHERE channel_id IN ` + in, Args: args},
+		)
+	}
+
+	return statements
+}
+
+// remapFavoritesHead copies each stale favorite to every channel of the same
+// source that offers the same primary stream URL. An existing favorite keeps
+// its original timestamp.
+const remapFavoritesHead = `
+	INSERT INTO favorites (channel_id, created_at)
+	SELECT n.id, f.created_at
+	FROM favorites f
+	JOIN channels o ON o.id = f.channel_id
+	JOIN channels n ON n.source_id = o.source_id
+		AND n.id <> o.id
+		AND n.stream_url = o.stream_url
+	WHERE o.id IN `
+
+const remapFavoritesTail = `
+	ON CONFLICT (channel_id) DO NOTHING
+`
+
+// remapRecentHead copies each stale recent entry to the same replacement
+// channels. The merge keeps the newest play time and the highest play count so
+// a refresh never inflates the user's history.
+const remapRecentHead = `
+	INSERT INTO recent_channels (channel_id, played_at, play_count)
+	SELECT n.id, r.played_at, r.play_count
+	FROM recent_channels r
+	JOIN channels o ON o.id = r.channel_id
+	JOIN channels n ON n.source_id = o.source_id
+		AND n.id <> o.id
+		AND n.stream_url = o.stream_url
+	WHERE o.id IN `
+
+const remapRecentTail = `
+	ON CONFLICT (channel_id) DO UPDATE SET
+		played_at = MAX(recent_channels.played_at, excluded.played_at),
+		play_count = MAX(recent_channels.play_count, excluded.play_count)
+`
 
 func refreshSucceededStatement(sourceID string, meta RefreshMeta) sqlite.Statement {
 	return sqlite.Statement{

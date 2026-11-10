@@ -215,6 +215,42 @@ func (r *Channels) ListAll(ctx context.Context, limit int) ([]Channel, error) {
 	return collectChannels(rows)
 }
 
+// ListStreamsByIDs returns the stream variants of ids grouped by channel ID,
+// ordered by playlist position. Unknown ids are absent instead of empty. The
+// query is chunked so the bound parameter list stays small.
+func (r *Channels) ListStreamsByIDs(ctx context.Context, ids []int64) (map[int64][]Stream, error) {
+	grouped := map[int64][]Stream{}
+	if len(ids) == 0 {
+		return grouped, nil
+	}
+
+	for start := 0; start < len(ids); start += deleteChunkSize {
+		end := min(start+deleteChunkSize, len(ids))
+		chunk := ids[start:end]
+
+		rows, err := r.store.db.Query(ctx, `
+			SELECT id, channel_id, provider_id, url, COALESCE(quality, ''),
+				is_hls, is_live, position, headers
+			FROM channel_streams
+			WHERE channel_id IN (`+placeholders(len(chunk))+`)
+			ORDER BY channel_id, position, id
+		`, idArgs(chunk)...)
+		if err != nil {
+			return nil, fmt.Errorf("list channel streams: %w", err)
+		}
+
+		for _, values := range rows.Values {
+			stream, err := scanStreamValues(values)
+			if err != nil {
+				return nil, fmt.Errorf("scan channel stream: %w", err)
+			}
+			grouped[stream.ChannelID] = append(grouped[stream.ChannelID], stream)
+		}
+	}
+
+	return grouped, nil
+}
+
 func collectChannels(rows sqlite.Rows) ([]Channel, error) {
 	channels := []Channel{}
 	for _, values := range rows.Values {

@@ -42,7 +42,10 @@ func NewShell() *Shell {
 		s.navigate(destLibrary)
 		s.library.OpenAddPlaylist()
 	}
-	s.settings.OnManagePlaylists = func() { s.navigate(destLibrary) }
+	s.settings.OnManagePlaylists = func() {
+		s.navigate(destLibrary)
+		s.library.ShowPlaylists()
+	}
 	s.watch.OnBrowse = func() { s.navigate(destDiscover) }
 
 	return s

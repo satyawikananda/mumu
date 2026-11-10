@@ -4,10 +4,31 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/egoist/mygo/plugins/sqlite"
 )
+
+// placeholders returns count comma-separated placeholders for an IN list.
+// Only the placeholder text is interpolated; every value stays bound.
+func placeholders(count int) string {
+	if count <= 0 {
+		return ""
+	}
+
+	return strings.TrimSuffix(strings.Repeat("?,", count), ",")
+}
+
+// idArgs returns ids as bound parameters for an IN list.
+func idArgs(ids []int64) []any {
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+
+	return args
+}
 
 func unixMillis(t time.Time) int64 {
 	if t.IsZero() {

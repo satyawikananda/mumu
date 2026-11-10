@@ -91,6 +91,7 @@ type Discover struct {
 	categories []string
 	sources    []DiscoverFacet
 	logos      map[string]*ui.Bitmap
+	favorites  map[string]bool
 	list       ui.ListState
 	selected   int
 	notice     string
@@ -110,6 +111,8 @@ type Discover struct {
 	OnFilter func(filters DiscoverFilters)
 	// OnSelect asks the app to open the channel with this key.
 	OnSelect func(key string)
+	// OnToggleFavorite adds or removes one channel from favorites.
+	OnToggleFavorite func(key string)
 }
 
 // NewDiscover returns an empty Discover page with no region yet.
@@ -198,6 +201,15 @@ func (d *Discover) Notice() string { return d.notice }
 func (d *Discover) SetLogos(logos map[string]*ui.Bitmap) {
 	d.logos = logos
 }
+
+// SetFavorites publishes which channel keys are favorites. Rows read the map,
+// so a favorite change never rebuilds the indexed catalog.
+func (d *Discover) SetFavorites(favorites map[string]bool) {
+	d.favorites = favorites
+}
+
+// Favorite reports whether key is a favorite, for the app and for tests.
+func (d *Discover) Favorite(key string) bool { return d.favorites[key] }
 
 // View draws the page on the MyGo main thread.
 func (d *Discover) View(c *ui.Context, theme *ui.Theme) {
@@ -412,6 +424,21 @@ func (d *Discover) row(c *ui.Context, theme *ui.Theme, i int) {
 				TextColor(theme.TextMuted).Padding(2, 7).Radius(4).
 				Background(theme.Surface).Border(1, theme.Border)
 		}
+
+		if channel.Key == "" {
+			return
+		}
+
+		favorite := d.favorites[channel.Key]
+		label := "Add to Favorites"
+		if favorite {
+			label = "Remove from Favorites"
+		}
+		ui.Button(c, label).AccessSelected(favorite).OnClick(func() {
+			if d.OnToggleFavorite != nil {
+				d.OnToggleFavorite(channel.Key)
+			}
+		})
 	})
 }
 

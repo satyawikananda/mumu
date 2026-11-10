@@ -56,6 +56,8 @@ There is no seek bar. Live streams are not assumed seekable in v0.1.
 - `Recent.MarkPlayed` runs once per playback generation, after the controller
   reports `playing`, using the stored `(sourceID, providerID)` pair.
 - Favorites resolve the same stored channel identity, so a refresh keeps them.
+  The key includes the source ID: two playlists that publish the same provider
+  ID keep independent favorite state.
 
 ## Threading and lifetime
 

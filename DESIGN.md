@@ -330,18 +330,25 @@ UX specifications:
 ```text
 ┌─ Library ───────────────────────────────────────────────────────────────┐
 │ Library                                      [+ Add Playlist]           │
+│ [Favorites]  [Recently watched]  [Playlists]                            │
 │                                                                        │
-│ Favorites             [saved channel rows...]                          │
-│ Recently watched      [recent channel rows...]                         │
-│                                                                        │
-│ My Playlists                                                          │
+│ Favorites                                                              │
 │ ┌────────────────────────────────────────────────────────────────────┐ │
-│ │ Indonesia IPTV                 Enabled  ·  Updated recently       │ │
-│ │ My Own Channels               Enabled  ·  2 channels             │ │
+│ │ TVRI Nasional        News · Indonesia IPTV    [LIVE] [Remove]      │ │
+│ │ Metro TV             News · My Own Channels                 [Add]  │ │
 │ └────────────────────────────────────────────────────────────────────┘ │
-│ [+ Add M3U URL]    [Import M3U file]    [Add Stream URL]                │
 └────────────────────────────────────────────────────────────────────────┘
 ```
+
+- One tab at a time keeps a single virtualized list, so scroll, selection and
+  keyboard order stay predictable.
+- Every channel row names its source, so two channels with the same display
+  name remain distinguishable.
+- Rows from a disabled source or without a supported stream explain themselves
+  and never start playback.
+- Favorites and recently watched have their own empty states and a local search
+  field. The Playlists tab keeps refresh, enable/disable, removal and the import
+  actions.
 
 Source-management interaction:
 

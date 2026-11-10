@@ -346,6 +346,7 @@ func (a *App) startDiscover() {
 	page.OnRetry = a.retryDiscover
 	page.OnFilter = a.filterDiscover
 	page.OnSelect = a.selectDiscoverChannel
+	page.OnToggleFavorite = a.toggleFavoriteKey
 	page.SetState(ui.DiscoverState{
 		Kind:   ui.DiscoverLoading,
 		Region: sources.DefaultRegion,
@@ -730,6 +731,7 @@ func (a *App) publishCatalogState(
 
 		page := a.shell.Discover()
 		page.SetFacets(facets.categories, facets.sources)
+		page.SetFavorites(a.libraryData.favoriteKeys())
 		page.SetState(ui.DiscoverState{
 			Kind:      kind,
 			Region:    region,

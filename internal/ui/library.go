@@ -34,15 +34,27 @@ func (k LibraryKind) Label() string {
 	}
 }
 
+// LibrarySection is the tab the Library page shows.
+type LibrarySection int
+
+const (
+	// LibraryFavorites shows the user's favorite channels.
+	LibraryFavorites LibrarySection = iota
+	// LibraryRecent shows channels that genuinely played.
+	LibraryRecent
+	// LibraryPlaylists shows the user's playlists and custom streams.
+	LibraryPlaylists
+)
+
 // LibraryStateKind is what the Library page shows.
 type LibraryStateKind int
 
 const (
-	// LibraryLoading reports a pending source list.
+	// LibraryLoading reports a pending library read.
 	LibraryLoading LibraryStateKind = iota + 1
-	// LibraryReady shows the source rows, or the empty state.
+	// LibraryReady shows the sections, or their empty states.
 	LibraryReady
-	// LibraryFailed reports that the source list could not be read.
+	// LibraryFailed reports that the library could not be read.
 	LibraryFailed
 )
 
@@ -59,10 +71,28 @@ type LibrarySource struct {
 	Busy bool
 }
 
+// LibraryChannel is one favorite or recently watched row.
+//
+// Key is the stable source-scoped identity shared with Discover and Watch.
+// SourceName keeps two channels with the same display name distinguishable.
+type LibraryChannel struct {
+	Key           string
+	Name          string
+	SourceName    string
+	Meta          string
+	Live          bool
+	Favorite      bool
+	Playable      bool
+	SourceEnabled bool
+	PlayedAt      time.Time
+}
+
 // LibraryState is what the app publishes to the Library page.
 type LibraryState struct {
-	Kind    LibraryStateKind
-	Sources []LibrarySource
+	Kind      LibraryStateKind
+	Favorites []LibraryChannel
+	Recent    []LibraryChannel
+	Sources   []LibrarySource
 	// Message is an inline banner for the whole page.
 	Message string
 }
@@ -105,13 +135,43 @@ type LibraryRequest struct {
 	AllowPrivate bool
 }
 
-// Library is the native Library page for playlists and custom streams. The
-// app publishes state; the page dispatches intents and owns no I/O.
-type Library struct {
-	state    LibraryState
-	list     ui.ListState
+// libraryList is one virtualized section: its list state and selection.
+type libraryList struct {
+	state    ui.ListState
 	selected int
-	now      func() time.Time
+}
+
+// clamp keeps the selection inside n rows.
+func (l *libraryList) clamp(n int) {
+	if l.selected >= n {
+		l.selected = -1
+	}
+}
+
+// current returns the selected index, or -1.
+func (l *libraryList) current(n int) int {
+	if l.selected < 0 || l.selected >= n {
+		return -1
+	}
+
+	return l.selected
+}
+
+// Library is the native Library page for favorites, recent viewing and user
+// sources. The app publishes state; the page dispatches intents and owns no I/O.
+type Library struct {
+	state   LibraryState
+	section int
+	query   string
+
+	favs    libraryList
+	recent  libraryList
+	sources libraryList
+
+	favoriteRows []LibraryChannel
+	recentRows   []LibraryChannel
+
+	now func() time.Time
 
 	sheetOpen     bool
 	sheetKind     LibraryKind
@@ -132,7 +192,7 @@ type Library struct {
 	confirmID   string
 	confirmName string
 
-	// OnReload re-reads the source list.
+	// OnReload re-reads the library.
 	OnReload func()
 	// OnRefresh re-reads one source's channels.
 	OnRefresh func(id string)
@@ -148,17 +208,28 @@ type Library struct {
 	OnImport func(req LibraryRequest)
 	// OnSheetClose cancels pending preview work.
 	OnSheetClose func()
+	// OnPlay opens one favorite or recent channel.
+	OnPlay func(key string)
+	// OnToggleFavorite adds or removes one channel from favorites.
+	OnToggleFavorite func(key string)
+	// OnBrowse sends the viewer to Discover.
+	OnBrowse func()
 }
 
-// NewLibrary returns an empty Library page.
+// NewLibrary returns an empty Library page on the Favorites tab.
 func NewLibrary() *Library {
 	l := &Library{
-		state:    LibraryState{Kind: LibraryReady},
-		selected: -1,
-		now:      time.Now,
+		state:   LibraryState{Kind: LibraryReady},
+		section: int(LibraryFavorites),
+		now:     time.Now,
 	}
-	l.list.Selected = &l.selected
-	l.list.Label = l.rowLabel
+	l.favs.selected, l.recent.selected, l.sources.selected = -1, -1, -1
+	l.favs.state.Selected = &l.favs.selected
+	l.recent.state.Selected = &l.recent.selected
+	l.sources.state.Selected = &l.sources.selected
+	l.favs.state.Label = l.favoriteLabel
+	l.recent.state.Label = l.recentLabel
+	l.sources.state.Label = l.sourceLabel
 
 	return l
 }
@@ -166,13 +237,20 @@ func NewLibrary() *Library {
 // SetState shows state.
 func (l *Library) SetState(state LibraryState) {
 	l.state = state
-	if l.selected >= len(state.Sources) {
-		l.selected = -1
-	}
+	l.refreshRows()
 }
 
 // State returns what the page shows, for the app and for tests.
 func (l *Library) State() LibraryState { return l.state }
+
+// Section returns the visible tab.
+func (l *Library) Section() LibrarySection { return LibrarySection(l.section) }
+
+// ShowFavorites opens the Favorites tab.
+func (l *Library) ShowFavorites() { l.section = int(LibraryFavorites) }
+
+// ShowPlaylists opens the Playlists tab.
+func (l *Library) ShowPlaylists() { l.section = int(LibraryPlaylists) }
 
 // SheetOpen reports whether the import sheet is open.
 func (l *Library) SheetOpen() bool { return l.sheetOpen }
@@ -185,16 +263,19 @@ func (l *Library) PreviewError() string { return l.previewErr }
 
 // OpenAddPlaylist opens the sheet on the M3U URL tab.
 func (l *Library) OpenAddPlaylist() {
+	l.ShowPlaylists()
 	l.openSheet(LibraryPlaylistURL, 0)
 }
 
 // OpenImportFile opens the sheet on the M3U file tab.
 func (l *Library) OpenImportFile() {
+	l.ShowPlaylists()
 	l.openSheet(LibraryPlaylistURL, 1)
 }
 
 // OpenAddStream opens the custom stream sheet.
 func (l *Library) OpenAddStream() {
+	l.ShowPlaylists()
 	l.openSheet(LibraryStream, 0)
 }
 
@@ -245,33 +326,25 @@ func (l *Library) View(c *ui.Context, theme *ui.Theme) {
 	l.confirm(c, theme)
 }
 
-// header draws the page heading and Add Playlist.
-func (l *Library) header(c *ui.Context, _ *ui.Theme) {
-	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(12).Children(func() {
-		pageHeading(c, "Library").Grow(1)
-		ui.Button(c, "Add Playlist").OnClick(l.OpenAddPlaylist)
-	})
-}
-
-// body draws the state, the section heading and the source rows.
+// body draws the state, the tabs and the visible section.
 func (l *Library) body(c *ui.Context, theme *ui.Theme) {
 	switch l.state.Kind {
 	case LibraryLoading:
 		pageStatus(c, Status{
 			Kind:    StatusLoading,
-			Title:   "Loading playlists",
-			Message: "Reading the sources saved on this Mac.",
+			Title:   "Loading library",
+			Message: "Reading favorites, recent channels and playlists on this Mac.",
 		})
 
 		return
 	case LibraryFailed:
 		message := l.state.Message
 		if message == "" {
-			message = "mumu could not read the saved playlists. Retry, or add a playlist."
+			message = "mumu could not read the saved library. Retry, or add a playlist."
 		}
 		pageStatus(c, Status{
 			Kind:     StatusError,
-			Title:    "Playlists unavailable",
+			Title:    "Library unavailable",
 			Message:  message,
 			Action:   "Retry",
 			OnAction: l.reload,
@@ -280,31 +353,166 @@ func (l *Library) body(c *ui.Context, theme *ui.Theme) {
 		return
 	}
 
-	ui.Text(c, "My Playlists").FontSize(theme.Rem(1.4)).FontWeight(600)
+	l.tabs(c)
+
+	switch LibrarySection(l.section) {
+	case LibraryRecent:
+		l.channelSection(c, theme, l.recentRows, &l.recent, recentSection)
+	case LibraryPlaylists:
+		l.playlists(c, theme)
+	default:
+		l.channelSection(c, theme, l.favoriteRows, &l.favs, favoritesSection)
+	}
+}
+
+// header draws the page heading and Add Playlist.
+func (l *Library) header(c *ui.Context, _ *ui.Theme) {
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(12).Children(func() {
+		pageHeading(c, "Library").Grow(1)
+		ui.Button(c, "Add Playlist").OnClick(l.OpenAddPlaylist)
+	})
+}
+
+// tabs draws the three Library sections.
+func (l *Library) tabs(c *ui.Context) {
+	section := l.section
+	if ui.Tabs(c, &section, "Favorites", "Recently watched", "Playlists").Changed() {
+		l.section = section
+	}
+}
+
+// sectionMode names the copy a channel section shows.
+type sectionMode int
+
+const (
+	favoritesSection sectionMode = iota
+	recentSection
+)
+
+// channelSection draws the search field, the banner and the channel rows.
+func (l *Library) channelSection(c *ui.Context, theme *ui.Theme, rows []LibraryChannel, list *libraryList, mode sectionMode) {
+	label := "Search favorites"
+	if mode == recentSection {
+		label = "Search recently watched"
+	}
+	if ui.SearchField(c, &l.query).Label(label).Changed() {
+		l.refreshRows()
+	}
 
 	if l.state.Message != "" {
 		l.messageBanner(c, theme)
 	}
 
-	if len(l.state.Sources) == 0 {
-		l.empty(c, theme)
+	if len(rows) == 0 {
+		l.emptyChannels(c, mode)
+
 		return
 	}
 
-	l.listView(c, theme)
+	listElement := ui.List(c, &list.state, len(rows), func(i int) {
+		l.channelRow(c, theme, rows[i], mode)
+	}).
+		Grow(1).
+		Label(l.sectionTitle(mode)).
+		ItemKey(func(i int) any { return rows[i].Key })
+
+	if listElement.Submitted() {
+		if index := list.current(len(rows)); index >= 0 {
+			l.play(rows[index])
+		}
+	}
 }
 
-// messageBanner shows a page-level problem without hiding the rows.
-func (l *Library) messageBanner(c *ui.Context, theme *ui.Theme) {
-	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(12).Padding(8, 12).
-		Background(theme.Surface).Border(1, theme.Border).Children(func() {
-		ui.Text(c, "!").TextColor(theme.Warning).AccessHidden(true)
-		ui.Text(c, l.state.Message).TextColor(theme.TextMuted).Grow(1)
+// emptyChannels draws the first-run state for one channel section.
+func (l *Library) emptyChannels(c *ui.Context, mode sectionMode) {
+	if l.query != "" {
+		pageStatus(c, Status{
+			Kind:    StatusEmpty,
+			Title:   "No matches",
+			Message: "No saved channel matches your search.",
+			Action:  "Clear search",
+			OnAction: func() {
+				l.query = ""
+				l.refreshRows()
+			},
+		})
+
+		return
+	}
+
+	title, message := "No favorites yet", "Choose a channel in Discover or Watch, then Add to Favorites."
+	if mode == recentSection {
+		title, message = "Nothing watched yet", "Channels appear here after playback really starts."
+	}
+
+	pageStatus(c, Status{
+		Kind:     StatusEmpty,
+		Title:    title,
+		Message:  message,
+		Action:   "Browse Discover",
+		OnAction: l.browse,
 	})
 }
 
-// empty draws the first-run state with every import path.
-func (l *Library) empty(c *ui.Context, theme *ui.Theme) {
+// channelRow draws one favorite or recent channel.
+func (l *Library) channelRow(c *ui.Context, theme *ui.Theme, channel LibraryChannel, _ sectionMode) {
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(12).Padding(8, 10).Children(func() {
+		ui.Avatar(c, channel.Name, nil)
+
+		ui.Column(c).Grow(1).Gap(2).Children(func() {
+			ui.Text(c, channel.Name).FontSize(theme.Rem(1.08)).FontWeight(500).SingleLine()
+			if meta := l.channelMeta(channel); meta != "" {
+				ui.Text(c, meta).FontSize(theme.Rem(0.85)).TextColor(theme.TextMuted).SingleLine()
+			}
+			if reason := l.unavailableReason(channel); reason != "" {
+				ui.Text(c, reason).FontSize(theme.Rem(0.85)).TextColor(theme.Warning)
+			}
+		})
+
+		if channel.Live {
+			ui.Text(c, "LIVE").FontSize(theme.Rem(0.8)).FontWeight(600).
+				TextColor(theme.TextMuted).Padding(2, 7).Radius(4).
+				Background(theme.Surface).Border(1, theme.Border)
+		}
+
+		label := "Add to Favorites"
+		if channel.Favorite {
+			label = "Remove from Favorites"
+		}
+		ui.Button(c, label).AccessSelected(channel.Favorite).OnClick(func() {
+			l.toggleFavorite(channel.Key)
+		})
+	})
+}
+
+// playlists draws the message banner, the source rows and Add actions.
+func (l *Library) playlists(c *ui.Context, theme *ui.Theme) {
+	if l.state.Message != "" {
+		l.messageBanner(c, theme)
+	}
+
+	if len(l.state.Sources) == 0 {
+		l.emptyPlaylists(c, theme)
+
+		return
+	}
+
+	ui.List(c, &l.sources.state, len(l.state.Sources), func(i int) {
+		l.sourceRow(c, theme, i)
+	}).
+		Grow(1).
+		Label("Playlists").
+		ItemKey(func(i int) any { return l.state.Sources[i].ID })
+
+	ui.Row(c).Gap(8).Wrap().Children(func() {
+		ui.Button(c, "Add M3U URL").OnClick(l.OpenAddPlaylist)
+		ui.Button(c, "Import M3U file").OnClick(l.OpenImportFile)
+		ui.Button(c, "Add Stream").OnClick(l.OpenAddStream)
+	})
+}
+
+// emptyPlaylists draws the first-run state with every import path.
+func (l *Library) emptyPlaylists(c *ui.Context, theme *ui.Theme) {
 	ui.Column(c).Grow(1).FillWidth().Center().Gap(12).Padding(24).Children(func() {
 		ui.Text(c, "No playlists yet").FontSize(theme.Rem(1.7)).FontWeight(500).TextAlign(ui.Center)
 		ui.Text(c, "Add an M3U playlist from a URL or a file, or add a single stream.").
@@ -318,18 +526,17 @@ func (l *Library) empty(c *ui.Context, theme *ui.Theme) {
 	})
 }
 
-// listView draws the virtualized source rows.
-func (l *Library) listView(c *ui.Context, theme *ui.Theme) {
-	ui.List(c, &l.list, len(l.state.Sources), func(i int) {
-		l.row(c, theme, i)
-	}).
-		Grow(1).
-		Label("Playlists").
-		ItemKey(func(i int) any { return l.state.Sources[i].ID })
+// messageBanner shows a page-level problem without hiding the rows.
+func (l *Library) messageBanner(c *ui.Context, theme *ui.Theme) {
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(12).Padding(8, 12).
+		Background(theme.Surface).Border(1, theme.Border).Children(func() {
+		ui.Text(c, "!").TextColor(theme.Warning).AccessHidden(true)
+		ui.Text(c, l.state.Message).TextColor(theme.TextMuted).Grow(1)
+	})
 }
 
-// row draws one source with its state and actions.
-func (l *Library) row(c *ui.Context, theme *ui.Theme, i int) {
+// sourceRow draws one source with its state and actions.
+func (l *Library) sourceRow(c *ui.Context, theme *ui.Theme, i int) {
 	source := l.state.Sources[i]
 
 	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(12).Padding(10, 12).Children(func() {
@@ -344,7 +551,7 @@ func (l *Library) row(c *ui.Context, theme *ui.Theme, i int) {
 					ui.Text(c, "Disabled").FontSize(theme.Rem(0.8)).TextColor(theme.TextMuted)
 				}
 			})
-			ui.Text(c, l.rowMeta(source)).FontSize(theme.Rem(0.85)).TextColor(theme.TextMuted).SingleLine()
+			ui.Text(c, l.sourceMeta(source)).FontSize(theme.Rem(0.85)).TextColor(theme.TextMuted).SingleLine()
 			if source.Error != "" {
 				ui.Text(c, source.Error).FontSize(theme.Rem(0.85)).TextColor(theme.Danger)
 			}
@@ -382,8 +589,8 @@ func (l *Library) row(c *ui.Context, theme *ui.Theme, i int) {
 	})
 }
 
-// rowMeta builds the count and last-success line.
-func (l *Library) rowMeta(source LibrarySource) string {
+// sourceMeta builds the count and last-success line.
+func (l *Library) sourceMeta(source LibrarySource) string {
 	parts := []string{l.channelCount(source.Channels), l.relative(source.LastSuccess)}
 	if source.Error != "" && source.Channels > 0 {
 		parts = append(parts, "showing last known channels")
@@ -392,8 +599,71 @@ func (l *Library) rowMeta(source LibrarySource) string {
 	return strings.Join(parts, " · ")
 }
 
-// rowLabel names a row for assistive technology and type-select.
-func (l *Library) rowLabel(i int) string {
+// refreshRows re-filters both channel sections and clamps their selection.
+func (l *Library) refreshRows() {
+	l.favoriteRows = l.filterChannels(l.state.Favorites)
+	l.recentRows = l.filterChannels(l.state.Recent)
+	l.favs.clamp(len(l.favoriteRows))
+	l.recent.clamp(len(l.recentRows))
+	l.sources.clamp(len(l.state.Sources))
+}
+
+// filterChannels narrows a section by the search query.
+func (l *Library) filterChannels(channels []LibraryChannel) []LibraryChannel {
+	query := strings.ToLower(strings.TrimSpace(l.query))
+	if query == "" {
+		return channels
+	}
+
+	rows := make([]LibraryChannel, 0, len(channels))
+	for _, channel := range channels {
+		if strings.Contains(strings.ToLower(channel.Name), query) ||
+			strings.Contains(strings.ToLower(channel.SourceName), query) {
+			rows = append(rows, channel)
+		}
+	}
+
+	return rows
+}
+
+// sectionTitle names a channel section for assistive technology.
+func (l *Library) sectionTitle(mode sectionMode) string {
+	if mode == recentSection {
+		return "Recently watched"
+	}
+
+	return "Favorites"
+}
+
+// favoriteLabel names a favorite row for assistive technology.
+func (l *Library) favoriteLabel(i int) string {
+	return l.channelLabel(l.favoriteRows, i)
+}
+
+// recentLabel names a recent row for assistive technology.
+func (l *Library) recentLabel(i int) string {
+	return l.channelLabel(l.recentRows, i)
+}
+
+// channelLabel builds a channel row's accessible name.
+func (l *Library) channelLabel(rows []LibraryChannel, i int) string {
+	if i < 0 || i >= len(rows) {
+		return ""
+	}
+
+	parts := []string{rows[i].Name}
+	if meta := l.channelMeta(rows[i]); meta != "" {
+		parts = append(parts, meta)
+	}
+	if reason := l.unavailableReason(rows[i]); reason != "" {
+		parts = append(parts, reason)
+	}
+
+	return strings.Join(parts, ", ")
+}
+
+// sourceLabel names a source row for assistive technology and type-select.
+func (l *Library) sourceLabel(i int) string {
 	if i < 0 || i >= len(l.state.Sources) {
 		return ""
 	}
@@ -410,6 +680,62 @@ func (l *Library) rowLabel(i int) string {
 		state,
 		l.channelCount(source.Channels),
 	}, ", ")
+}
+
+// channelMeta builds "Category · Source · watched 2h ago" from a row.
+func (l *Library) channelMeta(channel LibraryChannel) string {
+	parts := make([]string, 0, 3)
+	if meta := strings.TrimSpace(channel.Meta); meta != "" {
+		parts = append(parts, meta)
+	}
+	if source := strings.TrimSpace(channel.SourceName); source != "" {
+		parts = append(parts, source)
+	}
+	if !channel.PlayedAt.IsZero() {
+		parts = append(parts, "watched "+l.relative(channel.PlayedAt))
+	}
+
+	return strings.Join(parts, " · ")
+}
+
+// unavailableReason explains why a row cannot play, empty when it can.
+func (l *Library) unavailableReason(channel LibraryChannel) string {
+	switch {
+	case !channel.SourceEnabled:
+		return "Source disabled. Enable it in Playlists."
+	case !channel.Playable:
+		return "No supported stream."
+	default:
+		return ""
+	}
+}
+
+// toggleFavorite dispatches the favorite intent.
+func (l *Library) toggleFavorite(key string) {
+	if l.OnToggleFavorite != nil {
+		l.OnToggleFavorite(key)
+	}
+}
+
+// play dispatches the open intent.
+func (l *Library) play(channel LibraryChannel) {
+	if l.OnPlay != nil {
+		l.OnPlay(channel.Key)
+	}
+}
+
+// browse dispatches the Discover intent.
+func (l *Library) browse() {
+	if l.OnBrowse != nil {
+		l.OnBrowse()
+	}
+}
+
+// reload dispatches a library reload.
+func (l *Library) reload() {
+	if l.OnReload != nil {
+		l.OnReload()
+	}
 }
 
 // sheet draws the import sheet while it is open.
@@ -724,13 +1050,6 @@ func (l *Library) request() LibraryRequest {
 	}
 }
 
-// reload dispatches a list reload.
-func (l *Library) reload() {
-	if l.OnReload != nil {
-		l.OnReload()
-	}
-}
-
 // channelCount names a number of channels.
 func (l *Library) channelCount(n int) string {
 	if n == 1 {
@@ -740,7 +1059,7 @@ func (l *Library) channelCount(n int) string {
 	return fmt.Sprintf("%d channels", n)
 }
 
-// relative names when a source last refreshed.
+// relative names when something happened.
 func (l *Library) relative(at time.Time) string {
 	if at.IsZero() {
 		return "not refreshed yet"
