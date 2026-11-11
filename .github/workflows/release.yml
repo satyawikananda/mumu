@@ -1,13 +1,18 @@
 name: Release
 
-# A tag such as v0.1.0 builds the arm64 app and its LGPL runtime, verifies the
-# bundle, and uploads a draft release. The app is ad hoc signed: no Developer
-# ID and no notarization. See docs/release/macos.md.
+# A tag such as v0.1.0 or v0.1.0-alpha.1 builds the arm64 app and its LGPL
+# runtime, verifies the bundle, and uploads a draft release. The app is ad hoc
+# signed: no Developer ID and no notarization. See docs/release/macos.md.
+#
+# The workflow follows the MyGo GitHub Actions guide for a native UI project:
+# the tag is checked and the draft exists before anything is built, so a wrong
+# tag fails in seconds and the upload always has a target. There is no
+# workflow_dispatch: a release comes from a tag, and -upload would need the
+# updater configuration this project does not have.
 
 on:
   push:
     tags: ["v*"]
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -22,6 +27,38 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+
+      - name: Check the version
+        id: version
+        run: |
+          version="$(jq -r .version mygo.json)"
+          # A prerelease tag carries a suffix: v0.1.0-alpha.1, v0.1.0-rc.1.
+          # mygo.json stays the bundle version, which macOS requires to be
+          # period-separated integers.
+          case "$GITHUB_REF_NAME" in
+            "v$version" | "v$version"-*) ;;
+            *)
+              echo "::error::tag $GITHUB_REF_NAME does not match mygo.json $version"
+              exit 1
+              ;;
+          esac
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "draft release $GITHUB_REF_NAME already exists"
+            exit 0
+          fi
+          # A suffix marks a prerelease: v0.1.0-alpha.1, v0.1.0-rc.1.
+          flags=(--draft --verify-tag --generate-notes --title "mumu $GITHUB_REF_NAME")
+          if [ "${GITHUB_REF_NAME#*-}" != "$GITHUB_REF_NAME" ]; then
+            flags+=(--prerelease)
+          fi
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" "${flags[@]}"
 
       - name: Check the runner architecture
         run: |
@@ -45,24 +82,6 @@ jobs:
 
       - name: Package and verify
         run: make package
-
-      - name: Check the version
-        id: version
-        run: |
-          version="$(jq -r .version mygo.json)"
-          if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
-            # A prerelease tag carries a suffix: v0.1.0-alpha, v0.1.0-rc.1.
-            # mygo.json stays the bundle version, which macOS requires to be
-            # period-separated integers.
-            case "$GITHUB_REF_NAME" in
-              "v$version" | "v$version"-*) ;;
-              *)
-                echo "::error::tag $GITHUB_REF_NAME does not match mygo.json $version"
-                exit 1
-                ;;
-            esac
-          fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Collect the release assets
         env:
@@ -101,22 +120,7 @@ jobs:
       - name: Upload the draft release
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          tag="${GITHUB_REF_NAME}"
-          if [ "${GITHUB_REF_TYPE:-}" != "tag" ]; then
-            tag="v${VERSION}"
-          fi
-          if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            # A suffix marks a prerelease: v0.1.0-alpha.1, v0.1.0-rc.1.
-            if [ "${tag#*-}" != "$tag" ]; then
-              gh release create "$tag" --repo "$GITHUB_REPOSITORY" --draft --prerelease \
-                --title "mumu $tag" --generate-notes
-            else
-              gh release create "$tag" --repo "$GITHUB_REPOSITORY" --draft \
-                --title "mumu $VERSION" --generate-notes
-            fi
-          fi
-          gh release upload "$tag" --repo "$GITHUB_REPOSITORY" --clobber \
+          gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber \
             build/release/*
