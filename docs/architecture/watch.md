@@ -157,7 +157,9 @@ Automated:
 - Cross-builds for linux/amd64 and darwin/amd64 stay green without the native
   adapter.
 
-Native macOS smoke test (manual, pending):
+Native macOS smoke test (manual, partially recorded on 12 November 2026 with
+MyGo 0.9.0; see
+[mygo-0.9.0-upgrade.md](evidence/mygo-0.9.0-upgrade.md)):
 
 1. Build with `go build ./cmd/mumu` and run with the pinned libmpv runtime on
    `DYLD_LIBRARY_PATH` (or `MUMU_MPV_LIBRARY`). The adapter is part of the
@@ -172,5 +174,9 @@ Native macOS smoke test (manual, pending):
 3. Record OS, architecture, libmpv version, commands and observations under
    `docs/architecture/evidence/`.
 
-Until that run is recorded, Watch video presentation is **implemented but not
-verified on device**.
+Recorded on 12 November 2026: video and audio start, a rapid channel switch
+shows only the newest selection, favorites and settings survive a restart, and
+the packaged 0.9.0 build opens the existing library. Resize/fullscreen
+alignment, the dead-URL glass panel, the buffering badge and quit cleanup were
+not re-run in that session, so Watch video presentation is **implemented and
+partially verified on device**.

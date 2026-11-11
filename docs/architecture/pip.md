@@ -138,7 +138,9 @@ Automated:
 - `go test -race ./...`, `go vet ./...` and `go tool mygo vet .` pass locally;
   golangci-lint runs in CI; linux/amd64 and darwin/amd64 cross-builds stay green.
 
-Native macOS smoke test (manual, pending, same gate as Watch):
+Native macOS smoke test (manual, partially recorded on 12 November 2026 with
+MyGo 0.9.0; same gate as Watch, see
+[mygo-0.9.0-upgrade.md](evidence/mygo-0.9.0-upgrade.md)):
 
 1. Play a channel, enter and leave PiP five times quickly, then twenty times.
 2. Confirm one libmpv session, one retained view and one PiP window in the logs.
@@ -155,6 +157,13 @@ Native macOS smoke test (manual, pending, same gate as Watch):
 7. Record OS, libmpv version, commands and observations under
    `docs/architecture/evidence/`.
 
+Recorded on 12 November 2026 with MyGo 0.9.0: entering PiP and pressing
+Return/P moved the same session back to the main window, a volume or mute change
+made in PiP did not overwrite the main audio intent after Return, closing PiP
+while playing left the session recoverable in the main window, and a relaunch
+kept favorites, recent history and settings.
+
 Sleep/wake and external-display recovery remain unverified, as recorded in the
-feasibility report. Until the smoke run is recorded, production PiP is
-**implemented but not verified on device**.
+feasibility report. The repeated-toggle, Spaces, foreign-fullscreen, Cmd+Q and
+dead-stream steps above were not re-run in that session, so production PiP is
+**implemented and partially verified on device**.

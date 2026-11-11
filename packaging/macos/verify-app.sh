@@ -40,6 +40,12 @@ libdir="$app/Contents/Resources/libmpv"
 count="$(find "$libdir" -type f -name '*.dylib' | wc -l | tr -d ' ')"
 [[ "$count" -ge 10 ]] || fail "bundled runtime holds $count libraries, want at least 10"
 
+# MyGo 0.9 loads SQLite through its native module system, so the database
+# library is a separate resource next to libmpv rather than inside it. The app
+# opens its local library at launch, so a missing module is a broken build.
+sqlite_lib="$app/Contents/Resources/libSqlitecore.dylib"
+[[ -f "$sqlite_lib" ]] || fail "missing bundled SQLite module: $sqlite_lib"
+
 machos=()
 while IFS= read -r -d '' file; do
   machos+=("$file")

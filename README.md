@@ -13,7 +13,7 @@ JavaScript frontend, and no hosted backend.
 ## Requirements
 
 - macOS 13 or later. M0 was verified on macOS 27.0.1, Apple Silicon.
-- Go 1.27.3 or later, as pinned in `go.mod`. MyGo 0.8.3 requires it.
+- Go 1.27.3 or later, as pinned in `go.mod`. MyGo 0.9.0 requires it.
 - A libmpv runtime for playback. Release builds bundle an LGPL one inside the
   app, so nothing has to be installed to watch; running from source needs a
   local runtime (`brew install mpv`, or `MUMU_MPV_LIBRARY=<dir>`). The app and
