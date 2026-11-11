@@ -25,6 +25,10 @@ The commands are the reproducible record.
 Results apply to this machine only. They are not a claim about other Apple
 Silicon models, Intel Macs, or other macOS versions.
 
+The table records the #14 baseline. Runs for the M5 revamp ([#31](https://github.com/satyawikananda/mumu/issues/31)
+onwards) use MyGo 0.9.0 with the `Sqlitecore` native module instead of 0.8.3;
+the machine and the pinned libmpv runtime are unchanged.
+
 ## Automated checks
 
 | Check | Command | Result | Evidence |

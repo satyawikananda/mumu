@@ -3,7 +3,8 @@
 - Status: accepted
 - Date: 2026-11-09
 - Refactor: 2026-11-10 — replaced `modernc.org/sqlite` with the MyGo plugin
-- Issues: #6
+- Update: 2026-11-12 — MyGo 0.9 loads SQLite as a native module (#31)
+- Issues: #6, #31
 
 ## Context
 
@@ -62,3 +63,25 @@ transactions. Compound writes therefore compute their statements before
   and separate from user-owned data.
 - Keychain-backed credentials are deferred until an authenticated-source
   issue needs them.
+
+## Update 2026-11-12 (MyGo 0.9, #31)
+
+The plugin's SQLite is now a **native module** (`Sqlitecore`, written in Zig)
+rather than a prebuilt library loaded through `purego` and found with
+`sqlite.LibraryPath`. `sqlite.LibraryPath` and `MYGO_SQLITE_LIBRARY` were
+removed in MyGo 0.9; the replacement override is `MYGO_NATIVE_SQLITECORE`.
+
+Nothing above changes for mumu's code: the Go API (`Open`, `Execute`, `Query`,
+`Transaction`, `Error`), the database file, WAL settings, transaction batching
+and migrations are unchanged, and the readers/writers see the same SQLite file
+format. What changed is delivery:
+
+- `mygo build` copies `libSqlitecore.dylib` into `Contents/Resources` and signs
+  it with the app, so the packaged app never downloads native code;
+- `go run ./cmd/mumu` and `go test ./...` download the host library into the
+  user cache on first use, which needs network access or a pre-staged
+  `MYGO_NATIVE_SQLITECORE`;
+- `packaging/macos/verify-app.sh` fails when the packaged module is missing.
+
+The alternative of pinning MyGo 0.8.3 to keep the old loader was rejected: the
+M5 revamp needs 0.9's native UI, and an older plugin would be unsupported.

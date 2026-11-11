@@ -25,8 +25,13 @@ Mumu.app/Contents/MacOS/Mumu
 Mumu.app/Contents/Resources/libmpv/     13 dylibs, about 25 MiB
 Mumu.app/Contents/Resources/licenses/
 Mumu.app/Contents/Resources/THIRD_PARTY_NOTICES.md
-Mumu.app/Contents/Resources/libmygo-sqlite3.dylib
+Mumu.app/Contents/Resources/libSqlitecore.dylib
 ```
+
+`libSqlitecore.dylib` is MyGo 0.9's SQLite native module, built from the Zig
+sources in the pinned module. `mygo build` copies it next to `libmpv` and signs
+it with the app; the app loads it from `Contents/Resources` when it opens its
+local library, so a packaged app never downloads native code at run time.
 
 `Mumu.app` is about 40 MB and the DMG about 14 MB with the pinned runtime.
 
@@ -35,7 +40,7 @@ Mumu.app/Contents/Resources/libmygo-sqlite3.dylib
 | Component | Version | License |
 | --- | --- | --- |
 | Go | 1.27.3 | BSD-3-Clause |
-| MyGo | 0.8.3 | MIT |
+| MyGo | 0.9.0 | MIT |
 | go-mpv | 0.4.0, vendored in `third_party/go-mpv` | MIT |
 | libmpv | 0.42.0, `-Dgpl=false` | LGPL-2.1-or-later |
 | FFmpeg | 9.0.2, `--disable-gpl --disable-version3` | LGPL-2.1-or-later |
@@ -89,6 +94,8 @@ This runs the runtime build, `go tool mygo build`, and
 
 - `lipo -archs` is arm64 only;
 - `Contents/Resources/libmpv` exists with at least 10 dylibs;
+- `Contents/Resources/libSqlitecore.dylib` exists, since the app opens its
+  local library at launch;
 - every Mach-O dependency is `@loader_path`, `/usr/lib`, `/System` or
   `/Library/Frameworks`; Homebrew, `/usr/local` and `/Users` paths fail;
 - no HTML, JavaScript, TypeScript, `package.json`, WebKit or framework
@@ -104,6 +111,12 @@ Run it against an existing build:
   build/darwin-arm64/Mumu.app \
   build/darwin-arm64/mumu-0.1.0-arm64.dmg
 ```
+
+`mygo build` obtains `libSqlitecore.dylib` for the build host from the pinned
+native module, so packaging needs network access or a pre-staged library named
+by `MYGO_NATIVE_SQLITECORE`. `go test` uses the same download and caches it in
+`~/Library/Caches/mygo/natives`. The packaged app itself never downloads native
+code.
 
 ## Release assets
 

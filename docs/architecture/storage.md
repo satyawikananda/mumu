@@ -8,8 +8,13 @@ backend or cloud sync. The app opens the library during MyGo's `WhenReady`
 callback and shows an actionable error banner if it cannot.
 
 Storage uses the official `github.com/egoist/mygo/plugins/sqlite` connection.
-The plugin is cgo-free and its native library is bundled by `mygo build`.
-WAL, `synchronous=NORMAL` and foreign keys are applied after open. A
+The plugin is cgo-free. Since MyGo 0.9 its SQLite is a native module
+(`Sqlitecore`, written in Zig): `mygo build` copies `libSqlitecore.dylib` into
+`Contents/Resources` and signs it with the app, while `go run` and `go test`
+download the host library into `~/Library/Caches/mygo/natives` on first use. An
+offline build pre-stages that file and names it with `MYGO_NATIVE_SQLITECORE`;
+`sqlite.LibraryPath` and `MYGO_SQLITE_LIBRARY` no longer exist. WAL,
+`synchronous=NORMAL` and foreign keys are applied after open. A
 store-level mutex serializes read-modify-write sequences, and compound writes
 use `DB.Transaction` batches because the plugin has no interactive transaction.
 

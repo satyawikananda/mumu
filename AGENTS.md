@@ -70,17 +70,17 @@ The spike commands live in [its README](experiments/nativeplayback/README.md). T
 |---|---|---|
 | Language | Go 1.27.3 | Decided, pinned in `go.mod` |
 | UI | MyGo native `ui` | Decided |
-| MyGo | `github.com/egoist/mygo` 0.8.3 | Pinned; latest release at bootstrap |
+| MyGo | `github.com/egoist/mygo` 0.9.0 | Pinned; upgraded in #31 for the M5 revamp |
 | Playback engine | libmpv | Conditional native child-surface path proven in M0 |
 | Go mpv binding | `gen2brain/go-mpv` 0.4.0, patched in `third_party/go-mpv` | Default darwin/arm64 adapter; the runtime is opened explicitly, never in a package init |
 | libmpv runtime | Bundled LGPL build in `Contents/Resources/libmpv`; discovered at runtime through `MUMU_MPV_LIBRARY`, the loader's own search path (`DYLD_LIBRARY_PATH`), `/opt/homebrew/lib`, `/usr/local/lib`, then `Contents/Resources/libmpv` and `Contents/Resources` | Implemented (#14); a missing runtime is an actionable error, not a panic |
 | Renderer on macOS | MyGo Metal UI + separate native OpenGL video view | Conditional M0 result; no direct Metal interop claim |
 | PiP | Floating native window with one retained view/session | Conditional M0 result; lifecycle/Spaces/stacking observed on tested Mac |
-| Persistence | SQLite via the MyGo plugin, local only | Implemented (#6, refactor) |
+| Persistence | SQLite via the MyGo plugin and its native module, local only | Implemented (#6, refactor); native module loader since (#31) |
 | Built-in discovery | iptv-org as a labelled community list, not rights clearance | Implemented (#8) |
 | Playlist format | M3U playlist and direct supported stream URLs | Implemented (#7, #9) |
 | Backend / auth | None for MVP | Decided |
-| Go toolchain | Follow **pinned MyGo requirement**: Go 1.27.3, the minimum MyGo 0.8.3 accepts | Verified at bootstrap (#3) |
+| Go toolchain | Follow **pinned MyGo requirement**: Go 1.27.3, the minimum MyGo 0.9.0 accepts | Verified at bootstrap (#3) and the #31 upgrade |
 
 **Important:** MyGo uses Metal on macOS, while common libmpv integration approaches expose OpenGL or software-render paths. Do not assume they are directly compatible. A PureGo/nocgo binding does **not** eliminate the dynamic native libmpv runtime dependency. Hardware decoding and zero-copy rendering are *goals*, not verified facts.
 
@@ -119,6 +119,26 @@ MUMU_MPV_LIBRARY=/private/tmp/mumu-runtime/lib go run ./cmd/mumu
 MUMU_MPV_LIBRARY=/private/tmp/mumu-runtime/lib MUMU_MPV_TEST=1 \
   go test -run TestIntegration -v ./internal/player/libmpv
 ```
+
+### SQLite native module
+
+Since MyGo 0.9 the SQLite plugin is a native module (`Sqlitecore`) written in
+Zig, not a bare dylib loaded through `sqlite.LibraryPath`. `sqlite.LibraryPath`
+and `MYGO_SQLITE_LIBRARY` no longer exist; the replacement override is
+`MYGO_NATIVE_SQLITECORE`.
+
+- `mygo dev` and `mygo build` place `libSqlitecore.dylib` among the app's
+  resources at `Contents/Resources`, next to `libmpv`, and sign it with the
+  app. `verify-app.sh` fails when it is missing, because the app opens its
+  local library at launch.
+- `go run ./cmd/mumu` and `go test ./...` download the module for the host
+  platform into the user cache (`~/Library/Caches/mygo/natives` on macOS) on
+  first use. That download needs network; an offline or air-gapped build must
+  pre-stage the library and point `MYGO_NATIVE_SQLITECORE` at it.
+- The Go API of the plugin (`Open`, `Execute`, `Query`, `Transaction`,
+  `Error`) is unchanged, so `internal/storage` needs no source change for the
+  upgrade. Existing databases keep their schema, favorites, recent history and
+  settings.
 
 ## 5. Phases and implementation gates
 
@@ -264,6 +284,7 @@ Before claiming completion:
 - **After #12:** Implemented: PiP as a presentation change of the same surface and session, with a native floating panel, rollback on a failed attach, Return/Close behavior and unit-tested rapid toggles. The manual macOS Watch and PiP smoke tests are still pending. See `docs/architecture/pip.md`.
 - **After #13:** Implemented: `internal/library` for favorites, recent viewing and the resume reference; Library with Favorites, Recently watched and Playlists tabs; one source-scoped favorite cache shared by Watch, Discover and Library; provider-ID remapping on refresh in `internal/storage`. See `docs/architecture/library.md` and `docs/ux/library.md`.
 - **v0.1.0 release blockers:** the native view now follows the playback state in both windows (attached only for `playing`/`buffering`, detached for loading/error/stopped so the glass overlay is visible); returning from PiP recreates a closed main window by native pointer identity; a failed switch offers Back to the previous channel; a launch always starts unmuted while the last volume is restored. PiP behavior therefore changed from #12. See `docs/architecture/watch.md`, `video-surface.md` and `pip.md`.
+- **After #31 (M5 revamp baseline):** MyGo upgraded to 0.9.0 with the same Go 1.27.3 toolchain. No view code changed: the app already used checked `ui.Element` values, `ui.Handle` identity and same-pass `Changed` commits, and `go tool mygo migrate-ui .` reports no diff. SQLite now loads through the `Sqlitecore` native module; `verify-app.sh` gates `Contents/Resources/libSqlitecore.dylib`. Evidence: `docs/architecture/evidence/mygo-0.9.0-upgrade.md`.
 - Changes to player/rendering boundaries or startup UX require updating both relevant docs and acceptance tests.
 
 ## 12. Reference material

@@ -13,6 +13,8 @@ Issue: [#14](https://github.com/satyawikananda/mumu/issues/14). Packaging:
 - [ ] `golangci-lint run ./cmd/... ./internal/...`
 - [ ] `make package`
 - [ ] `packaging/macos/verify-app.sh` passes
+- [ ] The bundle carries `Contents/Resources/libSqlitecore.dylib` next to
+      `libmpv`, so the app can open its local library at launch
 - [ ] `spctl -a` is expected to reject the unsigned app
 - [ ] QA matrix items that can run are recorded with evidence
 - [ ] The v0.1.0 blocker regression checks in [qa-matrix](qa-matrix.md) are
