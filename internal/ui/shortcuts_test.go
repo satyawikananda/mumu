@@ -42,7 +42,7 @@ func TestBrowseShortcuts(t *testing.T) {
 		Kind:     DiscoverReady,
 		Channels: []DiscoverChannel{{Key: "one", Name: "One"}},
 	})
-	shell.Discover().selected = 0
+	shell.Discover().selectedKey = "one"
 	shell.Discover().OnToggleFavorite = func(key string) { toggled = key }
 	tt := ui.NewTester(shell.View, 1100, 720)
 
@@ -56,5 +56,12 @@ func TestBrowseShortcuts(t *testing.T) {
 	tt.Key(0, ui.KeySlash)
 	if shell.Destination() != destDiscover {
 		t.Fatalf("destination %q, want Discover after /", shell.Destination())
+	}
+	tt.Frame()
+	tt.Frame()
+
+	tt.Type("tvri")
+	if got := shell.Discover().Filters().Query; got != "tvri" {
+		t.Fatalf("query %q, want tvri after the search shortcut", got)
 	}
 }

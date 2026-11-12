@@ -752,7 +752,7 @@ func (a *App) refreshDiscoverFromCache() {
 
 		community, settingErr := service.BuiltinEnabled(readCtx)
 		var builtin []catalog.Channel
-		if settingErr == nil && community {
+		if settingErr == nil && community && region != "" {
 			_, builtin, _, _ = service.BuiltinSource(readCtx, region)
 		}
 		users, _ := service.UserChannels(readCtx)
@@ -765,14 +765,17 @@ func (a *App) refreshDiscoverFromCache() {
 
 		a.publish(func() {
 			if a.discover.current(gen) {
-				a.shell.Discover().SetNotice(discoverNotice(community))
+				a.shell.Discover().SetNotice(discoverNotice(community && region != ""))
 			}
 		})
 
 		if len(channels) == 0 {
-			state := ui.DiscoverState{Kind: ui.DiscoverEmpty, Region: region}
-			if settingErr == nil && !community {
-				state.Message = "The community catalog is turned off. Add your own playlist, or show it again in Settings."
+			state := ui.DiscoverState{Kind: ui.DiscoverNoCountry, Region: region}
+			switch {
+			case settingErr == nil && !community:
+				state.Kind = ui.DiscoverDisabled
+			case region != "":
+				state.Kind = ui.DiscoverEmpty
 			}
 			a.publishDiscover(gen, state)
 

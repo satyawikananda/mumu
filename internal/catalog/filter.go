@@ -3,20 +3,24 @@ package catalog
 import "strings"
 
 // Filter narrows a catalog query. Zero values mean "no restriction" except
-// EnabledOnly, which callers set explicitly.
+// EnabledOnly and LiveOnly, which callers set explicitly.
 type Filter struct {
 	Query       string
 	Country     string
 	Category    string
 	SourceID    string
 	EnabledOnly bool
+	LiveOnly    bool
 	Limit       int
 	Offset      int
 }
 
-// Match reports whether a channel passes the text, country, category and
+// Match reports whether a channel passes the live, text, country, category and
 // source parts of the filter. Limit and Offset apply to a query, not a row.
 func (f Filter) Match(channel Channel) bool {
+	if f.LiveOnly && !HasLiveStream(channel) {
+		return false
+	}
 	if f.SourceID != "" && channel.SourceID != f.SourceID {
 		return false
 	}

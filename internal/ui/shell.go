@@ -49,6 +49,7 @@ func NewShell() *Shell {
 		s.ShowLibrary()
 		s.library.OpenAddPlaylist()
 	}
+	s.discover.OnOpenSettings = s.ShowSettings
 	s.settings.OnManagePlaylists = func() {
 		s.ShowLibrary()
 		s.library.ShowPlaylists()
@@ -366,6 +367,25 @@ func (s *Shell) focusSearch() {
 func (s *Shell) toggleBrowseFavorite() {
 	if s.nav == destDiscover {
 		s.discover.ToggleSelectedFavorite()
+	}
+}
+
+// moveBrowse moves the Discover grid cursor with the arrow keys. Other Browse
+// screens keep their own focus handling.
+func (s *Shell) moveBrowse(key ui.Key) {
+	if s.nav != destDiscover {
+		return
+	}
+
+	switch key {
+	case ui.KeyLeft:
+		s.discover.MoveTile(-1, 0)
+	case ui.KeyRight:
+		s.discover.MoveTile(1, 0)
+	case ui.KeyUp:
+		s.discover.MoveTile(0, -1)
+	case ui.KeyDown:
+		s.discover.MoveTile(0, 1)
 	}
 }
 

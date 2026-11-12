@@ -1,14 +1,16 @@
 package ui
 
 import (
-	"image"
-	"image/color"
+	"fmt"
+	"image/png"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
 )
 
-// discoverTestCountries is the selector list used by the page tests.
+// discoverTestCountries is the picker list used by the page tests.
 func discoverTestCountries() []DiscoverCountry {
 	return []DiscoverCountry{
 		{Code: "ID", Name: "Indonesia"},
@@ -16,150 +18,339 @@ func discoverTestCountries() []DiscoverCountry {
 	}
 }
 
-// discoverTestChannels is one live and one non-live row.
-func discoverTestChannels() []DiscoverChannel {
-	return []DiscoverChannel{
-		{Key: "tvri", Name: "TVRI Nasional", Country: "ID", Category: "General", Live: true},
-		{Key: "bernama", Name: "Bernama News", Country: "MY", Category: "News", LogoURL: "https://logos.example/bernama.png"},
+// discoverTestChannels returns n bare channels without metadata, so a tile's
+// accessible name is just its own title.
+func discoverTestChannels(n int) []DiscoverChannel {
+	channels := make([]DiscoverChannel, 0, n)
+	for i := range n {
+		channels = append(channels, DiscoverChannel{
+			Key:  fmt.Sprintf("key-%d", i),
+			Name: fmt.Sprintf("Channel %d", i),
+		})
+	}
+
+	return channels
+}
+
+// discoverTestFacets is the category rail.
+func discoverTestFacets() []DiscoverCategory {
+	return []DiscoverCategory{
+		{Name: "News", Count: 2},
+		{Name: "Sports", Count: 1},
 	}
 }
 
 // discoverPage wires a page into a headless tester.
-func discoverPage(d *Discover) *ui.Tester {
+func discoverPage(d *Discover, width, height int) *ui.Tester {
 	return ui.NewTester(func(c *ui.Context) {
 		d.View(c, c.Theme())
-	}, 800, 600)
+	}, width, height)
 }
 
-// A new page keeps the confirmed empty state and its actions.
-func TestDiscoverDefaultEmpty(t *testing.T) {
+// A new page shows the approved no-country state, not a loading or empty one.
+func TestDiscoverDefaultNoCountry(t *testing.T) {
 	d := NewDiscover()
-	tt := discoverPage(d)
+	tt := discoverPage(d, 1470, 956)
 
-	if !tt.HasText("Discover") {
-		t.Fatalf("texts %q, want the page heading", tt.Texts())
-	}
-	if !tt.HasText("No channels yet") {
-		t.Fatalf("texts %q, want the empty state", tt.Texts())
-	}
-	if !tt.HasText("Add Playlist") {
-		t.Fatalf("texts %q, want Add Playlist", tt.Texts())
-	}
-}
-
-// Loading names the region instead of showing a blank list.
-func TestDiscoverLoading(t *testing.T) {
-	d := NewDiscover()
-	d.SetCountries(discoverTestCountries())
-	d.SetState(DiscoverState{Kind: DiscoverLoading, Region: "ID"})
-
-	tt := discoverPage(d)
-
-	if !tt.HasText("Loading channels") || !tt.HasText("Indonesia") {
-		t.Fatalf("texts %q, want the loading state for Indonesia", tt.Texts())
-	}
-	if tt.HasText("LIVE") {
-		t.Fatalf("texts %q, want no rows while loading", tt.Texts())
-	}
-}
-
-// The channel list shows title, resolved country, category and a LIVE label
-// only for live formats.
-func TestDiscoverChannelRows(t *testing.T) {
-	d := NewDiscover()
-	d.SetCountries(discoverTestCountries())
-	d.SetState(DiscoverState{
-		Kind:     DiscoverReady,
-		Region:   "ID",
-		Channels: discoverTestChannels(),
-	})
-
-	tt := discoverPage(d)
-
-	if !tt.HasText("TVRI Nasional") || !tt.HasText("Bernama News") {
-		t.Fatalf("texts %q, want both channel titles", tt.Texts())
-	}
-	if !tt.HasText("Indonesia · General") || !tt.HasText("Malaysia · News") {
-		t.Fatalf("texts %q, want country and category metadata", tt.Texts())
-	}
-	if got := countText(tt.Texts(), "LIVE"); got != 1 {
-		t.Fatalf("texts %q show LIVE %d times, want only the live channel", tt.Texts(), got)
-	}
-	// Without a bitmap the avatar falls back to the channel's initials.
-	if !tt.HasText("TN") || !tt.HasText("BN") {
-		t.Fatalf("texts %q, want avatar initials", tt.Texts())
-	}
-}
-
-// A real bitmap replaces the initials for its URL.
-func TestDiscoverChannelBitmap(t *testing.T) {
-	d := NewDiscover()
-	d.SetCountries(discoverTestCountries())
-	d.SetState(DiscoverState{
-		Kind:     DiscoverReady,
-		Region:   "ID",
-		Channels: discoverTestChannels(),
-	})
-
-	img := image.NewRGBA(image.Rect(0, 0, 8, 8))
-	for x := 0; x < 8; x++ {
-		for y := 0; y < 8; y++ {
-			img.Set(x, y, color.RGBA{R: 255, A: 255})
+	for _, want := range []string{
+		"Choose a country to get started",
+		"No country is selected yet",
+		"Select a country",
+		"Add Playlist",
+		"Choose a country",
+	} {
+		if !tt.HasText(want) {
+			t.Fatalf("texts %q, want %q", tt.Texts(), want)
 		}
 	}
-	d.SetLogos(map[string]*ui.Bitmap{"https://logos.example/bernama.png": ui.NewBitmap(img)})
-
-	tt := discoverPage(d)
-
-	if !tt.HasText("Bernama News") {
-		t.Fatalf("texts %q, want the channel with a logo", tt.Texts())
+	if tt.HasText("No channels yet") {
+		t.Fatalf("texts %q, presented the no-country state as an empty catalog", tt.Texts())
 	}
-	if tt.HasText("BN") {
-		t.Fatalf("texts %q, want the bitmap instead of initials", tt.Texts())
+	if tt.HasText("All sources") || tt.HasText("Live only") {
+		t.Fatalf("texts %q, kept the removed source and live filters", tt.Texts())
 	}
-	if !tt.HasText("TN") {
-		t.Fatalf("texts %q, want initials for the channel without a logo", tt.Texts())
+	if !tt.HasText("Country") {
+		t.Fatalf("texts %q, want the country field label", tt.Texts())
+	}
+	if got := d.Region(); got != "" {
+		t.Fatalf("Region() = %q, want no country", got)
 	}
 }
 
-// The region selector reports the chosen code.
-func TestDiscoverRegionCallback(t *testing.T) {
+// The country chip opens a searchable picker and reports the chosen code.
+func TestDiscoverCountryPicker(t *testing.T) {
 	d := NewDiscover()
 	d.SetCountries(discoverTestCountries())
-	d.SetState(DiscoverState{Kind: DiscoverEmpty, Region: "ID"})
 
-	var got []string
-	d.OnRegion = func(code string) { got = append(got, code) }
+	var picked []string
+	d.OnRegion = func(code string) { picked = append(picked, code) }
 
-	tt := discoverPage(d)
-
-	if err := tt.Click("Indonesia"); err != nil {
+	tt := discoverPage(d, 1470, 956)
+	if err := tt.Click("Choose a country"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("Malaysia"); err != nil {
+	if !tt.HasText("Malaysia") {
+		t.Fatalf("texts %q, want the country list", tt.Texts())
+	}
+
+	tt.Type("mala")
+	if !tt.HasText("Malaysia") {
+		t.Fatalf("texts %q, want the typed match", tt.Texts())
+	}
+	if err := tt.Click("Malaysia, MY"); err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1 || got[0] != "MY" {
-		t.Fatalf("region callbacks %v, want [MY]", got)
+
+	if len(picked) != 1 || picked[0] != "MY" {
+		t.Fatalf("picked %v, want [MY]", picked)
 	}
-	if d.Region() != "MY" {
-		t.Fatalf("Region() = %q, want MY", d.Region())
+	if got := d.Region(); got != "MY" {
+		t.Fatalf("Region() = %q, want MY", got)
 	}
 }
 
-// Empty and error states offer Retry, and offline keeps cached rows visible.
-func TestDiscoverStatesAndRetry(t *testing.T) {
+// A chosen country keeps its real name in the filter chip.
+func TestDiscoverCountryChipShowsSelection(t *testing.T) {
+	d := NewDiscover()
+	d.SetCountries(discoverTestCountries())
+	d.SetState(DiscoverState{
+		Kind:     DiscoverReady,
+		Region:   "ID",
+		Channels: discoverTestChannels(2),
+		Total:    2,
+	})
+
+	tt := discoverPage(d, 1470, 956)
+	if !tt.HasText("Indonesia") {
+		t.Fatalf("texts %q, want the selected country", tt.Texts())
+	}
+	if tt.HasText("Choose a country to get started") {
+		t.Fatalf("texts %q, kept the no-country prompt", tt.Texts())
+	}
+}
+
+// The country list failure explains itself in the picker and offers a retry.
+func TestDiscoverCountriesError(t *testing.T) {
+	d := NewDiscover()
+	d.SetCountriesError("mumu could not load the country list. Check your connection and retry.")
+
+	reloads := 0
+	d.OnReloadCountries = func() { reloads++ }
+
+	tt := discoverPage(d, 1470, 956)
+	if err := tt.Click("Choose a country"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("could not load the country list") {
+		t.Fatalf("texts %q, want the country-list failure", tt.Texts())
+	}
+	if err := tt.Click("Retry"); err != nil {
+		t.Fatal(err)
+	}
+	if reloads != 1 {
+		t.Fatalf("reloads %d, want 1", reloads)
+	}
+}
+
+// The browse grid uses the responsive 5/4/4 columns and scrolls through every
+// match without pagination.
+func TestDiscoverGridColumns(t *testing.T) {
 	tests := []struct {
-		name  string
-		state DiscoverState
-		text  string
+		name    string
+		width   int
+		height  int
+		columns int
 	}{
-		{"empty", DiscoverState{Kind: DiscoverEmpty, Region: "ID"}, "No channels yet"},
-		{"error", DiscoverState{Kind: DiscoverError, Region: "ID"}, "Channels unavailable"},
+		{name: "wide", width: 1470, height: 956, columns: 5},
+		{name: "medium", width: 1280, height: 720, columns: 4},
+		{name: "compact", width: 1024, height: 640, columns: 4},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			d := NewDiscover()
+			d.SetState(DiscoverState{
+				Kind:     DiscoverReady,
+				Region:   "ID",
+				Channels: discoverTestChannels(40),
+				Total:    40,
+			})
+
+			tt := discoverPage(d, tc.width, tc.height)
+
+			first, ok := tt.Find("Channel 0")
+			if !ok {
+				t.Fatalf("texts %q, want the first tile", tt.Texts())
+			}
+			last, ok := tt.Find(fmt.Sprintf("Channel %d", tc.columns-1))
+			if !ok {
+				t.Fatalf("texts %q, want the last column tile", tt.Texts())
+			}
+			if first.Y != last.Y {
+				t.Errorf("first row tiles Y = %v and %v, want one row", first.Y, last.Y)
+			}
+
+			next, ok := tt.Find(fmt.Sprintf("Channel %d", tc.columns))
+			if !ok {
+				t.Fatalf("texts %q, want the second row tile", tt.Texts())
+			}
+			if next.Y <= first.Y {
+				t.Errorf("second row Y = %v, want below %v", next.Y, first.Y)
+			}
+
+			if tt.HasText("Next") || tt.HasText("Previous") {
+				t.Errorf("texts %q, kept pagination controls", tt.Texts())
+			}
+		})
+	}
+}
+
+// Infinite scroll asks for the next batch only when the grid nears its end.
+func TestDiscoverInfiniteScroll(t *testing.T) {
+	d := NewDiscover()
+	d.SetState(DiscoverState{
+		Kind:     DiscoverReady,
+		Region:   "ID",
+		Channels: discoverTestChannels(40),
+		Total:    200,
+		HasMore:  true,
+	})
+
+	loads := 0
+	d.OnLoadMore = func() { loads++ }
+
+	tt := discoverPage(d, 1470, 956)
+	tt.Frame()
+	if loads != 0 {
+		t.Fatalf("loads %d before scrolling, want 0", loads)
+	}
+
+	d.scroll.MaxY = 1200
+	d.scroll.Y = 900
+	tt.Frame()
+	if loads != 1 {
+		t.Fatalf("loads %d near the end, want 1", loads)
+	}
+
+	tt.Frame()
+	if loads != 1 {
+		t.Fatalf("loads %d for one scroll, want 1", loads)
+	}
+}
+
+// A query switches to the virtualized row list and reports a list view.
+func TestDiscoverSearchUsesRows(t *testing.T) {
+	d := NewDiscover()
+	d.query = "chan"
+	d.SetState(DiscoverState{
+		Kind:     DiscoverReady,
+		Region:   "ID",
+		Channels: discoverTestChannels(3),
+		Total:    3,
+	})
+
+	tt := discoverPage(d, 1470, 956)
+	if !tt.HasText("Search results") || !tt.HasText("list view") {
+		t.Fatalf("texts %q, want the search results heading", tt.Texts())
+	}
+	if !tt.HasText("Add to Favorites") {
+		t.Fatalf("texts %q, want the shared row action", tt.Texts())
+	}
+	if tt.HasText("Next") {
+		t.Fatalf("texts %q, paged a search result", tt.Texts())
+	}
+}
+
+// A category choice narrows results and the rail reports the real counts.
+func TestDiscoverCategoryFilter(t *testing.T) {
+	d := NewDiscover()
+	d.SetFacets(discoverTestFacets())
+	d.SetState(DiscoverState{
+		Kind:     DiscoverReady,
+		Region:   "ID",
+		Channels: discoverTestChannels(2),
+		Total:    2,
+	})
+
+	var reports []DiscoverFilters
+	d.OnFilter = func(filters DiscoverFilters) { reports = append(reports, filters) }
+
+	tt := discoverPage(d, 1470, 956)
+	if !tt.HasText("News") || !tt.HasText("Sports") {
+		t.Fatalf("texts %q, want the category rail", tt.Texts())
+	}
+	if err := tt.Click("News, 2 channels"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Clear filters"); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(reports) != 2 {
+		t.Fatalf("reports %+v, want two", reports)
+	}
+	if reports[0].Category != "News" {
+		t.Fatalf("first report %+v, want the News category", reports[0])
+	}
+	if !reports[1].Empty() {
+		t.Fatalf("second report %+v, want cleared filters", reports[1])
+	}
+}
+
+// Each state keeps its own copy and action.
+func TestDiscoverStates(t *testing.T) {
+	tests := []struct {
+		name   string
+		state  DiscoverState
+		texts  []string
+		action string
+	}{
 		{
-			"offline",
-			DiscoverState{Kind: DiscoverOffline, Region: "ID", Channels: discoverTestChannels()},
-			"Showing saved channels",
+			name:   "loading",
+			state:  DiscoverState{Kind: DiscoverLoading, Region: "ID"},
+			texts:  []string{"Loading channels", "Indonesia"},
+			action: "",
+		},
+		{
+			name:   "error",
+			state:  DiscoverState{Kind: DiscoverError, Region: "ID"},
+			texts:  []string{"Channels unavailable", "could not load the community catalog"},
+			action: "Retry",
+		},
+		{
+			name:   "offline",
+			state:  DiscoverState{Kind: DiscoverOffline, Region: "ID"},
+			texts:  []string{"You are offline"},
+			action: "Retry",
+		},
+		{
+			name: "offline cache",
+			state: DiscoverState{
+				Kind:     DiscoverOffline,
+				Region:   "ID",
+				Channels: discoverTestChannels(1),
+				Total:    1,
+			},
+			texts:  []string{"Showing saved channels", "Channel 0"},
+			action: "Retry",
+		},
+		{
+			name:   "empty",
+			state:  DiscoverState{Kind: DiscoverEmpty, Region: "ID"},
+			texts:  []string{"No channels yet", "has no channels"},
+			action: "Retry",
+		},
+		{
+			name:   "disabled",
+			state:  DiscoverState{Kind: DiscoverDisabled, Region: "ID"},
+			texts:  []string{"Community catalog is off"},
+			action: "Open Settings",
+		},
+		{
+			name:   "no country",
+			state:  DiscoverState{Kind: DiscoverNoCountry},
+			texts:  []string{"Choose a country to get started"},
+			action: "Select a country",
 		},
 	}
 
@@ -171,269 +362,344 @@ func TestDiscoverStatesAndRetry(t *testing.T) {
 
 			retries := 0
 			d.OnRetry = func() { retries++ }
+			settings := 0
+			d.OnOpenSettings = func() { settings++ }
 
-			tt := discoverPage(d)
-			if !tt.HasText(tc.text) {
-				t.Fatalf("texts %q, want %q", tt.Texts(), tc.text)
-			}
-			if tc.name == "offline" && !tt.HasText("TVRI Nasional") {
-				t.Fatalf("texts %q, want the cached rows", tt.Texts())
+			tt := discoverPage(d, 1470, 956)
+			for _, want := range tc.texts {
+				if !tt.HasText(want) {
+					t.Fatalf("texts %q, want %q", tt.Texts(), want)
+				}
 			}
 
-			if err := tt.Click("Retry"); err != nil {
+			if tc.action == "" {
+				return
+			}
+			if err := tt.Click(tc.action); err != nil {
 				t.Fatal(err)
 			}
-			if retries != 1 {
-				t.Fatalf("retry clicked %d times, want 1", retries)
+			if tc.action == "Retry" && retries != 1 {
+				t.Fatalf("retries %d, want 1", retries)
+			}
+			if tc.action == "Open Settings" && settings != 1 {
+				t.Fatalf("settings %d, want 1", settings)
 			}
 		})
-	}
-}
-
-// Add Playlist dispatches its intent without touching playback.
-func TestDiscoverAddPlaylist(t *testing.T) {
-	d := NewDiscover()
-	var clicks int
-	d.OnAddPlaylist = func() { clicks++ }
-
-	tt := discoverPage(d)
-	if err := tt.Click("Add Playlist"); err != nil {
-		t.Fatal(err)
-	}
-	if clicks != 1 {
-		t.Fatalf("Add Playlist clicked %d times, want 1", clicks)
-	}
-}
-
-// In the shell, Add Playlist opens the Library placeholder.
-func TestShellDiscoverAddPlaylistOpensLibrary(t *testing.T) {
-	shell := NewShell()
-	tt := ui.NewTester(shell.View, 960, 640)
-
-	if err := tt.Click("Add Playlist"); err != nil {
-		t.Fatal(err)
-	}
-	if shell.nav != destLibrary {
-		t.Fatalf("navigation %q, want Library", shell.nav)
-	}
-	if !shell.Library().SheetOpen() {
-		t.Fatal("Add Playlist did not open the import sheet")
-	}
-	if !tt.HasText("Source type") || !tt.HasText("Validate and Preview") {
-		t.Fatalf("texts %q, want the import sheet", tt.Texts())
-	}
-}
-
-// The list is reachable from the keyboard and the arrows choose rows.
-func TestDiscoverKeyboardFocus(t *testing.T) {
-	d := NewDiscover()
-	d.SetCountries(discoverTestCountries())
-	d.SetState(DiscoverState{
-		Kind:     DiscoverReady,
-		Region:   "ID",
-		Channels: discoverTestChannels(),
-	})
-
-	tt := discoverPage(d)
-
-	// Region selector, Add Playlist, search field, then the list.
-	for range 4 {
-		tt.Key(0, ui.KeyTab)
-	}
-	tt.Key(0, ui.KeyDown)
-
-	if d.selected != 0 {
-		t.Fatalf("selected row %d after Tab and Down, want 0", d.selected)
-	}
-}
-
-// Typing in the search field reports the new narrowing once.
-func TestDiscoverSearchFilter(t *testing.T) {
-	d := NewDiscover()
-	d.SetCountries(discoverTestCountries())
-	d.SetState(DiscoverState{Kind: DiscoverReady, Region: "ID", Channels: discoverTestChannels()})
-
-	var got []DiscoverFilters
-	d.OnFilter = func(filters DiscoverFilters) { got = append(got, filters) }
-
-	tt := discoverPage(d)
-	for range 3 {
-		tt.Key(0, ui.KeyTab)
-	}
-	tt.Type("tvri")
-
-	if len(got) != 1 {
-		t.Fatalf("filters %+v, want one report", got)
-	}
-	if got[0].Query != "tvri" {
-		t.Fatalf("query %q, want tvri", got[0].Query)
 	}
 }
 
 // A narrowed empty result offers Clear filters instead of Retry.
 func TestDiscoverFilteredEmpty(t *testing.T) {
 	d := NewDiscover()
-	d.SetCountries(discoverTestCountries())
 	d.SetState(DiscoverState{Kind: DiscoverReady, Region: "ID"})
+	d.query = "nothing"
 
-	var got []DiscoverFilters
-	d.OnFilter = func(filters DiscoverFilters) { got = append(got, filters) }
-
-	tt := discoverPage(d)
-	for range 3 {
-		tt.Key(0, ui.KeyTab)
-	}
-	tt.Type("nothing")
-
+	tt := discoverPage(d, 1470, 956)
 	if !tt.HasText("No channels match") {
 		t.Fatalf("texts %q, want the filtered empty state", tt.Texts())
 	}
 	if err := tt.Click("Clear filters"); err != nil {
 		t.Fatal(err)
 	}
-	if len(got) == 0 || !got[len(got)-1].Empty() {
-		t.Fatalf("filters %+v, want a cleared report", got)
-	}
-	if d.Filters().Query != "" {
-		t.Fatalf("query %q, want cleared", d.Filters().Query)
+	if got := d.Filters(); !got.Empty() {
+		t.Fatalf("filters %+v, want cleared", got)
 	}
 }
 
-// Enter opens the chosen row, keeping its source-scoped key.
-func TestDiscoverSelectRow(t *testing.T) {
+// Clicking a tile opens it and leaves the grid's choice on that channel.
+func TestDiscoverGridClick(t *testing.T) {
 	d := NewDiscover()
-	d.SetCountries(discoverTestCountries())
 	d.SetState(DiscoverState{
 		Kind:     DiscoverReady,
 		Region:   "ID",
-		Channels: discoverTestChannels(),
+		Channels: discoverTestChannels(4),
+		Total:    4,
 	})
 
 	var opened []string
 	d.OnSelect = func(key string) { opened = append(opened, key) }
 
-	tt := discoverPage(d)
-	for range 4 {
-		tt.Key(0, ui.KeyTab)
+	tt := discoverPage(d, 1280, 720)
+	if err := tt.Click("Channel 2"); err != nil {
+		t.Fatal(err)
 	}
-	tt.Key(0, ui.KeyDown)
-	tt.Key(0, ui.KeyEnter)
 
-	if len(opened) != 1 || opened[0] != "tvri" {
-		t.Fatalf("opened %v, want [tvri]", opened)
+	if len(opened) != 1 || opened[0] != "key-2" {
+		t.Fatalf("opened %v, want [key-2]", opened)
+	}
+	if got := d.currentKey(); got != "key-2" {
+		t.Fatalf("current key %q, want key-2", got)
 	}
 }
 
-// Rows attribute their source, and a capped list says so.
-func TestDiscoverRowSourceAndCap(t *testing.T) {
-	d := NewDiscover()
-	rows := []DiscoverChannel{{
-		Key:        "source-a:tvri",
-		Name:       "TVRI Nasional",
-		Country:    "ID",
-		Category:   "General",
-		SourceName: "Community list",
-		Live:       true,
-	}}
+// F toggles the grid's chosen channel inside the shell.
+func TestDiscoverShellFavorite(t *testing.T) {
+	shell := NewShell()
+	d := shell.Discover()
 	d.SetState(DiscoverState{
-		Kind:      DiscoverReady,
-		Region:    "ID",
-		Channels:  rows,
-		Total:     42,
-		Truncated: true,
+		Kind:     DiscoverReady,
+		Region:   "ID",
+		Channels: discoverTestChannels(4),
+		Total:    4,
 	})
+	d.selectedKey = "key-1"
+	d.focus = "cell:key-1"
 
-	tt := discoverPage(d)
-	if !tt.HasText("Community list") {
-		t.Fatalf("texts %q, want the source attribution", tt.Texts())
-	}
-	if !tt.HasText("Showing first 1 of 42 channels") {
-		t.Fatalf("texts %q, want the cap summary", tt.Texts())
+	var toggled string
+	d.OnToggleFavorite = func(key string) { toggled = key }
+
+	tt := ui.NewTester(shell.View, 1280, 720)
+	tt.Frame()
+	tt.Key(0, ui.KeyF)
+
+	if toggled != "key-1" {
+		t.Fatalf("favorite key %q, want key-1", toggled)
 	}
 }
 
-// A facet list drops a selection the new catalog no longer offers.
+// A search row's own action uses its stable key.
+func TestDiscoverSearchFavorite(t *testing.T) {
+	d := NewDiscover()
+	d.query = "chan"
+	d.SetState(DiscoverState{
+		Kind:     DiscoverReady,
+		Region:   "ID",
+		Channels: discoverTestChannels(2),
+		Total:    2,
+	})
+	d.SetFavorites(map[string]bool{"key-0": true})
+
+	var toggled []string
+	d.OnToggleFavorite = func(key string) { toggled = append(toggled, key) }
+
+	tt := discoverPage(d, 1470, 956)
+	if !tt.HasText("Remove from Favorites") || !tt.HasText("Add to Favorites") {
+		t.Fatalf("texts %q, want both favorite actions", tt.Texts())
+	}
+	if err := tt.Click("Add to Favorites"); err != nil {
+		t.Fatal(err)
+	}
+	if len(toggled) != 1 || toggled[0] != "key-1" {
+		t.Fatalf("toggled %v, want [key-1]", toggled)
+	}
+}
+
+// A category list drops a selection the new catalog no longer offers.
 func TestDiscoverFacetsDropStaleSelection(t *testing.T) {
 	d := NewDiscover()
-	d.SetFacets([]string{"News"}, []DiscoverFacet{{ID: "source-a", Name: "Community list"}})
+	d.SetFacets([]DiscoverCategory{{Name: "News", Count: 2}})
 	d.category = "News"
-	d.sourceID = "source-a"
 
-	d.SetFacets([]string{"Sports"}, []DiscoverFacet{{ID: "source-b", Name: "My list"}})
+	d.SetFacets([]DiscoverCategory{{Name: "Sports", Count: 1}})
 
-	filters := d.Filters()
-	if filters.Category != "" || filters.SourceID != "" {
-		t.Fatalf("filters %+v, want cleared", filters)
+	if got := d.Filters().Category; got != "" {
+		t.Fatalf("category %q, want cleared", got)
 	}
 }
 
 // The community catalog carries a visible, unverified attribution line.
 func TestDiscoverNotice(t *testing.T) {
 	d := NewDiscover()
-	d.SetState(DiscoverState{Kind: DiscoverReady, Region: "ID", Channels: discoverTestChannels()})
+	d.SetState(DiscoverState{
+		Kind:     DiscoverReady,
+		Region:   "ID",
+		Channels: discoverTestChannels(1),
+		Total:    1,
+	})
 	d.SetNotice("Community channel list · iptv-org · not verified")
 
-	tt := discoverPage(d)
+	tt := discoverPage(d, 1470, 956)
 	if !tt.HasText("Community channel list · iptv-org · not verified") {
 		t.Fatalf("texts %q, want the community notice", tt.Texts())
 	}
 }
 
-// Selection follows the row key when new results reorder the list.
-func TestDiscoverSelectionFollowsKey(t *testing.T) {
-	first := DiscoverChannel{Key: "a", Name: "Alpha"}
-	second := DiscoverChannel{Key: "b", Name: "Bravo"}
-
-	d := NewDiscover()
-	d.SetCountries(discoverTestCountries())
-	d.SetState(DiscoverState{Kind: DiscoverReady, Region: "ID", Channels: []DiscoverChannel{first, second}})
-
-	tt := discoverPage(d)
-	for range 4 {
-		tt.Key(0, ui.KeyTab)
+// Reference-size captures stay out of git; set MUMU_CAPTURE_DIR to write them.
+func TestDiscoverReferenceSizes(t *testing.T) {
+	tests := []struct {
+		name   string
+		width  int
+		height int
+	}{
+		{name: "wide", width: 1470, height: 956},
+		{name: "medium", width: 1280, height: 720},
+		{name: "compact", width: 1024, height: 640},
 	}
-	tt.Key(0, ui.KeyDown)
 
-	d.SetState(DiscoverState{Kind: DiscoverReady, Region: "ID", Channels: []DiscoverChannel{second, first}})
-	tt.Frame()
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			d := NewDiscover()
+			d.SetCountries(discoverTestCountries())
+			d.SetNotice("Community channel list · iptv-org · not verified")
+			d.SetFacets([]DiscoverCategory{{Name: "News", Count: 6}, {Name: "Sports", Count: 4}})
+			rows := discoverTestChannels(20)
+			for i := range 3 {
+				rows[i].Live = true
+			}
 
-	if d.selected != 1 {
-		t.Fatalf("selected row %d, want the same key at row 1", d.selected)
+			d.SetState(DiscoverState{
+				Kind:     DiscoverReady,
+				Region:   "ID",
+				Channels: rows,
+				Total:    348,
+			})
+
+			tt := discoverPage(d, tc.width, tc.height)
+			if !tt.HasText("Indonesia channels") || !tt.HasText("348 results") {
+				t.Fatalf("texts %q, want the reference layout", tt.Texts())
+			}
+
+			dir := os.Getenv("MUMU_CAPTURE_DIR")
+			if dir == "" {
+				return
+			}
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			file, err := os.Create(filepath.Join(dir, "discover-"+tc.name+".png"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() {
+				if err := file.Close(); err != nil {
+					t.Errorf("close discover capture: %v", err)
+				}
+			}()
+			if err := png.Encode(file, tt.Image()); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }
 
-// Favorite rows show their state and dispatch the row's stable key.
-func TestDiscoverFavoriteToggle(t *testing.T) {
+// A dark-appearance capture shows the glass search field as the app draws it.
+func TestDiscoverDarkCapture(t *testing.T) {
 	d := NewDiscover()
 	d.SetCountries(discoverTestCountries())
+	d.SetFacets(discoverTestFacets())
+	rows := discoverTestChannels(20)
+	for i := range 3 {
+		rows[i].Live = true
+	}
 	d.SetState(DiscoverState{
 		Kind:     DiscoverReady,
 		Region:   "ID",
-		Channels: discoverTestChannels(),
+		Channels: rows,
+		Total:    348,
 	})
-	d.SetFavorites(map[string]bool{"tvri": true})
 
-	var toggled []string
-	d.OnToggleFavorite = func(key string) { toggled = append(toggled, key) }
+	tt := ui.NewTester(func(c *ui.Context) {
+		ui.Themed(c, themeFor(ThemeDark, true)).Fill().Children(func() {
+			d.View(c, c.Theme())
+		})
+	}, 1470, 956)
 
-	tt := discoverPage(d)
-	if !tt.HasText("Remove from Favorites") || !tt.HasText("Add to Favorites") {
-		t.Fatalf("texts %q, want both favorite actions", tt.Texts())
+	dir := os.Getenv("MUMU_CAPTURE_DIR")
+	if dir == "" {
+		return
 	}
-
-	if err := tt.Click("Add to Favorites"); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if len(toggled) != 1 || toggled[0] == "" || toggled[0] == "tvri" {
-		t.Fatalf("toggled %v, want the non-favorite row key", toggled)
+	file, err := os.Create(filepath.Join(dir, "discover-wide-dark.png"))
+	if err != nil {
+		t.Fatal(err)
 	}
+	defer func() {
+		if err := file.Close(); err != nil {
+			t.Errorf("close dark capture: %v", err)
+		}
+	}()
+	if err := png.Encode(file, tt.Image()); err != nil {
+		t.Fatal(err)
+	}
+}
 
-	d.SetFavorites(map[string]bool{})
-	tt.Frame()
-	if d.Favorite("tvri") {
-		t.Fatal("clearing the map did not clear the page state")
+// The approved no-country frame is capturable too.
+func TestDiscoverNoCountryCapture(t *testing.T) {
+	d := NewDiscover()
+	d.SetCountries(discoverTestCountries())
+	tt := discoverPage(d, 1470, 956)
+
+	dir := os.Getenv("MUMU_CAPTURE_DIR")
+	if dir == "" {
+		return
 	}
-	if tt.HasText("Remove from Favorites") {
-		t.Fatal("a stale favorite label stayed after clearing the map")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	file, err := os.Create(filepath.Join(dir, "discover-no-country.png"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := file.Close(); err != nil {
+			t.Errorf("close no-country capture: %v", err)
+		}
+	}()
+	if err := png.Encode(file, tt.Image()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A discovered live channel carries its LIVE tag in the tile's top-right
+// corner, above and right of the title.
+func TestDiscoverLiveTagCorner(t *testing.T) {
+	d := NewDiscover()
+	rows := discoverTestChannels(2)
+	rows[0].Live = true
+	d.SetState(DiscoverState{
+		Kind:     DiscoverReady,
+		Region:   "ID",
+		Channels: rows,
+		Total:    2,
+	})
+
+	tt := discoverPage(d, 1470, 956)
+	live, ok := tt.Find("LIVE")
+	if !ok {
+		t.Fatalf("texts %q, want the LIVE tag", tt.Texts())
+	}
+	title, ok := tt.Find("Channel 0")
+	if !ok {
+		t.Fatalf("texts %q, want the tile title", tt.Texts())
+	}
+	if live.Y >= title.Y {
+		t.Errorf("LIVE at Y %v, want above the title at Y %v", live.Y, title.Y)
+	}
+	if live.X <= title.X {
+		t.Errorf("LIVE at X %v, want right of the title at X %v", live.X, title.X)
+	}
+}
+
+// The grid keeps its choice on the same channel when results reorder.
+func TestDiscoverSelectionFollowsKey(t *testing.T) {
+	d := NewDiscover()
+	d.SetState(DiscoverState{
+		Kind:     DiscoverReady,
+		Region:   "ID",
+		Channels: discoverTestChannels(3),
+		Total:    3,
+	})
+
+	tt := discoverPage(d, 1280, 720)
+	d.selectedKey = "key-1"
+	d.focus = "cell:key-1"
+	tt.Frame()
+
+	next := []DiscoverChannel{
+		{Key: "key-3", Name: "Channel 3"},
+		{Key: "key-1", Name: "Channel 1"},
+	}
+	d.SetState(DiscoverState{
+		Kind:     DiscoverReady,
+		Region:   "ID",
+		Channels: next,
+		Total:    5,
+	})
+	tt.Frame()
+
+	if got := d.currentKey(); got != "key-1" {
+		t.Fatalf("key %q, want the same channel after the reorder", got)
 	}
 }

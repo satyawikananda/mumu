@@ -36,13 +36,15 @@ type App struct {
 	refreshBuiltin catalogRefresher
 	discover       runSession
 	discoverQuery  runSession
-	discoverIndex  *discoverIndex
-	countryNames   map[string]string
-	logos          *logoCache
-	library        runSession
-	libraryData    *libraryCache
-	settings       runSession
-	settingsData   *settingsCache
+	// discoverCountries serializes country-list loads for the picker.
+	discoverCountries runSession
+	discoverIndex     *discoverIndex
+	countryNames      map[string]string
+	logos             *logoCache
+	library           runSession
+	libraryData       *libraryCache
+	settings          runSession
+	settingsData      *settingsCache
 
 	// mainWin is the native window the current a.win adapts. Compare this
 	// pointer, never the mainWindow interface: a closed window's adapter has a

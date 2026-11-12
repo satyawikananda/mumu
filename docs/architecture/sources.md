@@ -300,11 +300,13 @@ managed by Discover.
 
 ## UI surfaces
 
-Discover shows the community list with a visible **not verified** attribution,
-a region selector, and rows built from the normalized model. A logo is fetched
-through the bounded logo loader; a failed or unsupported image falls back to
-the channel initials. `LIVE` describes the stream format, never upstream
-availability or legality.
+Discover shows the community list only after the viewer chooses a country, with
+a visible **not verified** attribution, a searchable country picker, and at most
+20 tiles per browse page. The page never defaults to a country: a missing or
+unknown saved code is the approved no-country state, and no country playlist is
+fetched until a choice exists. A logo is fetched through the bounded logo
+loader; a failed or unsupported image falls back to the channel initials.
+`LIVE` describes the stream format, never upstream availability or legality.
 
 Library owns user playlists and custom streams: a row per source with kind,
 enabled state, item count, last success and the last safe error. Import and

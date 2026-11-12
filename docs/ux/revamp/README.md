@@ -13,10 +13,11 @@ recorded on 12 November 2026 from the approved Pencil document.
   `internal/ui/controlcenter.go`.
 
 This handoff covers the foundation delivered by
-[#33](https://github.com/satyawikananda/mumu/issues/33) and the native shell
-delivered by [#34](https://github.com/satyawikananda/mumu/issues/34). The Home
-feed is implemented by #35; Discover, Watch, PiP and Settings page integration
-remain owned by #36–#40.
+[#33](https://github.com/satyawikananda/mumu/issues/33), the native shell
+delivered by [#34](https://github.com/satyawikananda/mumu/issues/34), the Home
+feed delivered by [#35](https://github.com/satyawikananda/mumu/issues/35) and
+the Discover page delivered by [#36](https://github.com/satyawikananda/mumu/issues/36).
+Watch, PiP and Settings page integration remain owned by #37–#40.
 
 ## Scope
 
