@@ -137,3 +137,150 @@ func TestFilterMatch(t *testing.T) {
 		})
 	}
 }
+
+func TestHasLiveStream(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		streams []Stream
+		want    bool
+	}{
+		{name: "no streams", streams: []Stream{}, want: false},
+		{
+			name:    "not live",
+			streams: []Stream{{URL: "https://stream.example/a.m3u8"}},
+			want:    false,
+		},
+		{
+			name:    "live",
+			streams: []Stream{{URL: "https://stream.example/a.m3u8", Live: true}},
+			want:    true,
+		},
+		{
+			name: "one live among several",
+			streams: []Stream{
+				{URL: "https://stream.example/a.m3u8"},
+				{URL: "https://stream.example/b.m3u8", Live: true},
+			},
+			want: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			channel := Channel{Name: "News", Streams: tc.streams}
+			if got := HasLiveStream(channel); got != tc.want {
+				t.Fatalf("HasLiveStream = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestFilterLiveOnly(t *testing.T) {
+	live := Stream{URL: "https://stream.example/live.m3u8", Live: true}
+	notLive := Stream{URL: "https://stream.example/vod.m3u8"}
+
+	liveChannel := Channel{
+		Name:     "TVRI Nasional",
+		Group:    "General",
+		Country:  "ID",
+		SourceID: "src",
+		Streams:  []Stream{live},
+	}
+	notLiveChannel := Channel{
+		Name:     "TVRI Nasional",
+		Group:    "General",
+		Country:  "ID",
+		SourceID: "src",
+		Streams:  []Stream{notLive},
+	}
+
+	for _, tc := range []struct {
+		name    string
+		channel Channel
+		filter  Filter
+		want    bool
+	}{
+		{
+			name:    "live stream kept",
+			channel: liveChannel,
+			filter:  Filter{LiveOnly: true},
+			want:    true,
+		},
+		{
+			name:    "only non-live stream dropped",
+			channel: notLiveChannel,
+			filter:  Filter{LiveOnly: true},
+			want:    false,
+		},
+		{
+			name:    "channel without streams dropped",
+			channel: Channel{Name: "TVRI Nasional", Group: "General", Country: "ID", SourceID: "src"},
+			filter:  Filter{LiveOnly: true},
+			want:    false,
+		},
+		{
+			name: "one live among several kept",
+			channel: Channel{
+				Name:     "TVRI Nasional",
+				Group:    "General",
+				Country:  "ID",
+				SourceID: "src",
+				Streams:  []Stream{notLive, live},
+			},
+			filter: Filter{LiveOnly: true},
+			want:   true,
+		},
+		{
+			name:    "live with matching country category source and query",
+			channel: liveChannel,
+			filter: Filter{
+				LiveOnly: true,
+				Query:    "tvri",
+				Country:  "id",
+				Category: "general",
+				SourceID: "src",
+			},
+			want: true,
+		},
+		{
+			name:    "live with mismatched country",
+			channel: liveChannel,
+			filter:  Filter{LiveOnly: true, Country: "US"},
+			want:    false,
+		},
+		{
+			name:    "live with mismatched category",
+			channel: liveChannel,
+			filter:  Filter{LiveOnly: true, Category: "News"},
+			want:    false,
+		},
+		{
+			name:    "live with mismatched source",
+			channel: liveChannel,
+			filter:  Filter{LiveOnly: true, SourceID: "other"},
+			want:    false,
+		},
+		{
+			name:    "live with mismatched query",
+			channel: liveChannel,
+			filter:  Filter{LiveOnly: true, Query: "sports"},
+			want:    false,
+		},
+		{
+			name:    "non-live with matching filters still dropped",
+			channel: notLiveChannel,
+			filter: Filter{
+				LiveOnly: true,
+				Query:    "tvri",
+				Country:  "ID",
+				Category: "General",
+				SourceID: "src",
+			},
+			want: false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.filter.Match(tc.channel); got != tc.want {
+				t.Fatalf("Match = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}

@@ -65,6 +65,20 @@ type Channel struct {
 	Streams    []Stream
 }
 
+// HasLiveStream reports whether at least one stream is marked live.
+//
+// Stream format alone never decides liveness: a channel without a live stream
+// is not live, and callers must not infer VOD or online status for it.
+func HasLiveStream(channel Channel) bool {
+	for _, stream := range channel.Streams {
+		if stream.Live {
+			return true
+		}
+	}
+
+	return false
+}
+
 // Stream is one playable variant of a channel.
 type Stream struct {
 	ProviderID string

@@ -14,12 +14,14 @@ import (
 	"mumu/internal/storage"
 )
 
-// Sentinel errors for source management.
+// Sentinel errors for source management and the built-in catalog.
 var (
 	// ErrBuiltinManaged reports a built-in source managed outside the Library.
 	ErrBuiltinManaged = errors.New("built-in catalog is managed by Discover")
 	// ErrEmptyPreview reports a preview without a usable channel.
 	ErrEmptyPreview = errors.New("preview has no channels")
+	// ErrNoRegion reports a catalog operation that needs a selected country.
+	ErrNoRegion = errors.New("no catalog country selected")
 )
 
 // Preview is a parsed source that has not been stored.

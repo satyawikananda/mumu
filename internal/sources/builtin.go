@@ -17,22 +17,36 @@ import (
 
 const builtinRefreshInterval = 6 * time.Hour
 
-// Region returns the selected built-in region, defaulting to Indonesia.
+// Region returns the selected catalog country.
+//
+// A missing or empty setting means no country has been chosen yet, so it
+// reports the empty string with no error. A stored value is trimmed and
+// upper-cased, and a value that fails provider playlist validation is also
+// reported as the empty string, because it cannot identify a catalog. The
+// service never substitutes a country of its own.
 func (s *Service) Region(ctx context.Context) (string, error) {
 	value, ok, err := s.store.Settings().Get(ctx, SettingRegion)
 	if err != nil {
 		return "", err
 	}
 	if !ok || strings.TrimSpace(value) == "" {
-		return DefaultRegion, nil
+		return "", nil
 	}
 
 	region := strings.ToUpper(strings.TrimSpace(value))
-	if _, err := s.provider.PlaylistURL(region); err == nil {
-		return region, nil
+	if !s.offersRegion(region) {
+		// An unknown saved value is reported as no choice, never replaced.
+		return "", nil
 	}
 
-	return DefaultRegion, nil
+	return region, nil
+}
+
+// offersRegion reports whether the provider can address this region code.
+func (s *Service) offersRegion(region string) bool {
+	_, err := s.provider.PlaylistURL(region)
+
+	return err == nil
 }
 
 // SetRegion stores a validated region code.
@@ -93,8 +107,12 @@ func (s *Service) Countries(ctx context.Context) ([]iptvorg.Country, bool, error
 }
 
 // BuiltinSource returns the cached community source and its channels without
-// touching the network.
+// touching the network. An empty region reports ErrNoRegion.
 func (s *Service) BuiltinSource(ctx context.Context, region string) (catalog.Source, []catalog.Channel, bool, error) {
+	if strings.TrimSpace(region) == "" {
+		return catalog.Source{}, nil, false, fmt.Errorf("%w: built-in source needs a catalog country", ErrNoRegion)
+	}
+
 	stored, id, err := s.builtinRecord(ctx, region)
 	if err != nil {
 		return catalog.Source{}, nil, false, err
@@ -117,8 +135,13 @@ func (s *Service) BuiltinSource(ctx context.Context, region string) (catalog.Sou
 }
 
 // RefreshBuiltin fetches one country playlist, filters it, and replaces the
-// cached rows atomically. On failure the previous channels stay available.
+// cached rows atomically. On failure the previous channels stay available. An
+// empty region reports ErrNoRegion before any provider or network call.
 func (s *Service) RefreshBuiltin(ctx context.Context, region string) (catalog.Source, error) {
+	if strings.TrimSpace(region) == "" {
+		return catalog.Source{}, fmt.Errorf("%w: built-in refresh needs a catalog country", ErrNoRegion)
+	}
+
 	url, err := s.provider.PlaylistURL(region)
 	if err != nil {
 		return catalog.Source{}, err

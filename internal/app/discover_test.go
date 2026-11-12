@@ -43,6 +43,15 @@ func seedBuiltinCatalog(t *testing.T, a *App) {
 		t.Fatalf("Store = %v, %v, want an open library", store, err)
 	}
 
+	// The saved country drives the cached catalog; nothing defaults to ID.
+	service, err := a.Catalog()
+	if err != nil {
+		t.Fatalf("Catalog: %v", err)
+	}
+	if err := service.SetRegion(context.Background(), "ID"); err != nil {
+		t.Fatalf("SetRegion: %v", err)
+	}
+
 	source, err := storage.NewSource(
 		storage.SourceBuiltin,
 		"https://iptv-org.github.io/iptv/countries/id.m3u",
@@ -76,6 +85,19 @@ func seedBuiltinCatalog(t *testing.T, a *App) {
 		storage.RefreshMeta{RefreshedAt: time.Now(), ItemCount: 1},
 	); err != nil {
 		t.Fatalf("ReplaceForSource: %v", err)
+	}
+}
+
+// saveRegion stores a catalog country for a test that expects one.
+func saveRegion(t *testing.T, a *App, region string) {
+	t.Helper()
+
+	service, err := a.Catalog()
+	if err != nil {
+		t.Fatalf("Catalog: %v", err)
+	}
+	if err := service.SetRegion(context.Background(), region); err != nil {
+		t.Fatalf("SetRegion: %v", err)
 	}
 }
 
@@ -114,6 +136,7 @@ func TestDiscoverCachedCatalogFallsBackToOffline(t *testing.T) {
 // With nothing cached, a failed refresh reports an error and keeps actions.
 func TestDiscoverWithoutCacheReportsError(t *testing.T) {
 	a, _ := discoverTestApp(t)
+	saveRegion(t, a, "ID")
 	a.refreshBuiltin = failRefresh
 
 	gen, ctx := a.discover.begin(a.ctx)
@@ -271,6 +294,7 @@ func seedUserSource(t *testing.T, a *App) {
 // User sources appear beside the community catalog, even when it is offline.
 func TestDiscoverIncludesEnabledUserSources(t *testing.T) {
 	a, _ := discoverTestApp(t)
+	saveRegion(t, a, "ID")
 	seedUserSource(t, a)
 	a.refreshBuiltin = failRefresh
 
@@ -333,8 +357,8 @@ func TestDiscoverFilterCancelsStaleQuery(t *testing.T) {
 	}
 }
 
-// The row cap keeps one publish bounded while Total counts every match.
-func TestDiscoverFilterCap(t *testing.T) {
+// The publish cap keeps one result set bounded while Total counts every match.
+func TestDiscoverResultCap(t *testing.T) {
 	index := newDiscoverIndex()
 	channels := make([]catalog.Channel, discoverResultLimit+25)
 	for i := range channels {
@@ -349,7 +373,7 @@ func TestDiscoverFilterCap(t *testing.T) {
 		region: "ID",
 	})
 
-	rows, total, truncated := index.filter(ui.DiscoverFilters{})
+	rows, total, truncated := index.view(ui.DiscoverFilters{Query: "channel"})
 	if len(rows) != discoverResultLimit {
 		t.Fatalf("rows %d, want %d", len(rows), discoverResultLimit)
 	}
@@ -358,6 +382,218 @@ func TestDiscoverFilterCap(t *testing.T) {
 	}
 	if !truncated {
 		t.Fatal("cap did not report a truncated result")
+	}
+}
+
+// Browsing loads batches until every match is reachable.
+func TestDiscoverBrowseLoadsBatches(t *testing.T) {
+	index := newDiscoverIndex()
+	channels := make([]catalog.Channel, 45)
+	for i := range channels {
+		channels[i] = catalog.Channel{
+			SourceID:   "source-a",
+			ProviderID: fmt.Sprintf("provider-%d", i),
+			Name:       fmt.Sprintf("Channel %d", i),
+		}
+	}
+	index.setCatalog(channels, discoverFacets{}, discoverBase{
+		kind:   ui.DiscoverReady,
+		region: "ID",
+	})
+
+	rows, total, truncated := index.view(ui.DiscoverFilters{})
+	if len(rows) != discoverBatch || total != 45 || !truncated {
+		t.Fatalf("first batch rows %d total %d truncated %v, want %d of 45", len(rows), total, truncated, discoverBatch)
+	}
+
+	index.growLimit()
+	rows, total, truncated = index.view(ui.DiscoverFilters{})
+	if len(rows) != 45 || total != 45 || truncated {
+		t.Fatalf("grown batch rows %d total %d truncated %v, want all 45", len(rows), total, truncated)
+	}
+	if rows[0].Key == rows[44].Key {
+		t.Fatalf("rows repeat key %q", rows[0].Key)
+	}
+}
+
+// Category counts are real match counts and ignore the selected category.
+func TestDiscoverCategoryCounts(t *testing.T) {
+	index := newDiscoverIndex()
+	index.setCatalog([]catalog.Channel{
+		{SourceID: "s", ProviderID: "a", Name: "A", Group: "News"},
+		{SourceID: "s", ProviderID: "b", Name: "B", Group: "News"},
+		{SourceID: "s", ProviderID: "c", Name: "C", Group: "Sports"},
+	}, discoverFacets{}, discoverBase{kind: ui.DiscoverReady, region: "ID"})
+
+	counts := index.categoryCounts(ui.DiscoverFilters{Category: "News"})
+	if len(counts) != 2 {
+		t.Fatalf("counts %+v, want two categories", counts)
+	}
+	if counts[0].Name != "News" || counts[0].Count != 2 {
+		t.Fatalf("counts %+v, want News first with 2", counts)
+	}
+}
+
+// A fresh install shows no country and never fetches a country playlist.
+func TestDiscoverStartsWithoutCountry(t *testing.T) {
+	a, f := discoverTestApp(t)
+	refreshed := 0
+	a.refreshBuiltin = func(context.Context, *sources.Service, string) (catalog.Source, error) {
+		refreshed++
+
+		return catalog.Source{}, errors.New("refresh must not run")
+	}
+
+	gen, ctx := a.discover.begin(a.ctx)
+	a.loadDiscover(ctx, gen)
+	f.waitUpdates(t, 1)
+
+	if refreshed != 0 {
+		t.Fatalf("country playlist fetches %d, want 0", refreshed)
+	}
+	got := a.shell.Discover().State()
+	if got.Kind != ui.DiscoverNoCountry {
+		t.Fatalf("state kind %v, want DiscoverNoCountry", got.Kind)
+	}
+	if got.Region != "" || len(got.Channels) != 0 {
+		t.Fatalf("state %+v, want no region and no channels", got)
+	}
+}
+
+// Imported sources stay usable before any catalog country is chosen.
+func TestDiscoverImportsWithoutCountry(t *testing.T) {
+	a, f := discoverTestApp(t)
+	seedUserSource(t, a)
+	region := a.shell.Discover().Region()
+	if region != "" {
+		t.Fatalf("region %q, want none", region)
+	}
+
+	gen, ctx := a.discover.begin(a.ctx)
+	a.loadDiscover(ctx, gen)
+	f.waitUpdates(t, 1)
+
+	got := a.shell.Discover().State()
+	if got.Kind != ui.DiscoverReady {
+		t.Fatalf("state kind %v, want DiscoverReady for the import", got.Kind)
+	}
+	if got.Region != "" || len(got.Channels) != 1 || got.Channels[0].Name != "My News" {
+		t.Fatalf("state %+v, want the imported channel without a country", got)
+	}
+}
+
+// A saved country is kept on restart and drives the cached catalog.
+func TestDiscoverKeepsSavedCountry(t *testing.T) {
+	a, _ := discoverTestApp(t)
+	seedBuiltinCatalog(t, a)
+	a.refreshBuiltin = failRefresh
+
+	gen, ctx := a.discover.begin(a.ctx)
+	a.loadDiscover(ctx, gen)
+
+	got := a.shell.Discover().State()
+	if got.Region != "ID" {
+		t.Fatalf("region %q, want the saved ID", got.Region)
+	}
+	if got.Kind != ui.DiscoverOffline {
+		t.Fatalf("state kind %v, want DiscoverOffline with cached rows", got.Kind)
+	}
+}
+
+// A saved country the catalog no longer lists is reported, never replaced.
+func TestDiscoverDropsUnknownSavedCountry(t *testing.T) {
+	a, f := discoverTestApp(t)
+	service, err := a.Catalog()
+	if err != nil {
+		t.Fatalf("Catalog: %v", err)
+	}
+	if err := service.SetRegion(context.Background(), "ZZ"); err != nil {
+		t.Fatalf("SetRegion: %v", err)
+	}
+
+	gen, ctx := a.discover.begin(a.ctx)
+	a.loadDiscover(ctx, gen)
+	f.waitUpdates(t, 1)
+
+	countries := make([]ui.DiscoverCountry, 0, 12)
+	for i := range 12 {
+		countries = append(countries, ui.DiscoverCountry{Code: fmt.Sprintf("C%d", i), Name: fmt.Sprintf("Country %d", i)})
+	}
+	a.dropUnknownDiscoverRegion(countries)
+	f.waitUpdates(t, 2)
+
+	got := a.shell.Discover().State()
+	if got.Kind != ui.DiscoverNoCountry || got.Region != "" {
+		t.Fatalf("state %+v, want the no-country state", got)
+	}
+	if !strings.Contains(got.Message, "no longer in the catalog") {
+		t.Fatalf("message %q, want an explicit saved-country notice", got.Message)
+	}
+}
+
+// Republishing the index needs no network work.
+func TestDiscoverRepublishWithoutNetwork(t *testing.T) {
+	a, _ := discoverTestApp(t)
+	refreshed := 0
+	a.refreshBuiltin = func(context.Context, *sources.Service, string) (catalog.Source, error) {
+		refreshed++
+
+		return catalog.Source{}, errors.New("a republish must not refetch")
+	}
+
+	channels := make([]catalog.Channel, 45)
+	for i := range channels {
+		channels[i] = catalog.Channel{
+			SourceID:   "source-a",
+			ProviderID: fmt.Sprintf("provider-%d", i),
+			Name:       fmt.Sprintf("Channel %d", i),
+		}
+	}
+	a.discoverIndex.setCatalog(channels, discoverFacets{names: map[string]string{}}, discoverBase{
+		kind:   ui.DiscoverReady,
+		region: "ID",
+	})
+	gen := a.discover.generation()
+
+	a.publishView(discoverBase{kind: ui.DiscoverReady, region: "ID"},
+		func() bool { return a.discover.current(gen) })
+
+	got := a.shell.Discover().State()
+	if got.Total != 45 || len(got.Channels) != discoverBatch || !got.HasMore {
+		t.Fatalf("state total %d rows %d hasMore %v, want the first batch of 45", got.Total, len(got.Channels), got.HasMore)
+	}
+	if refreshed != 0 {
+		t.Fatalf("network refreshes %d, want 0", refreshed)
+	}
+}
+
+// Choosing a country persists it before the catalog reloads.
+func TestDiscoverRegionChoicePersists(t *testing.T) {
+	a, f := discoverTestApp(t)
+	refreshed := 0
+	a.refreshBuiltin = func(context.Context, *sources.Service, string) (catalog.Source, error) {
+		refreshed++
+
+		return catalog.Source{}, errors.New("offline")
+	}
+
+	before := f.updates
+	a.setDiscoverRegion("my")
+	f.waitUpdates(t, before+1)
+
+	service, err := a.Catalog()
+	if err != nil {
+		t.Fatalf("Catalog: %v", err)
+	}
+	region, err := service.Region(context.Background())
+	if err != nil || region != "MY" {
+		t.Fatalf("Region = %q, %v, want MY", region, err)
+	}
+	if got := a.shell.Discover().Region(); got != "MY" {
+		t.Fatalf("page region %q, want MY", got)
+	}
+	if refreshed > 1 {
+		t.Fatalf("refresh runs %d, want at most one country fetch", refreshed)
 	}
 }
 
@@ -377,14 +613,11 @@ func TestDiscoverFacetsAndAttribution(t *testing.T) {
 	}
 
 	facets := discoverFacetsFor(ctx, service, users)
-	if len(facets.sources) != 1 || facets.sources[0].Name != "My list" {
-		t.Fatalf("sources %+v, want My list", facets.sources)
-	}
 	if facets.names[users[0].SourceID] != "My list" {
 		t.Fatalf("names %+v, want the source name", facets.names)
 	}
 
-	rows, _, _ := newDiscoverIndexWith(users, facets).filter(ui.DiscoverFilters{})
+	rows, _, _ := newDiscoverIndexWith(users, facets).view(ui.DiscoverFilters{})
 	if len(rows) != 1 || rows[0].SourceName != "My list" {
 		t.Fatalf("rows %+v, want source attribution", rows)
 	}

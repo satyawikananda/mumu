@@ -1,18 +1,25 @@
 package ui
 
 import (
-	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 )
 
 const (
-	// discoverAllCategories is the category selector's "no restriction" label.
-	discoverAllCategories = "All categories"
-	// discoverAllSources is the source selector's "no restriction" label.
-	discoverAllSources = "All sources"
+	// discoverAllCategories is the category rail's "no restriction" label.
+	discoverAllCategories = "All channels"
+	// discoverChooseCountry is the country chip before any country is chosen.
+	discoverChooseCountry = "Choose a country"
+	// discoverSearchFocus is the FocusBind value of the search input.
+	discoverSearchFocus = "discover-search"
+	// discoverRailWidth is the category rail's reference width at medium.
+	discoverRailWidth float32 = 236
+	// discoverGridFocus prefixes a grid tile's focus value, so a channel in the
+	// grid cannot collide with the search list's own selection.
+	discoverGridFocus = "cell:"
 )
 
 // DiscoverKind is the state the Discover page shows.
@@ -29,9 +36,14 @@ const (
 	DiscoverEmpty
 	// DiscoverError reports a catalog failure with nothing cached.
 	DiscoverError
+	// DiscoverNoCountry reports the approved first-launch state: no catalog
+	// country is chosen yet, so no country playlist was fetched.
+	DiscoverNoCountry
+	// DiscoverDisabled reports that the community catalog is turned off.
+	DiscoverDisabled
 )
 
-// DiscoverChannel is one row of the Discover channel list.
+// DiscoverChannel is one channel tile or search row.
 //
 // Key is a stable identity, not the display name. Country is a region code
 // that the page resolves through its published countries; Category is the
@@ -52,22 +64,21 @@ type DiscoverCountry struct {
 	Name string
 }
 
-// DiscoverFacet is one selectable filter option with a stable ID.
-type DiscoverFacet struct {
-	ID   string
-	Name string
+// DiscoverCategory is one category rail entry with its real match count.
+type DiscoverCategory struct {
+	Name  string
+	Count int
 }
 
 // DiscoverFilters is the page's current narrowing. Zero values mean "all".
 type DiscoverFilters struct {
 	Query    string
 	Category string
-	SourceID string
 }
 
 // Empty reports whether the filters narrow nothing.
 func (f DiscoverFilters) Empty() bool {
-	return strings.TrimSpace(f.Query) == "" && f.Category == "" && f.SourceID == ""
+	return strings.TrimSpace(f.Query) == "" && f.Category == ""
 }
 
 // DiscoverState is what the app publishes to the Discover page.
@@ -77,10 +88,12 @@ type DiscoverState struct {
 	Channels []DiscoverChannel
 	// Message overrides the page's default text for the state.
 	Message string
-	// Total counts every channel that matched, before the row cap.
+	// Total counts every channel that matched, before any cap or page.
 	Total int
 	// Truncated reports that Channels is a capped prefix of Total.
 	Truncated bool
+	// HasMore reports that more matches exist than Channels holds.
+	HasMore bool
 }
 
 // Discover is the native Discover page. The app publishes the catalog state;
@@ -88,58 +101,87 @@ type DiscoverState struct {
 type Discover struct {
 	state      DiscoverState
 	countries  []DiscoverCountry
-	categories []string
-	sources    []DiscoverFacet
+	categories []DiscoverCategory
 	logos      map[string]*ui.Bitmap
 	logoColors map[string]ui.Color
 	favorites  map[string]bool
-	search     ui.Handle
 	list       ui.ListState
 	scroll     ui.ScrollState
-	selected   int
-	notice     string
+
+	// focus is the desired grid keyboard target; it stays empty in search
+	// mode, where the list owns focus.
+	focus   string
+	columns int
+	// moreRequested keeps one scroll from asking for several batches.
+	moreRequested bool
+	// searchFocus is the FocusBind field: assigning discoverSearchFocus asks
+	// the search input for the keyboard focus.
+	searchFocus string
+
+	// categoryList and categoryScroll keep the rail bounded and scrolled.
+	categoryList   ui.ListState
+	categoryScroll ui.ScrollState
+
+	// country picker state. The list is local, bounded work over published
+	// countries; it never fetches anything itself.
+	pickerOpen     bool
+	pickerQuery    string
+	pickerSearch   ui.Handle
+	pickerList     ui.ListState
+	pickerSelected int
+	countriesReady bool
+	countriesError string
 
 	query       string
 	category    string
-	sourceID    string
+	selected    int
 	selectedKey string
+	notice      string
 
-	// OnRegion asks the app to switch the catalog region.
+	// OnRegion asks the app to persist and load one catalog country.
 	OnRegion func(code string)
 	// OnRetry asks the app to load the catalog again.
 	OnRetry func()
+	// OnReloadCountries asks the app to reload the country list.
+	OnReloadCountries func()
 	// OnAddPlaylist sends the viewer to the playlist import surface.
 	OnAddPlaylist func()
+	// OnOpenSettings sends the viewer to Settings.
+	OnOpenSettings func()
 	// OnFilter reports a new narrowing; the app debounces and filters.
 	OnFilter func(filters DiscoverFilters)
+	// OnLoadMore asks the app for the next batch of browse results.
+	OnLoadMore func()
 	// OnSelect asks the app to open the channel with this key.
 	OnSelect func(key string)
 	// OnToggleFavorite adds or removes one channel from favorites.
 	OnToggleFavorite func(key string)
 }
 
-// NewDiscover returns an empty Discover page with no region yet.
+// NewDiscover returns the approved first-launch state: no country chosen.
 func NewDiscover() *Discover {
 	d := &Discover{
-		state:    DiscoverState{Kind: DiscoverEmpty},
-		selected: -1,
+		state:          DiscoverState{Kind: DiscoverNoCountry},
+		selected:       -1,
+		pickerSelected: -1,
 	}
 	d.list.Selected = &d.selected
 	d.list.Label = d.rowLabel
+	d.pickerList.Selected = &d.pickerSelected
 
 	return d
 }
 
-// SetState shows state; an empty region keeps the current one.
+// SetState shows state. The app always sends the region it means, including an
+// empty one for the no-country state, so the page never guesses.
 func (d *Discover) SetState(state DiscoverState) {
-	if state.Region == "" {
-		state.Region = d.state.Region
-	}
 	if state.Total == 0 && len(state.Channels) > 0 {
 		state.Total = len(state.Channels)
 	}
 	d.state = state
 	d.selected = d.indexForKey(d.selectedKey)
+	d.moreRequested = false
+	d.settleFocus()
 }
 
 // indexForKey finds a row by its stable key, -1 when it is gone.
@@ -162,7 +204,7 @@ func (d *Discover) State() DiscoverState { return d.state }
 // Scrolled reports whether the catalog is scrolled away from its start.
 func (d *Discover) Scrolled() bool { return d.scroll.Y > 1 }
 
-// Region returns the selected catalog region code.
+// Region returns the selected catalog region code, empty for no country.
 func (d *Discover) Region() string { return d.state.Region }
 
 // Filters returns the page's current narrowing.
@@ -170,26 +212,32 @@ func (d *Discover) Filters() DiscoverFilters {
 	return DiscoverFilters{
 		Query:    strings.TrimSpace(d.query),
 		Category: d.category,
-		SourceID: d.sourceID,
 	}
 }
 
-// SetCountries publishes the region list for the selector.
+// SetCountries publishes the region list for the picker.
 func (d *Discover) SetCountries(countries []DiscoverCountry) {
 	d.countries = countries
+	d.countriesReady = true
+	d.countriesError = ""
 }
 
-// SetFacets publishes the category and source filter options. A selection
-// that no longer exists falls back to "all".
-func (d *Discover) SetFacets(categories []string, sources []DiscoverFacet) {
-	d.categories = categories
-	d.sources = sources
+// SetCountriesError reports a country-list failure the picker must explain.
+func (d *Discover) SetCountriesError(message string) {
+	d.countriesReady = false
+	d.countriesError = strings.TrimSpace(message)
+}
 
-	if d.category != "" && !slices.Contains(categories, d.category) {
+// Countries returns the published region list.
+func (d *Discover) Countries() []DiscoverCountry { return d.countries }
+
+// SetFacets publishes the category rail. A selection that no longer exists
+// falls back to "All channels".
+func (d *Discover) SetFacets(categories []DiscoverCategory) {
+	d.categories = categories
+
+	if d.category != "" && !categoryExists(categories, d.category) {
 		d.category = ""
-	}
-	if d.sourceID != "" && !facetExists(sources, d.sourceID) {
-		d.sourceID = ""
 	}
 }
 
@@ -213,8 +261,8 @@ func (d *Discover) SetLogoColors(colors map[string]ui.Color) {
 	d.logoColors = colors
 }
 
-// SetFavorites publishes which channel keys are favorites. Rows read the map,
-// so a favorite change never rebuilds the indexed catalog.
+// SetFavorites publishes which channel keys are favorites. Rows and tiles read
+// the map, so a favorite change never rebuilds the indexed catalog.
 func (d *Discover) SetFavorites(favorites map[string]bool) {
 	d.favorites = favorites
 }
@@ -222,21 +270,19 @@ func (d *Discover) SetFavorites(favorites map[string]bool) {
 // Favorite reports whether key is a favorite, for the app and for tests.
 func (d *Discover) Favorite(key string) bool { return d.favorites[key] }
 
-// FocusSearch requests the search field's focus.
-func (d *Discover) FocusSearch() { d.search.Focus() }
+// FocusSearch requests the search input's focus.
+func (d *Discover) FocusSearch() { d.searchFocus = discoverSearchFocus }
 
-// HasSelection reports whether a channel row is selected.
-func (d *Discover) HasSelection() bool {
-	return d.selected >= 0 && d.selected < len(d.state.Channels)
-}
+// HasRows reports whether the page currently shows channels.
+func (d *Discover) HasRows() bool { return len(d.state.Channels) > 0 }
 
-// ToggleSelectedFavorite toggles the selected channel's favorite state.
+// HasSelection reports whether a channel is the current keyboard target.
+func (d *Discover) HasSelection() bool { return d.currentKey() != "" }
+
+// ToggleSelectedFavorite toggles the current channel's favorite state.
 func (d *Discover) ToggleSelectedFavorite() {
-	if !d.HasSelection() || d.OnToggleFavorite == nil {
-		return
-	}
-	key := d.state.Channels[d.selected].Key
-	if key == "" {
+	key := d.currentKey()
+	if key == "" || d.OnToggleFavorite == nil {
 		return
 	}
 	d.OnToggleFavorite(key)
@@ -244,83 +290,53 @@ func (d *Discover) ToggleSelectedFavorite() {
 
 // View draws the page on the MyGo main thread.
 func (d *Discover) View(c *ui.Context, theme *ui.Theme) {
+	layout := layoutFor(c.Size())
+	d.columns = max(layout.DiscoverColumns, 1)
+	d.settleFocus()
+	d.requestMore()
+
 	d.header(c, theme)
 	d.filters(c, theme)
-	d.body(c, theme)
+	d.body(c, theme, layout)
+	d.countryPicker(c, theme)
 }
 
-// header draws the page heading, region selector and Add Playlist.
-func (d *Discover) header(c *ui.Context, _ *ui.Theme) {
-	labels := d.regionLabels()
-
+// header draws the page heading and the Add Playlist action.
+func (d *Discover) header(c *ui.Context, theme *ui.Theme) {
 	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(12).Children(func() {
 		pageHeading(c, "Discover").Grow(1)
 
-		if len(labels) > 0 {
-			region := d.regionLabel()
-			selector := ui.Select(c, &region, labels).Label("Region")
-			if selector.Changed() {
-				if code, ok := d.countryCode(region); ok && code != d.state.Region {
-					d.state.Region = code
-					if d.OnRegion != nil {
-						d.OnRegion(code)
-					}
-				}
-			}
+		add := ui.ButtonBase(c).Height(30).Padding(7, 11).Radius(radiusChip).
+			Border(1, theme.Border).FocusRingOffset(-2).Gap(6).
+			Label("Add Playlist").Tooltip("Import a playlist or stream")
+		if add.Hovered() {
+			add = add.Background(theme.SurfaceHover)
 		}
-
-		ui.Button(c, "Add Playlist").OnClick(func() {
-			if d.OnAddPlaylist != nil {
-				d.OnAddPlaylist()
-			}
+		add.Children(func() {
+			ui.Icon(c, icons().plus).Size(14, 14).TextColor(theme.Text).AccessHidden(true)
+			ui.Text(c, "Add Playlist").Font(bodyFont()).FontSize(textSize(theme, 13)).
+				FontWeight(600).TextColor(theme.Text).SingleLine()
 		})
+		if add.Clicked() {
+			d.addPlaylist()
+		}
 	})
 }
 
-// filters draws the search field and the category and source selectors.
-func (d *Discover) filters(c *ui.Context, _ *ui.Theme) {
-	search := ui.SearchField(c, &d.query).Label("Search channels").Bind(&d.search)
-	if search.Changed() {
+// filters draws the search field and the country filter.
+func (d *Discover) filters(c *ui.Context, theme *ui.Theme) {
+	field := ui.SearchField(c, &d.query).Label("Search channels").
+		FocusBind(&d.searchFocus, discoverSearchFocus)
+	if field.Changed() {
 		d.emitFilter()
 	}
 
 	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(8).Children(func() {
-		if len(d.categories) > 0 {
-			labels := append([]string{discoverAllCategories}, d.categories...)
-			choice := d.category
-			if choice == "" {
-				choice = discoverAllCategories
-			}
+		ui.Text(c, "Country").Font(bodyFont()).FontSize(textSize(theme, 12)).
+			TextColor(theme.TextMuted).SingleLine()
+		d.countryChip(c)
 
-			selector := ui.Select(c, &choice, labels).Label("Category").MaxWidth(180)
-			if selector.Changed() {
-				category := strings.TrimSpace(choice)
-				if category == discoverAllCategories {
-					category = ""
-				}
-				if category != d.category {
-					d.category = category
-					d.emitFilter()
-				}
-			}
-		}
-
-		if len(d.sources) > 0 {
-			labels := []string{discoverAllSources}
-			for _, source := range d.sources {
-				labels = append(labels, source.Name)
-			}
-
-			choice := d.sourceLabel()
-			selector := ui.Select(c, &choice, labels).Label("Source").MaxWidth(180)
-			if selector.Changed() {
-				id := facetID(d.sources, choice)
-				if id != d.sourceID {
-					d.sourceID = id
-					d.emitFilter()
-				}
-			}
-		}
+		ui.Spacer(c)
 
 		if !d.Filters().Empty() {
 			ui.Button(c, "Clear filters").OnClick(d.clearFilters)
@@ -328,15 +344,29 @@ func (d *Discover) filters(c *ui.Context, _ *ui.Theme) {
 	})
 }
 
-// body draws the state, with a virtualized list when channels are known.
-func (d *Discover) body(c *ui.Context, theme *ui.Theme) {
+// countryChip shows the chosen country, or the approved empty prompt.
+func (d *Discover) countryChip(c *ui.Context) {
+	label := d.regionLabel()
+	if label == "" {
+		label = discoverChooseCountry
+	}
+
+	Chip{
+		Key:    "discover-country",
+		Label:  label,
+		Icon:   icons().globe,
+		Active: d.state.Region != "",
+		OnClick: func() {
+			d.openCountryPicker()
+		},
+	}.View(c)
+}
+
+// body draws the state, with the browse grid or the search list.
+func (d *Discover) body(c *ui.Context, theme *ui.Theme, layout Layout) {
 	switch d.state.Kind {
 	case DiscoverLoading:
-		pageStatus(c, Status{
-			Kind:    StatusLoading,
-			Title:   "Loading channels",
-			Message: d.defaultMessage(),
-		})
+		d.skeleton(c, theme, layout)
 	case DiscoverError:
 		pageStatus(c, Status{
 			Kind:     StatusError,
@@ -345,17 +375,391 @@ func (d *Discover) body(c *ui.Context, theme *ui.Theme) {
 			Action:   "Retry",
 			OnAction: d.retry,
 		})
+	case DiscoverNoCountry:
+		d.noCountry(c, theme, layout)
+	case DiscoverDisabled:
+		d.disabled(c, theme)
 	case DiscoverOffline:
-		d.offline(c, theme)
-	case DiscoverReady:
 		if len(d.state.Channels) == 0 {
-			d.empty(c)
+			pageStatus(c, Status{
+				Kind:     StatusOffline,
+				Title:    "You are offline",
+				Message:  "Connect to the internet and retry, or add your own playlist.",
+				Action:   "Retry",
+				OnAction: d.retry,
+			})
+
 			return
 		}
-		d.channelList(c, theme)
+		d.results(c, theme, layout)
+	case DiscoverReady:
+		d.results(c, theme, layout)
 	default:
 		d.empty(c)
 	}
+}
+
+// results draws the category rail or chips beside the channel results.
+func (d *Discover) results(c *ui.Context, theme *ui.Theme, layout Layout) {
+	showCategories := layout.CategoryColumn && d.showCategories()
+
+	body := ui.Grid(c).Grow(1).FillWidth().Gap(20)
+	if showCategories {
+		body = body.ColumnTracks(discoverBodyTracks(layout)...)
+	} else {
+		body = body.ColumnTracks(ui.Fr(1))
+	}
+
+	body.Children(func() {
+		if showCategories {
+			d.categoryColumn(c, theme)
+		}
+
+		ui.Column(c).Gap(12).Children(func() {
+			if !layout.CategoryColumn && d.showCategories() {
+				d.categoryChips(c)
+			}
+			d.heading(c, theme)
+
+			if d.state.Kind == DiscoverOffline {
+				d.offlineNote(c, theme)
+			}
+			if d.notice != "" {
+				ui.Text(c, d.notice).FontSize(textSize(theme, 12)).
+					TextColor(theme.TextMuted).SingleLine()
+			}
+
+			if d.searchMode() {
+				d.searchList(c)
+
+				return
+			}
+			if len(d.state.Channels) == 0 {
+				d.empty(c)
+
+				return
+			}
+
+			d.grid(c, layout)
+		})
+	})
+}
+
+// discoverBodyTracks splits the body between the rail and the channels. The
+// wide reference keeps the rail to a third so the grid stays dominant; smaller
+// windows keep the compact rail.
+func discoverBodyTracks(layout Layout) []ui.Track {
+	if layout.Breakpoint == BreakpointWide {
+		return []ui.Track{ui.Fr(1), ui.Fr(2)}
+	}
+
+	return []ui.Track{ui.Fixed(discoverRailWidth), ui.Fr(1)}
+}
+
+// showCategories reports whether categories are meaningful right now. They
+// wait for a country choice, as the approved no-country frame shows.
+func (d *Discover) showCategories() bool {
+	return len(d.categories) > 0 && (d.state.Region != "" || d.searchMode())
+}
+
+// skeleton shows the grid's shape while the first catalog page loads. MyGo has
+// no skeleton widget, so it uses the documented Box and Loop pattern.
+func (d *Discover) skeleton(c *ui.Context, theme *ui.Theme, layout Layout) {
+	columns := max(layout.DiscoverColumns, 1)
+
+	ui.Grid(c).Grow(1).FillWidth().Columns(columns).Gap(12).
+		Label("Loading channels").Busy(true).Children(func() {
+		for range columns * 2 {
+			card := ui.Box(c).Height(layout.TileHeight).Radius(radiusTile).
+				Background(theme.Surface).ClipInset(0, 0, 0, 0, radiusTile)
+			pulse := card.Loop("discover-skeleton", 1600*time.Millisecond, ui.Bounce(ui.EaseInOut))
+			card.Opacity(0.45 + 0.35*pulse)
+			card.Children(func() {
+				ui.Box(c).Absolute().Left(15).Top(16).Right(64).Height(14).Radius(7).
+					Background(theme.Border).AccessHidden(true)
+				ui.Box(c).Absolute().Left(15).Bottom(16).Width(48).Height(12).Radius(6).
+					Background(theme.Border).AccessHidden(true)
+			})
+		}
+	})
+}
+
+// categoryColumn draws the bounded category rail with real counts.
+func (d *Discover) categoryColumn(c *ui.Context, theme *ui.Theme) {
+	ui.Column(c).Gap(10).AlignItems(ui.Start).Children(func() {
+		ui.Text(c, "CATEGORIES").Font(bodyFont()).FontSize(textSize(theme, 11)).
+			FontWeight(700).LetterSpacing(1.4).TextColor(theme.TextMuted).SingleLine()
+
+		ui.List(c, &d.categoryList, len(d.categories)+1).Grow(1).FillWidth().
+			Label("Categories").
+			TrackScroll(&d.categoryScroll).
+			Rows(func(row ui.ListRow) {
+				d.categoryRow(c, theme, row)
+			})
+	})
+}
+
+// categoryRow draws one rail entry: All channels, then each real category.
+func (d *Discover) categoryRow(c *ui.Context, theme *ui.Theme, row ui.ListRow) {
+	name, count, active := discoverAllCategories, d.state.Total, d.category == ""
+	if row.Index > 0 {
+		category := d.categories[row.Index-1]
+		name, count, active = category.Name, category.Count, d.category == category.Name
+	}
+
+	d.categoryButton(c, theme, name, count, active)
+}
+
+// categoryChips draws the compact form of the rail.
+func (d *Discover) categoryChips(c *ui.Context) {
+	ui.ScrollHorizontal(c).FillWidth().Children(func() {
+		ui.Row(c).Gap(6).Children(func() {
+			Chip{
+				Key:    "discover-category-all",
+				Label:  discoverAllCategories,
+				Active: d.category == "",
+				OnClick: func() {
+					d.setCategory("")
+				},
+			}.View(c)
+			for _, category := range d.categories {
+				name := category.Name
+				Chip{
+					Key:    "discover-category:" + name,
+					Label:  name,
+					Active: d.category == name,
+					OnClick: func() {
+						d.setCategory(name)
+					},
+				}.View(c)
+			}
+		})
+	})
+}
+
+// categoryButton is one accessible rail row with its count.
+func (d *Discover) categoryButton(c *ui.Context, theme *ui.Theme, name string, count int, active bool) {
+	fill := ui.Transparent
+	if active {
+		if theme.Dark {
+			fill = ui.RGBA(255, 255, 255, 0.07)
+		} else {
+			fill = ui.RGBA(0, 0, 0, 0.05)
+		}
+	}
+
+	button := ui.ButtonBase(c).FillWidth().Height(34).Padding(9, 10).Radius(8).
+		Background(fill).Gap(8).AlignItems(ui.Center).FocusRingOffset(-2).
+		AccessSelected(active).Label(categoryLabel(name, count))
+	if button.Hovered() && !active {
+		button = button.Background(ui.RGBA(255, 255, 255, 0.04))
+	}
+	button.Children(func() {
+		ui.Text(c, name).Font(bodyFont()).FontSize(textSize(theme, 14)).
+			FontWeight(500).TextColor(theme.TextMuted).Grow(1).SingleLine()
+		ui.Text(c, strconv.Itoa(count)).Font(bodyFont()).FontSize(textSize(theme, 12)).
+			TextColor(theme.TextMuted).SingleLine()
+	})
+	if button.Clicked() {
+		d.setCategory(name)
+	}
+}
+
+// heading draws the results title and its truthful subtitle.
+func (d *Discover) heading(c *ui.Context, theme *ui.Theme) {
+	ui.Column(c).FillWidth().Gap(2).Children(func() {
+		ui.Text(c, d.resultsTitle()).Font(displayFont()).FontSize(textSize(theme, 17)).
+			FontWeight(600).TextColor(theme.Text).SingleLine()
+		ui.Text(c, d.resultsSubtitle()).Font(bodyFont()).FontSize(textSize(theme, 12)).
+			TextColor(theme.TextMuted).SingleLine()
+	})
+}
+
+// grid draws the loaded matches and scrolls for more. Scroll position decides
+// when the next batch is asked for, so browsing never paginates.
+func (d *Discover) grid(c *ui.Context, layout Layout) {
+	ui.Scroll(c).Grow(1).FillWidth().TrackScroll(&d.scroll).Children(func() {
+		ui.Column(c).FillWidth().Gap(12).Children(func() {
+			ChannelGrid{
+				Key:     "discover-grid",
+				Tiles:   d.tiles(),
+				Columns: layout.DiscoverColumns,
+				Height:  layout.TileHeight,
+			}.View(c)
+
+			if d.state.HasMore {
+				d.skeletonRow(c, layout)
+			}
+		})
+	})
+}
+
+// tiles maps the loaded rows to shared channel tiles.
+func (d *Discover) tiles() []ChannelTile {
+	current := d.currentKey()
+
+	tiles := make([]ChannelTile, 0, len(d.state.Channels))
+	for _, channel := range d.state.Channels {
+		key := channel.Key
+		tiles = append(tiles, ChannelTile{
+			Key:        "discover-tile:" + key,
+			Name:       channel.Name,
+			Meta:       d.channelMeta(channel),
+			Live:       channel.Live,
+			LiveCorner: true,
+			Art:        d.art(channel),
+			FocusField: &d.focus,
+			FocusValue: discoverGridFocus + key,
+			Selected:   key == current,
+			OnActivate: func() { d.selectKey(key) },
+		})
+	}
+
+	return tiles
+}
+
+// skeletonRow shows the grid's shape while the next batch arrives.
+func (d *Discover) skeletonRow(c *ui.Context, layout Layout) {
+	columns := max(layout.DiscoverColumns, 1)
+	theme := c.Theme()
+
+	ui.Grid(c).FillWidth().Columns(columns).Gap(12).Children(func() {
+		for range columns {
+			card := ui.Box(c).Height(layout.TileHeight).Radius(radiusTile).
+				Background(theme.Surface).ClipInset(0, 0, 0, 0, radiusTile)
+			pulse := card.Loop("discover-skeleton-more", 1600*time.Millisecond, ui.Bounce(ui.EaseInOut))
+			card.Opacity(0.45 + 0.35*pulse)
+			card.AccessHidden(true)
+		}
+	})
+}
+
+// requestMore asks for the next batch when the grid is near its end.
+func (d *Discover) requestMore() {
+	if d.searchMode() || !d.state.HasMore || d.moreRequested || d.OnLoadMore == nil {
+		return
+	}
+	if d.scroll.MaxY <= 0 || d.scroll.Y < d.scroll.MaxY-400 {
+		return
+	}
+
+	d.moreRequested = true
+	d.OnLoadMore()
+}
+
+// searchList draws the virtualized results for a query.
+func (d *Discover) searchList(c *ui.Context) {
+	if len(d.state.Channels) == 0 {
+		d.empty(c)
+
+		return
+	}
+
+	list := ui.List(c, &d.list, len(d.state.Channels)).
+		Grow(1).FillWidth().
+		Label("Channels").
+		ItemKey(func(i int) any { return d.state.Channels[i].Key }).
+		TrackScroll(&d.scroll).
+		Rows(func(row ui.ListRow) {
+			d.searchRow(row)
+		})
+	if list.Submitted() {
+		d.submit()
+	}
+}
+
+// searchRow draws one channel with the shared dense row.
+func (d *Discover) searchRow(row ui.ListRow) {
+	channel := d.state.Channels[row.Index]
+	favorite := d.favorites[channel.Key]
+	label := "Add to Favorites"
+	if favorite {
+		label = "Remove from Favorites"
+	}
+
+	ChannelRow{
+		Name:           channel.Name,
+		Meta:           d.channelMeta(channel),
+		Live:           channel.Live,
+		Art:            d.art(channel),
+		Action:         label,
+		ActionSelected: favorite,
+		OnAction:       func() { d.toggleFavorite(channel.Key) },
+	}.ListView(row.Context, row)
+}
+
+// noCountry draws the approved first-launch state with explicit actions.
+func (d *Discover) noCountry(c *ui.Context, theme *ui.Theme, layout Layout) {
+	message := "Use the country filter above to discover live channels.\nNo country is selected yet."
+	if custom := strings.TrimSpace(d.state.Message); custom != "" {
+		message = custom
+	}
+
+	body := ui.Grid(c).Grow(1).FillWidth().Gap(20)
+	if layout.CategoryColumn {
+		body = body.ColumnTracks(discoverBodyTracks(layout)...)
+	} else {
+		body = body.ColumnTracks(ui.Fr(1))
+	}
+
+	body.Children(func() {
+		if layout.CategoryColumn {
+			ui.Column(c).Gap(10).AlignItems(ui.Start).Children(func() {
+				ui.Text(c, "CATEGORIES").Font(bodyFont()).FontSize(textSize(theme, 11)).
+					FontWeight(700).LetterSpacing(1.4).TextColor(theme.TextMuted).SingleLine()
+				ui.Text(c, "Choose a country to see available categories.").
+					Font(bodyFont()).FontSize(textSize(theme, 13)).
+					TextColor(theme.TextMuted)
+			})
+		}
+
+		ui.Column(c).Gap(12).Children(func() {
+			ui.Column(c).FillWidth().Gap(2).Children(func() {
+				ui.Text(c, "Channels").Font(displayFont()).FontSize(textSize(theme, 17)).
+					FontWeight(600).TextColor(theme.Text).SingleLine()
+				ui.Text(c, "Select a country to load channels from this catalog.").
+					Font(bodyFont()).FontSize(textSize(theme, 13)).
+					TextColor(theme.TextMuted).SingleLine()
+			})
+
+			d.prompt(c, theme, icons().globe, "Choose a country to get started",
+				message,
+				"Select a country",
+				func() { d.openCountryPicker() },
+				"", nil,
+			)
+		})
+	})
+}
+
+// disabled draws the community-catalog-off state with a real way forward.
+func (d *Discover) disabled(c *ui.Context, theme *ui.Theme) {
+	message := d.state.Message
+	if message == "" {
+		message = "Turn the community catalog back on in Settings, or add your own playlist."
+	}
+
+	d.prompt(c, theme, icons().sliders, "Community catalog is off",
+		message,
+		"Open Settings", d.openSettings,
+		"", nil,
+	)
+}
+
+// offlineNote explains cached results above them.
+func (d *Discover) offlineNote(c *ui.Context, theme *ui.Theme) {
+	message := d.state.Message
+	if message == "" {
+		message = "Showing saved channels. The catalog could not be refreshed."
+	}
+
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(12).Padding(8, 12).
+		Background(theme.Surface).Border(1, theme.Border).Children(func() {
+		ui.Icon(c, icons().alert).Size(14, 14).TextColor(theme.Warning).AccessHidden(true)
+		ui.Text(c, message).Font(bodyFont()).FontSize(textSize(theme, 12)).
+			TextColor(theme.TextMuted).Grow(1).SingleLine()
+		ui.Button(c, "Retry").OnClick(d.retry)
+	})
 }
 
 // empty draws the empty state: filters when they explain it, retry otherwise.
@@ -381,110 +785,211 @@ func (d *Discover) empty(c *ui.Context) {
 	})
 }
 
-// offline draws cached channels with a refresh warning above them, or the
-// offline status when nothing was cached.
-func (d *Discover) offline(c *ui.Context, theme *ui.Theme) {
-	if len(d.state.Channels) == 0 {
-		pageStatus(c, Status{
-			Kind:     StatusOffline,
-			Title:    "You are offline",
-			Message:  "Connect to the internet and retry, or add your own playlist.",
-			Action:   "Retry",
-			OnAction: d.retry,
+// prompt draws a centered icon, title, guidance and up to two actions.
+func (d *Discover) prompt(
+	c *ui.Context,
+	theme *ui.Theme,
+	icon *ui.SVG,
+	title, message, primary string,
+	onPrimary func(),
+	secondary string,
+	onSecondary func(),
+) {
+	ui.Column(c).Grow(1).FillWidth().Center().Gap(20).Padding(0, 0, 48, 0).Children(func() {
+		ui.Box(c).Size(64, 64).Radius(32).Background(theme.Surface).Center().Children(func() {
+			ui.Icon(c, icon).Size(26, 26).TextColor(theme.TextMuted).AccessHidden(true)
 		})
 
+		ui.Column(c).Center().Gap(8).Children(func() {
+			ui.Text(c, title).Font(displayFont()).FontSize(textSize(theme, 26)).
+				FontWeight(600).LetterSpacing(-0.6).TextColor(theme.Text).
+				TextAlign(ui.Center).MaxWidth(560).MaxLines(2)
+			ui.Text(c, message).Font(bodyFont()).FontSize(textSize(theme, 14)).
+				TextColor(theme.TextMuted).TextAlign(ui.Center).MaxWidth(520)
+		})
+
+		ui.Row(c).Gap(10).Children(func() {
+			ui.PrimaryButton(c, primary).OnClick(onPrimary)
+			if secondary != "" && onSecondary != nil {
+				ui.Button(c, secondary).OnClick(onSecondary)
+			}
+		})
+	})
+}
+
+// countryPicker draws the bounded, searchable country modal.
+func (d *Discover) countryPicker(c *ui.Context, theme *ui.Theme) {
+	if !d.pickerOpen {
 		return
 	}
 
-	message := d.state.Message
-	if message == "" {
-		message = "Showing saved channels. The catalog could not be refreshed."
-	}
+	matches := d.countryMatches()
 
-	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(12).Padding(8, 12).
-		Background(theme.Surface).Border(1, theme.Border).Children(func() {
-		ui.Text(c, "!").TextColor(theme.Warning).AccessHidden(true)
-		ui.Text(c, message).TextColor(theme.TextMuted).Grow(1)
-		ui.Button(c, "Retry").OnClick(d.retry)
-	})
+	panel := ui.DialogBase(c, &d.pickerOpen, func(backdrop, panel ui.Element) {
+		backdrop.Background(ui.RGBA(0, 0, 0, 0.4))
+		panel.Width(420).MaxWidthPercent(92).Padding(18).Gap(12).Radius(12).
+			Background(theme.Background).Border(1, theme.Border).
+			Shadow(0, 12, 32, 0, ui.RGBA(0, 0, 0, 0.35)).
+			Label(discoverChooseCountry)
 
-	d.channelList(c, theme)
-}
+		ui.Text(c, discoverChooseCountry).Font(displayFont()).
+			FontSize(textSize(theme, 20)).FontWeight(600).TextColor(theme.Text)
 
-// channelList draws the result summary and the virtualized channel rows.
-func (d *Discover) channelList(c *ui.Context, theme *ui.Theme) {
-	if d.notice != "" {
-		ui.Text(c, d.notice).FontSize(theme.Rem(0.85)).TextColor(theme.TextMuted).SingleLine()
-	}
-	if summary := d.resultSummary(); summary != "" {
-		ui.Text(c, summary).FontSize(theme.Rem(0.85)).TextColor(theme.TextMuted).SingleLine()
-	}
+		switch {
+		case d.countriesError != "":
+			ui.Text(c, d.countriesError).Font(bodyFont()).FontSize(textSize(theme, 13)).
+				TextColor(theme.Danger)
+			ui.Button(c, "Retry").OnClick(d.reloadCountries)
+		case !d.countriesReady:
+			ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
+				ui.Spinner(c).Size(16, 16).Label("Loading countries")
+				ui.Text(c, "Loading countries…").Font(bodyFont()).
+					FontSize(textSize(theme, 13)).TextColor(theme.TextMuted)
+			})
+		default:
+			ui.SearchField(c, &d.pickerQuery).Label("Search countries").
+				Bind(&d.pickerSearch).AutoFocus()
 
-	list := ui.List(c, &d.list, len(d.state.Channels), func(i int) {
-		d.row(c, theme, i)
-	}).
-		Grow(1).
-		Label("Channels").
-		ItemKey(func(i int) any { return d.state.Channels[i].Key }).
-		TrackScroll(&d.scroll)
-	if d.selected >= 0 && d.selected < len(d.state.Channels) {
-		d.selectedKey = d.state.Channels[d.selected].Key
-	} else {
-		d.selectedKey = ""
-	}
-	if list.Submitted() {
-		d.submit()
-	}
-}
-
-// row draws one channel with its logo, title, metadata and format label.
-func (d *Discover) row(c *ui.Context, theme *ui.Theme, i int) {
-	channel := d.state.Channels[i]
-
-	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(12).Padding(8, 10).Children(func() {
-		avatar := ui.Avatar(c, channel.Name, d.logos[channel.LogoURL])
-		if tint, ok := d.logoColors[channel.LogoURL]; ok {
-			avatar.Background(tint)
-		}
-
-		ui.Column(c).Grow(1).Gap(2).Children(func() {
-			ui.Text(c, channel.Name).FontSize(theme.Rem(1.08)).FontWeight(500).SingleLine()
-			if meta := d.channelMeta(channel); meta != "" {
-				ui.Text(c, meta).FontSize(theme.Rem(0.85)).TextColor(theme.TextMuted).SingleLine()
+			if len(matches) == 0 {
+				ui.Text(c, "No countries match your search.").Font(bodyFont()).
+					FontSize(textSize(theme, 13)).TextColor(theme.TextMuted)
+			} else {
+				list := ui.List(c, &d.pickerList, len(matches)).MaxHeight(360).
+					Label("Countries").
+					ItemKey(func(i int) any { return matches[i].Code }).
+					Rows(func(row ui.ListRow) {
+						d.countryRow(c, theme, row, matches)
+					})
+				if list.Submitted() {
+					d.pickCountry(matches)
+				}
 			}
-		})
 
-		if channel.Live {
-			ui.Text(c, "LIVE").FontSize(theme.Rem(0.8)).FontWeight(600).
-				TextColor(theme.TextMuted).Padding(2, 7).Radius(4).
-				Background(theme.Surface).Border(1, theme.Border)
+			ui.Row(c).Justify(ui.End).Children(func() {
+				ui.Button(c, "Cancel").OnClick(func() { d.pickerOpen = false })
+			})
 		}
-
-		if channel.Key == "" {
-			return
-		}
-
-		favorite := d.favorites[channel.Key]
-		label := "Add to Favorites"
-		if favorite {
-			label = "Remove from Favorites"
-		}
-		ui.Button(c, label).AccessSelected(favorite).OnClick(func() {
-			if d.OnToggleFavorite != nil {
-				d.OnToggleFavorite(channel.Key)
-			}
-		})
 	})
+	if panel.Valid() && panel.Dismissed() {
+		d.closeCountryPicker()
+	}
 }
 
-// submit opens the focused channel on Enter or a double click.
+// countryRow draws one selectable country with its code.
+func (d *Discover) countryRow(
+	c *ui.Context,
+	theme *ui.Theme,
+	row ui.ListRow,
+	matches []DiscoverCountry,
+) {
+	country := matches[row.Index]
+	active := strings.EqualFold(country.Code, d.state.Region)
+
+	button := ui.ButtonBase(c).FillWidth().Height(36).Padding(8, 10).Radius(8).
+		Gap(8).AlignItems(ui.Center).FocusRingOffset(-2).
+		AccessSelected(active).Label(countryLabel(country))
+	if button.Hovered() {
+		button = button.Background(ui.RGBA(255, 255, 255, 0.05))
+	}
+	button.Children(func() {
+		ui.Text(c, country.Name).Font(bodyFont()).FontSize(textSize(theme, 14)).
+			TextColor(theme.Text).Grow(1).SingleLine()
+		ui.Text(c, strings.ToUpper(country.Code)).Font(bodyFont()).
+			FontSize(textSize(theme, 12)).TextColor(theme.TextMuted).SingleLine()
+	})
+	if button.Clicked() {
+		d.pickerSelected = row.Index
+		d.pickCountry(matches)
+	}
+}
+
+// countryMatches narrows the published countries by the picker query.
+func (d *Discover) countryMatches() []DiscoverCountry {
+	query := strings.ToLower(strings.TrimSpace(d.pickerQuery))
+	if query == "" {
+		return d.countries
+	}
+
+	matches := make([]DiscoverCountry, 0, len(d.countries))
+	for _, country := range d.countries {
+		name := strings.ToLower(country.Name)
+		code := strings.ToLower(country.Code)
+		if strings.Contains(name, query) || strings.Contains(code, query) {
+			matches = append(matches, country)
+		}
+	}
+
+	return matches
+}
+
+// pickCountry closes the picker and reports the chosen code.
+func (d *Discover) pickCountry(matches []DiscoverCountry) {
+	index := d.pickerSelected
+	if index < 0 || index >= len(matches) {
+		return
+	}
+
+	code := matches[index].Code
+	d.pickerOpen = false
+	d.pickerSelected = -1
+	if code == "" {
+		return
+	}
+
+	d.state.Region = code
+	d.selectedKey = ""
+	d.selected = -1
+	if d.OnRegion != nil {
+		d.OnRegion(code)
+	}
+}
+
+// openCountryPicker shows the picker and clears its local query.
+func (d *Discover) openCountryPicker() {
+	d.pickerOpen = true
+	d.pickerQuery = ""
+	d.pickerSelected = -1
+	d.pickerList.Selected = &d.pickerSelected
+}
+
+// closeCountryPicker hides the picker and drops its local query.
+func (d *Discover) closeCountryPicker() {
+	d.pickerOpen = false
+	d.pickerQuery = ""
+}
+
+// reloadCountries dispatches the country-list reload intent.
+func (d *Discover) reloadCountries() {
+	if d.OnReloadCountries != nil {
+		d.OnReloadCountries()
+	}
+}
+
+// submit opens the selected search row.
 func (d *Discover) submit() {
 	if d.selected < 0 || d.selected >= len(d.state.Channels) {
 		return
 	}
-	if d.OnSelect != nil {
-		d.OnSelect(d.state.Channels[d.selected].Key)
+	d.selectKey(d.state.Channels[d.selected].Key)
+}
+
+// selectKey opens one channel and remembers it as the target.
+func (d *Discover) selectKey(key string) {
+	if key == "" {
+		return
 	}
+	d.selectedKey = key
+	if d.OnSelect != nil {
+		d.OnSelect(key)
+	}
+}
+
+// toggleFavorite toggles one row's favorite state.
+func (d *Discover) toggleFavorite(key string) {
+	if key == "" || d.OnToggleFavorite == nil {
+		return
+	}
+	d.OnToggleFavorite(key)
 }
 
 // retry dispatches the retry intent.
@@ -492,6 +997,32 @@ func (d *Discover) retry() {
 	if d.OnRetry != nil {
 		d.OnRetry()
 	}
+}
+
+// addPlaylist dispatches the import intent.
+func (d *Discover) addPlaylist() {
+	if d.OnAddPlaylist != nil {
+		d.OnAddPlaylist()
+	}
+}
+
+// openSettings dispatches the Settings intent.
+func (d *Discover) openSettings() {
+	if d.OnOpenSettings != nil {
+		d.OnOpenSettings()
+	}
+}
+
+// setCategory narrows by category and reports it.
+func (d *Discover) setCategory(category string) {
+	if category == discoverAllCategories {
+		category = ""
+	}
+	if category == d.category {
+		return
+	}
+	d.category = category
+	d.emitFilter()
 }
 
 // emitFilter reports the current narrowing.
@@ -505,26 +1036,91 @@ func (d *Discover) emitFilter() {
 func (d *Discover) clearFilters() {
 	d.query = ""
 	d.category = ""
-	d.sourceID = ""
 	d.emitFilter()
 }
 
-// rowLabel names a row for assistive technology and type-select.
+// searchMode reports whether the page uses the virtualized row list.
+func (d *Discover) searchMode() bool {
+	return strings.TrimSpace(d.query) != ""
+}
+
+// MoveTile moves the grid cursor by one row or column. It runs on the UI
+// thread from the shortcut registry, after the page recorded its columns.
+func (d *Discover) MoveTile(dx, dy int) {
+	total := len(d.state.Channels)
+	if d.searchMode() || total == 0 {
+		return
+	}
+
+	columns := max(d.columns, 1)
+	index := d.indexForKey(d.currentKey())
+	if index < 0 {
+		index = 0
+	}
+
+	row, column := index/columns, index%columns
+	column = min(max(column+dx, 0), columns-1)
+	row = min(max(row+dy, 0), (total-1)/columns)
+	next := min(row*columns+column, total-1)
+
+	d.selected = next
+	d.selectedKey = d.state.Channels[next].Key
+	d.focus = discoverGridFocus + d.selectedKey
+}
+
+// currentKey returns the channel the keyboard targets, empty for none.
+func (d *Discover) currentKey() string {
+	if d.searchMode() {
+		if d.selected >= 0 && d.selected < len(d.state.Channels) {
+			return d.state.Channels[d.selected].Key
+		}
+
+		return ""
+	}
+	if key := d.gridKey(); key != "" && d.indexForKey(key) >= 0 {
+		return key
+	}
+	if d.indexForKey(d.selectedKey) >= 0 {
+		return d.selectedKey
+	}
+
+	return ""
+}
+
+// gridKey returns the channel key behind the grid focus value.
+func (d *Discover) gridKey() string {
+	key, ok := strings.CutPrefix(d.focus, discoverGridFocus)
+	if !ok {
+		return ""
+	}
+
+	return key
+}
+
+// settleFocus drops a grid target the loaded rows no longer show. It never
+// claims the keyboard on its own: the search field or a click owns the first
+// focus, and the arrow keys move the grid cursor after that.
+func (d *Discover) settleFocus() {
+	if d.searchMode() || len(d.state.Channels) == 0 {
+		d.focus = ""
+
+		return
+	}
+	if key := d.gridKey(); key != "" && d.indexForKey(key) >= 0 {
+		d.selectedKey = key
+
+		return
+	}
+	d.focus = ""
+}
+
+// rowLabel names a search row for assistive technology and type-select.
 func (d *Discover) rowLabel(i int) string {
 	if i < 0 || i >= len(d.state.Channels) {
 		return ""
 	}
 
-	channel := d.state.Channels[i]
-	parts := []string{channel.Name}
-	if meta := d.channelMeta(channel); meta != "" {
-		parts = append(parts, meta)
-	}
-	if channel.Live {
-		parts = append(parts, "live format")
-	}
-
-	return strings.Join(parts, ", ")
+	return channelLabel(d.state.Channels[i].Name, d.channelMeta(d.state.Channels[i]), d.state.Channels[i].Live)
 }
 
 // channelMeta builds "Country · Category · Source" from a row.
@@ -544,43 +1140,90 @@ func (d *Discover) channelMeta(channel DiscoverChannel) string {
 	return strings.Join(parts, " · ")
 }
 
-// resultSummary counts results, and says when the list is capped.
-func (d *Discover) resultSummary() string {
+// art returns one channel's published artwork and monogram fallback.
+func (d *Discover) art(channel DiscoverChannel) Artwork {
+	url := channel.LogoURL
+
+	return Artwork{
+		Bitmap:   d.logos[url],
+		Color:    d.logoColors[url],
+		Monogram: monogram(channel.Name),
+	}
+}
+
+// resultsTitle names the current result set.
+func (d *Discover) resultsTitle() string {
+	if d.searchMode() {
+		return "Search results"
+	}
+	if name := d.countryName(d.state.Region); name != "" {
+		return name + " channels"
+	}
+
+	return "Channels"
+}
+
+// resultsSubtitle reports the real count, view and source.
+func (d *Discover) resultsSubtitle() string {
 	total := d.state.Total
 	if total == 0 {
 		total = len(d.state.Channels)
 	}
-	if total == 0 {
-		return ""
-	}
-	if d.state.Truncated {
-		return "Showing first " + strconv.Itoa(len(d.state.Channels)) +
-			" of " + strconv.Itoa(total) + " channels. Refine your search."
-	}
-	if d.Filters().Empty() {
-		return ""
+
+	view := "grid view"
+	if d.searchMode() {
+		view = "list view"
 	}
 
-	return strconv.Itoa(total) + " channels"
+	parts := []string{resultCount(total), view}
+	if d.state.Truncated {
+		parts = append(parts, "first "+strconv.Itoa(len(d.state.Channels))+" shown")
+	}
+
+	return strings.Join(parts, " · ")
 }
 
-// regionLabels returns the selector labels, or nil while the region list and
-// the current region are both unknown.
-func (d *Discover) regionLabels() []string {
-	labels := make([]string, 0, len(d.countries))
-	for _, country := range d.countries {
-		if name := strings.TrimSpace(country.Name); name != "" {
-			labels = append(labels, name)
-		}
-	}
-	if len(labels) > 0 {
-		return labels
-	}
-	if d.state.Region != "" {
-		return []string{d.regionLabel()}
+// resultCount names a number of results.
+func resultCount(n int) string {
+	if n == 1 {
+		return "1 result"
 	}
 
-	return nil
+	return strconv.Itoa(n) + " results"
+}
+
+// categoryLabel is a rail row's accessible name.
+func categoryLabel(name string, count int) string {
+	if count == 1 {
+		return name + ", 1 channel"
+	}
+
+	return name + ", " + strconv.Itoa(count) + " channels"
+}
+
+// countryLabel is a country row's accessible name.
+func countryLabel(country DiscoverCountry) string {
+	name := strings.TrimSpace(country.Name)
+	code := strings.ToUpper(strings.TrimSpace(country.Code))
+	if code == "" {
+		return name
+	}
+	if name == "" {
+		return code
+	}
+
+	return name + ", " + code
+}
+
+// categoryExists reports whether categories carries name.
+func categoryExists(categories []DiscoverCategory, name string) bool {
+	for _, category := range categories {
+		if category.Name == name {
+			return true
+		}
+	}
+
+	return false
 }
 
 // regionLabel returns the current region's display name, or its code before
@@ -590,7 +1233,7 @@ func (d *Discover) regionLabel() string {
 		return name
 	}
 
-	return d.state.Region
+	return strings.ToUpper(strings.TrimSpace(d.state.Region))
 }
 
 // countryName resolves a region code through the published countries.
@@ -606,64 +1249,6 @@ func (d *Discover) countryName(code string) string {
 	}
 
 	return ""
-}
-
-// countryCode resolves a selector label back to its region code.
-func (d *Discover) countryCode(label string) (string, bool) {
-	if code, ok := d.codeInCountries(label); ok {
-		return code, true
-	}
-	if strings.EqualFold(label, d.state.Region) {
-		return d.state.Region, true
-	}
-
-	return "", false
-}
-
-func (d *Discover) codeInCountries(label string) (string, bool) {
-	for _, country := range d.countries {
-		if strings.EqualFold(country.Name, label) {
-			return country.Code, true
-		}
-	}
-
-	return "", false
-}
-
-// sourceLabel returns the selector label for the current source filter.
-func (d *Discover) sourceLabel() string {
-	if d.sourceID == "" {
-		return discoverAllSources
-	}
-	for _, source := range d.sources {
-		if source.ID == d.sourceID {
-			return source.Name
-		}
-	}
-
-	return discoverAllSources
-}
-
-// facetID resolves a filter label back to its stable ID; "all" is empty.
-func facetID(facets []DiscoverFacet, label string) string {
-	for _, facet := range facets {
-		if facet.Name == label {
-			return facet.ID
-		}
-	}
-
-	return ""
-}
-
-// facetExists reports whether id is a published source facet.
-func facetExists(facets []DiscoverFacet, id string) bool {
-	for _, facet := range facets {
-		if facet.ID == id {
-			return true
-		}
-	}
-
-	return false
 }
 
 // defaultMessage returns the state's message or the page's own copy.
@@ -687,6 +1272,8 @@ func (d *Discover) defaultMessage() string {
 		return "mumu could not load the community catalog. Check your connection and retry, or add your own playlist."
 	case DiscoverOffline:
 		return "Showing saved channels. The catalog could not be refreshed."
+	case DiscoverNoCountry:
+		return "Choose a country to discover live channels."
 	default:
 		if name := d.regionLabel(); name != "" {
 			return "The community catalog has no channels for " + name + " right now. Retry, or add your own playlist."
