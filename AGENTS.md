@@ -140,6 +140,26 @@ and `MYGO_SQLITE_LIBRARY` no longer exist; the replacement override is
   upgrade. Existing databases keep their schema, favorites, recent history and
   settings.
 
+### Native video overlay
+
+ADR 0009 decides how MyGo chrome meets live video. The retained `NSOpenGLView`
+is inserted **under** MyGo's surface (`NSWindowBelow` of `MyGoSurfaceView`) and
+the Watch window root is transparent, so scrims, the drawer and player controls
+paint above live video while MyGo keeps all pointer input.
+
+- `ui.NativeView` is **not** the production path for the video: MyGo gives a
+  placed native view the pointer across its whole box, which swallows clicks on
+  chrome drawn over it.
+- `video.Surface` exposes `NativeViewHandle` and `SyncDrawable` for a host that
+  lays the view out itself. The app must call `SyncDrawable` after layout, a
+  window move or a scale change.
+- `libmpv.Engine.SetPaused` and `SetReadAhead` are experiment seams for #37.
+  Pause holds the displayed frame and stops audio; a live stream still reads
+  ahead a little, which #37 must resolve before claiming a stopped read-ahead.
+- Do not detach live video to show an overlay, and do not add a second view,
+  decoder or player for PiP. Evidence:
+  `docs/architecture/evidence/overlay-2026-11-12/`.
+
 ## 5. Phases and implementation gates
 
 - **M0 — Feasibility:** [#1](https://github.com/satyawikananda/mumu/issues/1) playback embedding; [#2](https://github.com/satyawikananda/mumu/issues/2) single-session PiP. Produce reproducible **GO / CONDITIONAL GO / NO-GO** findings.
@@ -285,6 +305,7 @@ Before claiming completion:
 - **After #13:** Implemented: `internal/library` for favorites, recent viewing and the resume reference; Library with Favorites, Recently watched and Playlists tabs; one source-scoped favorite cache shared by Watch, Discover and Library; provider-ID remapping on refresh in `internal/storage`. See `docs/architecture/library.md` and `docs/ux/library.md`.
 - **v0.1.0 release blockers:** the native view now follows the playback state in both windows (attached only for `playing`/`buffering`, detached for loading/error/stopped so the glass overlay is visible); returning from PiP recreates a closed main window by native pointer identity; a failed switch offers Back to the previous channel; a launch always starts unmuted while the last volume is restored. PiP behavior therefore changed from #12. See `docs/architecture/watch.md`, `video-surface.md` and `pip.md`.
 - **After #31 (M5 revamp baseline):** MyGo upgraded to 0.9.0 with the same Go 1.27.3 toolchain. No view code changed: the app already used checked `ui.Element` values, `ui.Handle` identity and same-pass `Changed` commits, and `go tool mygo migrate-ui .` reports no diff. SQLite now loads through the `Sqlitecore` native module; `verify-app.sh` gates `Contents/Resources/libSqlitecore.dylib`. Evidence: `docs/architecture/evidence/mygo-0.9.0-upgrade.md`.
+- **After #32 (M5 revamp, overlay gate):** CONDITIONAL GO for composing MyGo chrome above the retained libmpv view by inserting the view under MyGo's surface. Recorded: live video with clickable chrome, one session through PiP transfer, paused frame with audio stopped. Not recorded: radius clipping, PiP drag/resize details, repeated toggles, dead-stream recovery. See [ADR 0009](docs/architecture/adr/0009-native-video-overlay.md).
 - Changes to player/rendering boundaries or startup UX require updating both relevant docs and acceptance tests.
 
 ## 12. Reference material

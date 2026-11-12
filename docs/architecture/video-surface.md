@@ -89,6 +89,23 @@ Detach()               removeFromSuperview → clearDrawable → drawable size 0
   the frame in flight instead of racing it. A blocked detach lasts at most one
   frame.
 
+### Hosted under MyGo's surface
+
+ADR 0009 adds a second presentation for the same retained view: it can sit
+**under** MyGo's surface instead of over the content view. The app moves it with
+`addSubview:positioned:relativeTo: NSWindowBelow`, leaves the window root
+transparent, and calls `SyncDrawable` after layout, a window move or a scale
+change. MyGo's layer is not opaque, so the video shows through pixels the view
+leaves empty, and MyGo keeps all pointer input because it never placed the view
+itself.
+
+This is the path the M5 revamp uses, and the reason the loading/error detach
+above is temporary: once #38 lands, those panels paint over live video. The
+`ui.NativeView` element does not work for interactive chrome, because MyGo hands
+the pointer to a placed view across its whole box. See
+[ADR 0009](adr/0009-native-video-overlay.md) and the
+[evidence](evidence/overlay-2026-11-12/README.md) for the recorded behavior.
+
 ## Lifetime
 
 Teardown order is not negotiable:
