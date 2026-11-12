@@ -40,10 +40,18 @@ type app struct {
 	stream      string
 	autoplay    bool
 	keepFront   bool
+	radius      float64
+	pipToggles  int
+	toggleEvery time.Duration
+	resizeCycle bool
+	host        *hostedView
 	pauseAfter  time.Duration
 	resumeAfter time.Duration
 	ctx         context.Context
 	cancel      context.CancelFunc
+
+	pendingMu sync.Mutex
+	pending   []func()
 
 	mu sync.Mutex
 }
@@ -56,6 +64,10 @@ func main() {
 	autoclose := flag.Duration("autoclose", 0, "quit after this duration, for scripted evidence runs")
 	logfile := flag.String("logfile", "", "write logs here instead of stderr, for runs started through open(1)")
 	keepFront := flag.Bool("keepfront", false, "keep this window in front, for scripted screenshots and clicks; an experiment-only convenience")
+	radius := flag.Float64("radius", 0, "corner radius of the hosted video container, in points")
+	pipToggles := flag.Int("pip-toggles", 0, "move the session between windows this many times, for scripted evidence")
+	toggleEvery := flag.Duration("toggle-every", 1200*time.Millisecond, "interval between scripted PiP toggles")
+	resizeCycle := flag.Bool("resize-cycle", false, "resize the window while playing, for scripted evidence")
 	pauseAfter := flag.Duration("pause-after", 0, "pause the stream after this duration, for scripted evidence runs")
 	resumeAfter := flag.Duration("resume-after", 0, "resume a scripted pause after this duration from the pause")
 	flag.Parse()
@@ -91,6 +103,10 @@ func main() {
 		stream:      *stream,
 		autoplay:    *autoplay,
 		keepFront:   *keepFront,
+		radius:      *radius,
+		pipToggles:  *pipToggles,
+		toggleEvery: *toggleEvery,
+		resizeCycle: *resizeCycle,
 		pauseAfter:  *pauseAfter,
 		resumeAfter: *resumeAfter,
 		ctx:         ctx,
@@ -203,6 +219,12 @@ func (a *app) start() {
 	}
 	if a.pauseAfter > 0 {
 		a.schedulePause()
+	}
+	if a.pipToggles > 0 {
+		a.schedulePiPToggles()
+	}
+	if a.resizeCycle {
+		a.scheduleResizeCycle()
 	}
 }
 
@@ -349,10 +371,18 @@ func (a *app) onResize() {
 			log.Printf("attach: %v", err)
 		}
 		if a.s.Mode == modeBelow {
-			if err := demoteBelowSurface(window.NativeHandle(), a.sess.surface.NativeViewHandle()); err != nil {
-				log.Printf("demote: %v", err)
+			if a.host == nil {
+				a.host = newHostedView(a.radius)
+				if a.host == nil {
+					log.Printf("host container: unavailable")
+				}
 			}
-			log.Printf("subviews bottom-to-top: %v", subviewOrder(window.NativeHandle()))
+			if a.host != nil {
+				if err := a.host.attach(window.NativeHandle(), a.sess.surface.NativeViewHandle()); err != nil {
+					log.Printf("host attach: %v", err)
+				}
+				log.Printf("subviews bottom-to-top: %v", subviewOrder(window.NativeHandle()))
+			}
 		}
 		if err := a.sess.syncDrawable(); err != nil && err != video.ErrClosed {
 			log.Printf("attach sync: %v", err)
@@ -366,6 +396,74 @@ func (a *app) onResize() {
 		log.Printf("sync drawable: %v", err)
 	}
 	a.s.DrawableW, a.s.DrawableH = drawableSize(a.sess.surface)
+}
+
+// post queues fn to run on the UI thread during the next build. Window.Update
+// from a worker is not reliable while the window is not frontmost, and the
+// scripted runs need a deterministic main-thread hop.
+func (a *app) post(fn func()) {
+	a.pendingMu.Lock()
+	a.pending = append(a.pending, fn)
+	a.pendingMu.Unlock()
+}
+
+// drainPending runs the queued actions. Main thread only.
+func (a *app) drainPending() {
+	a.pendingMu.Lock()
+	queued := a.pending
+	a.pending = nil
+	a.pendingMu.Unlock()
+
+	for _, fn := range queued {
+		fn()
+	}
+}
+
+// schedulePiPToggles moves the session between windows on a timer. The count is
+// the recorded evidence for repeated transfers: the same view handle and one
+// stream load must hold throughout.
+func (a *app) schedulePiPToggles() {
+	go func() {
+		for i := range a.pipToggles {
+			select {
+			case <-a.ctx.Done():
+				return
+			case <-time.After(a.toggleEvery):
+			}
+			n := i + 1
+			a.post(func() {
+				log.Printf("scripted PiP toggle %d/%d", n, a.pipToggles)
+				a.movePiP()
+				a.target().Invalidate()
+			})
+		}
+	}()
+}
+
+// scheduleResizeCycle resizes the window, then enters and leaves fullscreen,
+// while the stream keeps playing.
+func (a *app) scheduleResizeCycle() {
+	go func() {
+		steps := []func(){
+			func() { a.win.SetContentSize(760, 480) },
+			func() { a.win.SetContentSize(1100, 700) },
+			func() { a.win.SetContentSize(900, 560) },
+			func() { a.win.ToggleFullScreen() },
+			func() { a.win.ToggleFullScreen() },
+		}
+		for i, step := range steps {
+			select {
+			case <-a.ctx.Done():
+				return
+			case <-time.After(1800 * time.Millisecond):
+			}
+			index := i + 1
+			a.post(func() {
+				log.Printf("scripted resize step %d/%d", index, len(steps))
+				step()
+			})
+		}
+	}()
 }
 
 // schedulePause runs the scripted pause and resume, so a recording or a byte

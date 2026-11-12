@@ -1,0 +1,3 @@
+2026/11/12 13:05:04 subviews bottom-to-top: [NSOpenGLView MyGoSurfaceView]
+2026/11/12 13:05:59 subviews bottom-to-top: [NSOpenGLView MyGoSurfaceView]
+2026/11/12 13:06:00 subviews bottom-to-top: [NSOpenGLView MyGoSurfaceView]

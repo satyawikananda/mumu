@@ -1,0 +1,3 @@
+2026/11/12 03:30:00 event: playing
+2026/11/12 03:30:07 paused=true
+2026/11/12 03:30:19 paused=false
