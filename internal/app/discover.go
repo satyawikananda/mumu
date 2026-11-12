@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"image"
+	"image/color"
 	"log/slog"
 	"slices"
 	"strings"
@@ -297,6 +298,7 @@ type logoCache struct {
 	fetcher *logos.Fetcher
 	limit   int
 	bitmaps map[string]*myui.Bitmap
+	colors  map[string]myui.Color
 	order   []string
 }
 
@@ -306,11 +308,13 @@ func newDiscoverLogos() *logoCache {
 		fetcher: logos.NewFetcher(netguard.Policy{}),
 		limit:   discoverBitmapLimit,
 		bitmaps: map[string]*myui.Bitmap{},
+		colors:  map[string]myui.Color{},
 	}
 }
 
-// add converts img to a bitmap. Call it on the UI thread only.
-func (c *logoCache) add(url string, img image.Image) {
+// add converts img to a bitmap and stores the tint computed off the UI
+// thread. Call it on the UI thread only.
+func (c *logoCache) add(url string, img image.Image, tint color.RGBA) {
 	if url == "" || img == nil {
 		return
 	}
@@ -319,12 +323,14 @@ func (c *logoCache) add(url string, img image.Image) {
 	}
 
 	c.bitmaps[url] = myui.NewBitmap(img)
+	c.colors[url] = myui.RGBA(tint.R, tint.G, tint.B, 1)
 	c.order = append(c.order, url)
 
 	for len(c.order) > c.limit {
 		oldest := c.order[0]
 		c.order = c.order[1:]
 		delete(c.bitmaps, oldest)
+		delete(c.colors, oldest)
 	}
 }
 
@@ -333,6 +339,16 @@ func (c *logoCache) snapshot() map[string]*myui.Bitmap {
 	out := make(map[string]*myui.Bitmap, len(c.bitmaps))
 	for url, bitmap := range c.bitmaps {
 		out[url] = bitmap
+	}
+
+	return out
+}
+
+// snapshotColors copies the bounded artwork tints for a page's next frame.
+func (c *logoCache) snapshotColors() map[string]myui.Color {
+	out := make(map[string]myui.Color, len(c.colors))
+	for url, tint := range c.colors {
+		out[url] = tint
 	}
 
 	return out
@@ -628,6 +644,7 @@ func (a *App) fetchLogos(ctx context.Context, gen uint64, urls []string) {
 	var (
 		mu     sync.Mutex
 		images = make(map[string]image.Image, len(urls))
+		tints  = make(map[string]color.RGBA, len(urls))
 		wg     sync.WaitGroup
 	)
 
@@ -650,8 +667,10 @@ func (a *App) fetchLogos(ctx context.Context, gen uint64, urls []string) {
 				return
 			}
 
+			tint := logos.DominantColor(img)
 			mu.Lock()
 			images[url] = img
+			tints[url] = tint
 			mu.Unlock()
 		}(url)
 	}
@@ -667,9 +686,10 @@ func (a *App) fetchLogos(ctx context.Context, gen uint64, urls []string) {
 			return
 		}
 		for url, img := range images {
-			a.logos.add(url, img)
+			a.logos.add(url, img, tints[url])
 		}
 		a.shell.Discover().SetLogos(a.logos.snapshot())
+		a.shell.Discover().SetLogoColors(a.logos.snapshotColors())
 	})
 }
 
@@ -692,6 +712,7 @@ func (a *App) publishDiscover(gen uint64, state ui.DiscoverState) {
 		page := a.shell.Discover()
 		page.SetState(state)
 		page.SetLogos(a.logos.snapshot())
+		page.SetLogoColors(a.logos.snapshotColors())
 	})
 }
 
@@ -741,6 +762,7 @@ func (a *App) publishCatalogState(
 			Truncated: truncated,
 		})
 		page.SetLogos(a.logos.snapshot())
+		page.SetLogoColors(a.logos.snapshotColors())
 
 		a.mu.Lock()
 		a.media.drawer = drawer

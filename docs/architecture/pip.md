@@ -53,6 +53,19 @@ targets, stopped state and 20 rapid toggles.
 | Drag PiP | Native window movement; the surface frame does not change |
 | App quit | Close the surface, then the engine; close the PiP window |
 
+### M5 target behavior (not implemented here)
+
+Tracker #30 locks a different Close behavior for the revamp:
+
+- **Close/Esc stops playback** and releases the session, even when the main
+  window exists.
+- **Return/P** moves the same session to the main window and preserves pause.
+- PiP mute is temporary and restores the main audio intent on Return.
+
+The table above describes the current #12 implementation. #39 owns the target
+change and its evidence. Do not claim the M5 contract from this document until
+#39 lands.
+
 The app stores the native `*mygo.Window` next to the interface it presents
 through, and the close callback compares that pointer. Comparing the interface
 with the concrete window never matched, which used to leave a destroyed window

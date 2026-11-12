@@ -6,10 +6,10 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// A new shell opens on Discover, in the dark theme, without a welcome screen.
+// A new shell opens on Discover without a permanent sidebar.
 func TestShellDefaultsToDiscover(t *testing.T) {
 	shell := NewShell()
-	tt := ui.NewTester(shell.View, 960, 640)
+	tt := ui.NewTester(shell.View, 1100, 720)
 
 	if got := shell.ErrorMessage(); got != "" {
 		t.Errorf("ErrorMessage() = %q, want empty", got)
@@ -17,125 +17,205 @@ func TestShellDefaultsToDiscover(t *testing.T) {
 	if got := shell.themeMode; got != ThemeDark {
 		t.Errorf("themeMode = %v, want ThemeDark", got)
 	}
-	if !tt.HasText("Discover") {
-		t.Errorf("texts %q, want Discover", tt.Texts())
+	if !tt.HasText("Discover") || !tt.HasText("No channels yet") {
+		t.Errorf("texts %q, want Discover and its empty state", tt.Texts())
 	}
-	if !tt.HasText("No channels yet") {
-		t.Errorf("texts %q, want the Discover empty state", tt.Texts())
+	if tt.HasText("Browse") || tt.HasText("Watch") {
+		t.Errorf("texts %q, still contain sidebar labels", tt.Texts())
 	}
-	if tt.HasText("Welcome") {
-		t.Errorf("texts %q, want no welcome screen", tt.Texts())
+	if !tt.HasText("Control Center") {
+		t.Errorf("texts %q, want the visible Control Center action", tt.Texts())
 	}
 }
 
-// The wide sidebar switches pages and shows the selected screen's content.
-func TestShellWideNavigation(t *testing.T) {
+// Control Center is reachable by pointer and exposes the page destinations.
+func TestShellControlCenterMouse(t *testing.T) {
 	shell := NewShell()
 	tt := ui.NewTester(shell.View, 1100, 720)
 
-	if err := tt.Click("Library"); err != nil {
+	if err := tt.Click("Control Center"); err != nil {
 		t.Fatal(err)
 	}
-	if !tt.HasText("No favorites yet") {
-		t.Errorf("texts %q, want the Library favorites empty state", tt.Texts())
+	if !shell.ControlCenterOpen() || !tt.HasText("CONTROL CENTER") {
+		t.Fatalf("texts %q, want the open Control Center", tt.Texts())
 	}
+	for _, label := range []string{"Go to Home", "Go to Discover", "Go to Watch", "Picture in Picture", "Close Control Center"} {
+		if !tt.HasText(label) {
+			t.Errorf("texts %q, want %q", tt.Texts(), label)
+		}
+	}
+
+	if err := tt.Click("Go to Home"); err != nil {
+		t.Fatal(err)
+	}
+	if got := shell.Destination(); got != destHome {
+		t.Fatalf("destination %q, want Home", got)
+	}
+	if shell.ControlCenterOpen() || shell.IsWatch() {
+		t.Fatal("Home navigation left Control Center open or Watch selected")
+	}
+	if !tt.HasText("Home") {
+		t.Errorf("texts %q, want Home", tt.Texts())
+	}
+}
+
+// Every page remains reachable with the pointer through Control Center or the
+// top bar.
+func TestShellDestinationsReachable(t *testing.T) {
+	shell := NewShell()
+	tt := ui.NewTester(shell.View, 1100, 720)
+
+	open := func() {
+		t.Helper()
+		if err := tt.Click("Control Center"); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	open()
+	if err := tt.Click("Go to Discover"); err != nil {
+		t.Fatal(err)
+	}
+	if got := shell.Destination(); got != destDiscover {
+		t.Fatalf("destination %q, want Discover", got)
+	}
+
+	open()
+	if err := tt.Click("Go to Watch"); err != nil {
+		t.Fatal(err)
+	}
+	if got := shell.Destination(); got != destWatch {
+		t.Fatalf("destination %q, want Watch", got)
+	}
+
+	open()
+	if err := tt.Click("No favorites yet"); err != nil {
+		t.Fatal(err)
+	}
+	if got := shell.Destination(); got != destLibrary {
+		t.Fatalf("destination %q, want Library", got)
+	}
+
+	if err := tt.Click("Settings"); err != nil {
+		t.Fatal(err)
+	}
+	if got := shell.Destination(); got != destSettings {
+		t.Fatalf("destination %q, want Settings", got)
+	}
+}
+
+// Home and Watch are distinct destinations and never share a page.
+func TestShellHomeWatchDistinct(t *testing.T) {
+	shell := NewShell()
+	tt := ui.NewTester(shell.View, 1100, 720)
+
+	shell.ShowHome()
+	tt.Frame()
+	if got := shell.Destination(); got != destHome {
+		t.Fatalf("destination %q, want Home", got)
+	}
+	if shell.IsWatch() || !tt.HasText("Nothing to resume") {
+		t.Fatalf("texts %q, want the Home empty state", tt.Texts())
+	}
+
+	shell.ShowWatch()
+	tt.Frame()
+	if !shell.IsWatch() || !tt.HasText("Nothing playing") {
+		t.Fatalf("texts %q, want Watch", tt.Texts())
+	}
+}
+
+// Escape closes the top layer, then returns to the previous destination.
+func TestShellEscapeLayers(t *testing.T) {
+	shell := NewShell()
+	tt := ui.NewTester(shell.View, 1100, 720)
+
+	shell.ShowLibrary()
+	tt.Frame()
+	tt.Key(0, ui.KeyEscape)
+	if got := shell.Destination(); got != destDiscover {
+		t.Fatalf("destination %q, want Discover after Back", got)
+	}
+
+	shell.ShowHome()
+	tt.Frame()
+	tt.Key(0, ui.KeyEscape)
+	if !shell.ControlCenterOpen() {
+		t.Fatal("Escape on Home did not open Control Center")
+	}
+	tt.Key(0, ui.KeyEscape)
+	if shell.ControlCenterOpen() {
+		t.Fatal("Escape did not close Control Center")
+	}
+
+	shell.ShowWatch()
+	shell.Watch().ToggleDrawer()
+	tt.Frame()
+	tt.Key(0, ui.KeyEscape)
+	if shell.Watch().DrawerOpen() || shell.ControlCenterOpen() {
+		t.Fatal("Escape did not close the Watch drawer first")
+	}
+	tt.Key(0, ui.KeyEscape)
+	if !shell.ControlCenterOpen() {
+		t.Fatal("Escape on Watch did not open Control Center")
+	}
+}
+
+// A focused text field keeps typing keys and never triggers global commands.
+func TestShellInputShortcutConflict(t *testing.T) {
+	shell := NewShell()
+	tt := ui.NewTester(shell.View, 1100, 720)
+
+	if err := tt.Click("Search channels"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type("/M ")
+	if got := shell.Discover().Filters().Query; got != "/M" {
+		t.Fatalf("query %q, want /M", got)
+	}
+	if shell.Destination() != destDiscover || shell.ControlCenterOpen() {
+		t.Fatal("typing in search triggered navigation")
+	}
+}
+
+// Settings and hint bars read the one shortcut registry.
+func TestShellShortcutReference(t *testing.T) {
+	shell := NewShell()
+	tt := ui.NewTester(shell.View, 1100, 720)
 
 	openSettings(t, tt)
-	if !tt.HasText("Appearance") {
-		t.Errorf("texts %q, want the appearance setting", tt.Texts())
+	if !tt.HasText("Mute") || !tt.HasText("Fullscreen") || !tt.HasText("Control Center") {
+		t.Fatalf("texts %q, want shared shortcut labels", tt.Texts())
 	}
-	if !tt.HasText("mumu 0.1.0 · M2") {
-		t.Errorf("texts %q, want the About row", tt.Texts())
+	if tt.HasText("Play or pause") {
+		t.Fatalf("texts %q advertised the unimplemented Space action", tt.Texts())
+	}
+
+	groups := shortcutGroups()
+	if len(groups) != 3 {
+		t.Fatalf("groups = %d, want 3", len(groups))
+	}
+	for _, group := range groups {
+		for _, sc := range group.Shortcuts {
+			if !sc.Available {
+				t.Fatalf("shortcut %q is unavailable but listed", sc.Label)
+			}
+		}
 	}
 }
 
-// Watch shows its empty state and can send the viewer to Discover.
-func TestShellWatchEmptyAction(t *testing.T) {
+// Control Center fits the compact reference size without clipping.
+func TestShellControlCenterCompact(t *testing.T) {
 	shell := NewShell()
-	tt := ui.NewTester(shell.View, 1100, 720)
+	tt := ui.NewTester(shell.View, 1024, 640)
 
-	if err := tt.Click("Watch"); err != nil {
+	if err := tt.Click("Control Center"); err != nil {
 		t.Fatal(err)
 	}
-	if !tt.HasText("Nothing playing") {
-		t.Fatalf("texts %q, want the Watch empty state", tt.Texts())
-	}
-	if err := tt.Click("Browse Discover"); err != nil {
-		t.Fatal(err)
-	}
-	if !tt.HasText("No channels yet") {
-		t.Fatalf("texts %q, want Discover after Browse Discover", tt.Texts())
-	}
-}
-
-// System follows the desktop appearance for the content palette.
-func TestShellSystemTheme(t *testing.T) {
-	shell := NewShell()
-	shell.themeMode = ThemeSystem
-	tt := ui.NewTester(shell.View, 1100, 720)
-
-	tt.SetDark(true)
-	assertPixel(t, tt, 1000, 600, "#151517")
-
-	tt.SetDark(false)
-	assertPixel(t, tt, 1000, 600, "#F7F7F8")
-}
-
-func assertPixel(t *testing.T, tt *ui.Tester, x, y int, hex string) {
-	t.Helper()
-
-	want := ui.Hex(hex)
-	got := tt.Image().RGBAAt(x, y)
-	if abs(int(got.R)-int(want.R)) > 2 || abs(int(got.G)-int(want.G)) > 2 || abs(int(got.B)-int(want.B)) > 2 {
-		t.Fatalf("pixel (%d,%d) = #%02X%02X%02X, want %s", x, y, got.R, got.G, got.B, hex)
-	}
-}
-
-func abs(n int) int {
-	if n < 0 {
-		return -n
-	}
-
-	return n
-}
-
-// The wide sidebar is one Tab stop and the arrows choose items.
-func TestShellKeyboardNavigation(t *testing.T) {
-	shell := NewShell()
-	tt := ui.NewTester(shell.View, 1100, 720)
-
-	tt.Key(0, ui.KeyTab)
-	tt.Key(0, ui.KeyDown)
-
-	if !tt.HasText("No favorites yet") {
-		t.Fatalf("texts %q, want Library after Down", tt.Texts())
-	}
-}
-
-// The narrow rail navigates without rendering the wide sidebar labels.
-func TestShellNarrowRail(t *testing.T) {
-	shell := NewShell()
-	tt := ui.NewTester(shell.View, 960, 640)
-	tt.SetSize(700, 480)
-	tt.Frame()
-
-	if err := tt.Click("Library"); err != nil {
-		t.Fatal(err)
-	}
-	if err := tt.Click("Playlists"); err != nil {
-		t.Fatal(err)
-	}
-	if !tt.HasText("No playlists yet") {
-		t.Errorf("texts %q, want the playlists empty state", tt.Texts())
-	}
-	if n := countText(tt.Texts(), "Library"); n != 2 {
-		t.Errorf("texts %q show Library %d times, want the rail item and heading", tt.Texts(), n)
-	}
-	if n := countText(tt.Texts(), "Discover"); n != 1 {
-		t.Errorf("texts %q show Discover %d times, want only the rail item", tt.Texts(), n)
-	}
-	if tt.HasText("Browse") {
-		t.Errorf("texts %q, want no wide sidebar sections", tt.Texts())
+	for _, text := range []string{"CONTROL CENTER", "Go to Home", "Close Control Center"} {
+		if !tt.HasText(text) {
+			t.Fatalf("texts %q, want %q", tt.Texts(), text)
+		}
 	}
 }
 
@@ -209,28 +289,6 @@ func TestShellErrorBanner(t *testing.T) {
 	}
 }
 
-// countText counts the texts exactly matching want.
-func countText(texts []string, want string) int {
-	var n int
-
-	for _, s := range texts {
-		if s == want {
-			n++
-		}
-	}
-
-	return n
-}
-
-// openSettings chooses Settings in the sidebar.
-func openSettings(t *testing.T, tt *ui.Tester) {
-	t.Helper()
-
-	if err := tt.Click("Settings"); err != nil {
-		t.Fatal(err)
-	}
-}
-
 // Destination changes are reported once, with Watch as a boolean.
 func TestShellDestinationChanged(t *testing.T) {
 	shell := NewShell()
@@ -253,5 +311,62 @@ func TestShellDestinationChanged(t *testing.T) {
 	}
 	if !shell.IsWatch() {
 		t.Fatal("IsWatch = false after ShowWatch")
+	}
+}
+
+// openSettings chooses Settings in the top bar.
+func openSettings(t *testing.T, tt *ui.Tester) {
+	t.Helper()
+
+	if err := tt.Click("Settings"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func countText(texts []string, want string) int {
+	var n int
+
+	for _, text := range texts {
+		if text == want {
+			n++
+		}
+	}
+
+	return n
+}
+
+// Escape closes the Library import sheet before it can navigate back.
+func TestShellEscapeClosesLibrarySheet(t *testing.T) {
+	shell := NewShell()
+	tt := ui.NewTester(shell.View, 1100, 720)
+
+	shell.ShowLibrary()
+	shell.Library().OpenAddPlaylist()
+	tt.Frame()
+	if !shell.Library().SheetOpen() {
+		t.Fatal("import sheet did not open")
+	}
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
+	if shell.Library().SheetOpen() {
+		t.Fatal("Escape did not close the import sheet")
+	}
+	if got := shell.Destination(); got != destLibrary {
+		t.Fatalf("destination %q, want Library after closing the sheet", got)
+	}
+}
+
+// Control Center remains usable at the application's minimum window.
+func TestShellControlCenterMinimumWindow(t *testing.T) {
+	shell := NewShell()
+	tt := ui.NewTester(shell.View, 640, 420)
+
+	if err := tt.Click("Control Center"); err != nil {
+		t.Fatal(err)
+	}
+	for _, text := range []string{"CONTROL CENTER", "Go to Home", "Close Control Center"} {
+		if !tt.HasText(text) {
+			t.Fatalf("texts %q, want %q", tt.Texts(), text)
+		}
 	}
 }

@@ -7,3 +7,7 @@ __pycache__/
 
 # Local run artifacts never belong in the repository.
 *.log
+
+# Design screenshots and local capture evidence stay out of git.
+/docs/ux/revamp/screens/
+/docs/ux/revamp/evidence/

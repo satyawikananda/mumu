@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"mumu/internal/catalog"
+	"mumu/internal/logos"
 	"mumu/internal/sources"
 	"mumu/internal/storage"
 	"mumu/internal/ui"
@@ -198,9 +199,10 @@ func TestLogoCacheLimit(t *testing.T) {
 	cache.limit = 2
 
 	img := image.NewRGBA(image.Rect(0, 0, 1, 1))
-	cache.add("a", img)
-	cache.add("b", img)
-	cache.add("c", img)
+	tint := logos.DominantColor(img)
+	cache.add("a", img, tint)
+	cache.add("b", img, tint)
+	cache.add("c", img, tint)
 
 	if len(cache.bitmaps) != 2 {
 		t.Fatalf("cache holds %d bitmaps, want 2", len(cache.bitmaps))

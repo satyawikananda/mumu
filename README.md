@@ -8,7 +8,19 @@ mumu is written in Go and draws its entire interface with
 [MyGo](https://mygo.egoist.dev) native UI. It has no WebView, no HTML or
 JavaScript frontend, and no hosted backend.
 
-**Status:** M4 packaging in progress. The native shell, design tokens, Dark/Light/System themes, local SQLite stores, the playback controller, the M3U/catalog pipeline and the per-source network policy are implemented. Discover, Watch and Picture-in-Picture use one shared player and native surface. The macOS app now bundles a pinned LGPL libmpv runtime, so a release needs no Homebrew install. Native playback and PiP remain conditional on the M0 findings in [`docs/architecture/`](docs/architecture/); full app playback, PiP and the 60-minute soak still need the manual QA in [`docs/release/qa-matrix.md`](docs/release/qa-matrix.md).
+**Status:** M5 UI revamp in progress. MyGo 0.9.0, the overlay gate, the
+shared design foundation (#31–#33) and the native Control Center (#34) are in
+place: semantic Dark/Light/System tokens, bundled Lexend/Inter Tight fonts,
+shared native components, responsive layout policy, a permanent-sidebar-free
+shell, Home/Watch separation and one shortcut registry. The [portable
+handoff](docs/ux/revamp/README.md) records the design contract. Home feed rails,
+Discover, Watch, PiP and Settings page integration remain #35–#40. The native shell, local SQLite stores, playback controller, M3U/catalog
+pipeline and per-source network policy are implemented. Discover, Watch and
+Picture-in-Picture use one shared player and native surface. The macOS app
+bundles a pinned LGPL libmpv runtime. Native playback and PiP remain conditional
+on the M0 findings in [`docs/architecture/`](docs/architecture/); full app
+playback, PiP and the 60-minute soak still need the manual QA in
+[`docs/release/qa-matrix.md`](docs/release/qa-matrix.md).
 
 ## Requirements
 
@@ -132,7 +144,7 @@ internal/sources/     catalog/storage mapping, built-in catalog and source servi
 internal/logos/       bounded logo fetch, decode and cache (#8)
 internal/storage/     local SQLite repositories and migrations (#6)
 docs/architecture/    feasibility reports, evidence and ADRs
-docs/ux/              shell wireframes, states and interaction notes
+docs/ux/              shell, library and M5 revamp handoff; screenshots stay out of git
 docs/release/         macOS packaging, QA matrix and release checklist
 packaging/macos/      LGPL runtime build, closure rewrite and bundle gate
 resources/            app icon, third-party notices and license texts

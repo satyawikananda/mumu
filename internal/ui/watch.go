@@ -541,3 +541,62 @@ func (w *Watch) retry() {
 		w.OnRetry()
 	}
 }
+
+// CanControl reports whether playback actions have a real active session.
+func (w *Watch) CanControl() bool {
+	switch w.state.Kind {
+	case WatchLoading, WatchBuffering, WatchPlaying:
+		return true
+	default:
+		return false
+	}
+}
+
+// HasChannels reports whether the channel drawer has rows.
+func (w *Watch) HasChannels() bool { return len(w.state.Channels) > 0 }
+
+// CloseDrawer closes the inline channel drawer.
+func (w *Watch) CloseDrawer() { w.drawerOpen = false }
+
+// ToggleMute dispatches the mute intent.
+func (w *Watch) ToggleMute() {
+	if w.OnToggleMute != nil {
+		w.OnToggleMute()
+	}
+}
+
+// AdjustVolume changes the volume by delta, clamped to 0..100.
+func (w *Watch) AdjustVolume(delta int) {
+	if !w.CanControl() || w.OnVolume == nil {
+		return
+	}
+	volume := int(w.volume) + delta
+	if volume < 0 {
+		volume = 0
+	}
+	if volume > 100 {
+		volume = 100
+	}
+	w.volume = float64(volume)
+	w.OnVolume(volume)
+}
+
+// ToggleFullscreen dispatches the native fullscreen intent.
+func (w *Watch) ToggleFullscreen() {
+	if w.OnFullscreen != nil {
+		w.OnFullscreen()
+	}
+}
+
+// TogglePiP enters PiP or returns to the main window, one session only.
+func (w *Watch) TogglePiP() {
+	if w.state.PiPActive {
+		if w.OnReturn != nil {
+			w.OnReturn()
+		}
+		return
+	}
+	if w.CanControl() && w.OnEnterPiP != nil {
+		w.OnEnterPiP()
+	}
+}

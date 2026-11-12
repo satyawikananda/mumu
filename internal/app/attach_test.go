@@ -236,3 +236,33 @@ func TestNavigationKeepsPiPSurface(t *testing.T) {
 		t.Fatal("cleared the PiP flag while PiP was presenting")
 	}
 }
+
+// Opening Control Center does not change the destination or detach playback.
+func TestControlCenterKeepsSurface(t *testing.T) {
+	a, surface := presentingApp(t)
+	a.shell.OnDestinationChanged(a.watchVisibilityChanged)
+	a.syncSurfaceVisibility()
+	if surface.attaches != 1 || !a.media.attached {
+		t.Fatalf("attaches = %d attached = %t, want the main surface", surface.attaches, a.media.attached)
+	}
+
+	a.shell.OpenControlCenter()
+	a.syncSurfaceVisibility()
+	if surface.attaches != 1 || !a.media.attached {
+		t.Fatalf("Control Center changed the surface: attaches = %d attached = %t", surface.attaches, a.media.attached)
+	}
+	if !a.shell.IsWatch() {
+		t.Fatal("Control Center changed the destination")
+	}
+
+	a.shell.CloseControlCenter()
+	a.syncSurfaceVisibility()
+	if surface.attaches != 1 || !a.media.attached {
+		t.Fatalf("closing Control Center changed the surface: attaches = %d", surface.attaches)
+	}
+
+	a.shell.ShowHome()
+	if !surface.detached || a.media.attached {
+		t.Fatal("leaving Watch for Home did not detach the surface")
+	}
+}

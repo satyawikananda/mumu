@@ -3,7 +3,7 @@ package ui
 import "github.com/egoist/mygo/ui"
 
 // WindowBackground is the color behind the first frame.
-func WindowBackground() string { return "#151517" }
+func WindowBackground() string { return "#0A0A0C" }
 
 // ThemeMode chooses the app's appearance.
 type ThemeMode int
@@ -16,54 +16,6 @@ const (
 	// ThemeSystem follows the macOS appearance.
 	ThemeSystem
 )
-
-// palette holds app colors that MyGo's Theme does not name.
-type palette struct {
-	canvas    ui.Color
-	sidebar   ui.Color
-	raised    ui.Color
-	hover     ui.Color
-	pressed   ui.Color
-	border    ui.Color
-	text      ui.Color
-	secondary ui.Color
-	muted     ui.Color
-	tomato    ui.Color
-	video     ui.Color
-}
-
-// paletteFor returns the app palette for dark or light.
-func paletteFor(dark bool) palette {
-	if dark {
-		return palette{
-			canvas:    ui.Hex("#151517"),
-			sidebar:   ui.Hex("#1D1D20"),
-			raised:    ui.Hex("#262629"),
-			hover:     ui.Hex("#333338"),
-			pressed:   ui.Hex("#3D3D43"),
-			border:    ui.Hex("#3A3A3F"),
-			text:      ui.Hex("#F5F5F6"),
-			secondary: ui.Hex("#B8B8BF"),
-			muted:     ui.Hex("#92929A"),
-			tomato:    ui.Hex("#FF4D4D"),
-			video:     ui.Hex("#09090B"),
-		}
-	}
-
-	return palette{
-		canvas:    ui.Hex("#F7F7F8"),
-		sidebar:   ui.Hex("#EFEFF1"),
-		raised:    ui.Hex("#FFFFFF"),
-		hover:     ui.Hex("#E7E7EA"),
-		pressed:   ui.Hex("#DDDDE1"),
-		border:    ui.Hex("#D5D5DA"),
-		text:      ui.Hex("#18181B"),
-		secondary: ui.Hex("#52525B"),
-		muted:     ui.Hex("#62626B"),
-		tomato:    ui.Hex("#FF4D4D"),
-		video:     ui.Hex("#09090B"),
-	}
-}
 
 // themeFor builds the MyGo theme for mode, using systemDark for ThemeSystem.
 func themeFor(mode ThemeMode, systemDark bool) *ui.Theme {
@@ -79,41 +31,57 @@ func themeFor(mode ThemeMode, systemDark bool) *ui.Theme {
 	t := &ui.Theme{
 		Dark:            dark,
 		Background:      p.canvas,
-		Surface:         p.raised,
-		SurfaceHover:    p.hover,
-		SurfacePressed:  p.pressed,
+		Surface:         p.surface,
+		SurfaceHover:    p.surface2,
+		SurfacePressed:  p.surface2,
 		Border:          p.border,
 		Text:            p.text,
-		TextMuted:       p.secondary,
-		Accent:          ui.Hex("#D93636"),
-		AccentHover:     ui.Hex("#C92C2C"),
-		AccentPressed:   ui.Hex("#B72525"),
-		AccentText:      ui.Hex("#FFFFFF"),
-		Danger:          ui.Hex("#F36B68"),
-		Warning:         ui.Hex("#F1B85B"),
-		Success:         ui.Hex("#4DC19A"),
-		Selection:       ui.RGBA(255, 77, 77, 0.30),
-		Focus:           ui.Hex("#FF4D4D"),
+		TextMuted:       p.muted,
+		Accent:          p.brandFill,
+		AccentHover:     p.brandHover,
+		AccentPressed:   p.brandPress,
+		AccentText:      p.brandText,
+		Danger:          p.danger,
+		Warning:         p.warning,
+		Success:         p.success,
+		Selection:       p.brand.Alpha(selectionAlpha(dark)),
+		Focus:           p.focus,
 		FocusRingWidth:  2,
-		FocusRingOffset: 2,
-		Inverse:         ui.Hex("#3A3A3F"),
-		InverseText:     ui.Hex("#F5F5F6"),
-		Scrollbar:       ui.RGBA(255, 255, 255, 0.28),
-		Radius:          8,
+		FocusRingOffset: -2,
+		Inverse:         p.inverse,
+		InverseText:     p.inverseInk,
+		Scrollbar:       p.scrollbar,
+		Radius:          radiusRow,
 		Spacing:         4,
-		FontSize:        13,
-	}
-
-	if !dark {
-		t.Danger = ui.Hex("#C22B2B")
-		t.Warning = ui.Hex("#A16207")
-		t.Success = ui.Hex("#157F5F")
-		t.Selection = ui.RGBA(217, 54, 54, 0.22)
-		t.Focus = ui.Hex("#D93636")
-		t.Inverse = ui.Hex("#262629")
-		t.InverseText = ui.Hex("#F5F5F6")
-		t.Scrollbar = ui.RGBA(0, 0, 0, 0.28)
+		FontSize:        baseFontSize,
+		Font:            bodyFont(),
 	}
 
 	return t
+}
+
+// themeForContext applies the desktop's text scale and contrast to the app
+// theme, then restores the app's brand accent and focus ring. The default
+// theme follows the desktop's accent; mumu keeps its own.
+func themeForContext(mode ThemeMode, c *ui.Context) *ui.Theme {
+	t := themeFor(mode, c.Theme().Dark)
+	t = t.WithPreferences(c.Preferences())
+	p := paletteFor(t.Dark)
+	t.Accent = p.brandFill
+	t.AccentHover = p.brandHover
+	t.AccentPressed = p.brandPress
+	t.AccentText = p.brandText
+	t.Focus = p.focus
+	t.Selection = p.brand.Alpha(selectionAlpha(t.Dark))
+
+	return t
+}
+
+// selectionAlpha keeps the brand selection readable on each appearance.
+func selectionAlpha(dark bool) float32 {
+	if dark {
+		return 0.30
+	}
+
+	return 0.22
 }

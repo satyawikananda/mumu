@@ -86,6 +86,10 @@ type App struct {
 func New() *App {
 	ctx, cancel := context.WithCancel(context.Background())
 
+	if err := ui.RegisterFonts(); err != nil {
+		slog.Warn("bundled fonts unavailable; using the system font", "error", err)
+	}
+
 	a := &App{
 		shell:          ui.NewShell(),
 		presentation:   video.PresentationMain,

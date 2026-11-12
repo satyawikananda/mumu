@@ -85,6 +85,9 @@ fi
 [[ -f "$app/Contents/Resources/LICENSE" ]] || fail "missing LICENSE"
 [[ -f "$app/Contents/Resources/THIRD_PARTY_NOTICES.md" ]] || fail "missing THIRD_PARTY_NOTICES.md"
 [[ -d "$app/Contents/Resources/licenses" ]] || fail "missing licenses directory"
+for license in InterTight-OFL-1.1.txt Lexend-OFL-1.1.txt Lucide-ISC.txt; do
+  [[ -f "$app/Contents/Resources/licenses/$license" ]] || fail "missing $license"
+done
 
 plutil -lint "$plist" >/dev/null || fail "invalid Info.plist"
 version="$(defaults read "$plist" CFBundleShortVersionString)"
