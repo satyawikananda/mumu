@@ -21,12 +21,17 @@ identity rules live in [`docs/architecture/library.md`](../architecture/library.
 
 - One tab at a time keeps a single virtualized list, so scroll, selection and
   keyboard order stay predictable.
-- Every channel row shows the display name, its group, its source name and a
-  favorite action. The source name keeps two channels with the same name apart.
+- Every row uses the shared `ChannelRow`: a 36 pt logo chip (or monogram), the
+  display name, its group and source name, a LIVE badge and the favorite action.
+  The source name keeps two channels with the same name apart.
 - Recent rows add when the channel was watched. Played time is relative for the
   first week, then an absolute date.
 - Icons always carry a label: `Add to Favorites` and `Remove from Favorites` are
   distinct accessible names.
+- Logo chips reuse the shared bounded artwork cache. A loading, missing or
+  rejected logo keeps the monogram in the same fixed box, so a late image never
+  moves the row.
+- A row that cannot play shows its reason as a warning line under the meta.
 
 ## Tabs
 

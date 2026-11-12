@@ -36,6 +36,7 @@ func TestLoadWatchResume(t *testing.T) {
 		t.Fatalf("MarkPlayed: %v", err)
 	}
 
+	a.loadLibrary(ctx)
 	a.loadWatchResume(ctx)
 
 	got := a.shell.Watch().State()
@@ -48,8 +49,8 @@ func TestLoadWatchResume(t *testing.T) {
 	if a.shell.Destination() != "/home" {
 		t.Fatalf("destination %q, want Home", a.shell.Destination())
 	}
-	if got := a.shell.Home().State(); got.Kind != ui.HomeResume || got.Channel != "My News" {
-		t.Fatalf("home state %+v, want the resume card", got)
+	if got := a.shell.Home().State(); got.Kind != ui.HomeResume || got.Hero.Name != "My News" {
+		t.Fatalf("home state %+v, want the resume hero", got)
 	}
 
 	a.mu.Lock()
@@ -101,10 +102,14 @@ func TestLoadWatchResumeSkipsDisabledSource(t *testing.T) {
 		t.Fatalf("MarkPlayed: %v", err)
 	}
 
+	a.loadLibrary(ctx)
 	a.loadWatchResume(ctx)
 
 	if got := a.shell.Watch().State(); got.Kind != ui.WatchEmpty {
 		t.Fatalf("watch kind %v, want Empty", got.Kind)
+	}
+	if got := a.shell.Destination(); got != "/discover" {
+		t.Fatalf("destination %q, want Discover for an unusable recent entry", got)
 	}
 }
 

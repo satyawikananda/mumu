@@ -279,13 +279,15 @@ func artworkMonogram(art Artwork, name string) string {
 	return monogram(name)
 }
 
-// artworkColor returns the bounded art color, or a neutral raised surface.
-func artworkColor(c *ui.Context, art Artwork) ui.Color {
+// artworkColor returns the bounded art color, or a dark neutral raised surface.
+// White text and the monogram sit on this fill in both appearances, so the
+// fallback stays dark instead of following a light theme surface.
+func artworkColor(art Artwork) ui.Color {
 	if art.Color.A > 0 {
 		return boundedArtworkColor(art.Color)
 	}
 
-	return paletteFor(c.Theme().Dark).surface2
+	return paletteFor(true).surface2
 }
 
 // boundedArtworkColor darkens a tint until white text passes 4.5:1. The app

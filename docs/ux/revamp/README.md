@@ -14,9 +14,9 @@ recorded on 12 November 2026 from the approved Pencil document.
 
 This handoff covers the foundation delivered by
 [#33](https://github.com/satyawikananda/mumu/issues/33) and the native shell
-delivered by [#34](https://github.com/satyawikananda/mumu/issues/34). Home feed
-rails, Discover, Watch, PiP and Settings page integration remain owned by
-#35–#40.
+delivered by [#34](https://github.com/satyawikananda/mumu/issues/34). The Home
+feed is implemented by #35; Discover, Watch, PiP and Settings page integration
+remain owned by #36–#40.
 
 ## Scope
 
@@ -110,7 +110,7 @@ replacement for the revamp:
 | `Rail` | `internal/ui/channel.go` | responsive | 6/5/4 cards from `layoutFor` |
 | `ControlCenterCard` | `internal/ui/controlcenter.go` | default, hover, focus, disabled | 262x158 reference; action hint sits outside the card |
 | `ControlCenter` | `internal/ui/controlcenter.go` | open, closed, focus, outside click, Escape | Five approved icons; cards use real Watch/Library state |
-| `Home` | `internal/ui/home.go` | empty, resume, active | Provisional #34 shell; full feed is #35 |
+| `Home` | `internal/ui/home.go` | loading, empty, resume, active, failed | Data-backed feed: synthesized art, explicit Resume, recent and favorites rails, `See all`, keyboard cursor |
 | `ShortcutReference` | `internal/ui/shortcuts.go` | static | Player/Browse/Control Center groups from one registry |
 | `Badge` | `internal/ui/components.go` | live, neutral, warning, danger | Non-interactive; text always carries the state |
 | `Chip` | `internal/ui/components.go` | default, active, hover, focus, disabled | Active changes fill, border and weight |
@@ -155,9 +155,10 @@ height falls back to medium.
 | 1024x640 | 28 | 48 | 4 | 4 | 186 | 220 | 3 |
 
 Compact Discover hides the category column and keeps the filter chips.
-The #35 Home target keeps one four-card rail at compact size; remaining
-library content stays reachable through the page. Long names use two lines with an ellipsis in a
-fixed tile, and one line in a row.
+The #35 Home page keeps both rails at compact size and scrolls; this is an
+approved deviation from frame `R7ZZ2`, which shows Favorites only. Remaining
+library content stays reachable through the page. Long names use two lines with
+an ellipsis in a fixed tile, and one line in a row.
 
 ## Artwork
 

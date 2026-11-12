@@ -719,3 +719,29 @@ func TestLibrarySheetFromFailedState(t *testing.T) {
 		t.Fatalf("texts %q, want the import sheet above the failure", tt.Texts())
 	}
 }
+
+// Saved rows use the shared row: an artwork monogram, source meta and the
+// disabled-source reason.
+func TestLibraryRowsUseSharedRow(t *testing.T) {
+	state := libraryChannelState()
+	state.Favorites[0].SourceEnabled = false
+	state.Favorites[0].Playable = false
+	state.Favorites[0].LogoURL = "https://example.com/tvri.png"
+
+	l := NewLibrary()
+	l.SetState(state)
+	l.SetLogos(map[string]*ui.Bitmap{})
+	l.SetLogoColors(map[string]ui.Color{"https://example.com/tvri.png": ui.Hex("#1F3A5F")})
+
+	tt := libraryPage(l)
+	for _, want := range []string{
+		"TVRI Nasional",
+		"News · Indonesia IPTV",
+		"Source disabled. Enable it in Playlists.",
+		"TV",
+	} {
+		if !tt.HasText(want) {
+			t.Fatalf("texts %q, want %q", tt.Texts(), want)
+		}
+	}
+}

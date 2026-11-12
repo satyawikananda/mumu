@@ -37,6 +37,7 @@ type App struct {
 	discover       runSession
 	discoverQuery  runSession
 	discoverIndex  *discoverIndex
+	countryNames   map[string]string
 	logos          *logoCache
 	library        runSession
 	libraryData    *libraryCache
