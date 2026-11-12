@@ -32,6 +32,8 @@ const (
 	commandStop
 	commandVolume
 	commandMute
+	commandPause
+	commandReadAhead
 )
 
 // bundleDir is where a packaged app may carry libmpv. The search only uses it
@@ -49,6 +51,8 @@ type command struct {
 	source     player.Source
 	volume     int
 	muted      bool
+	paused     bool
+	readAhead  int
 	done       chan error
 }
 
@@ -214,6 +218,28 @@ func (e *Engine) SetMuted(ctx context.Context, muted bool) error {
 	return e.call(ctx, command{kind: commandMute, muted: muted})
 }
 
+// SetPaused pauses or resumes playback without reloading the source.
+//
+// It is the seam the overlay experiment needs: a paused stream keeps the frame
+// the render thread last presented, its audio output pauses, and the demuxer
+// stops reading ahead. It is not part of player.Engine yet; issue #37 owns the
+// product behavior of live pause and live-edge resume.
+func (e *Engine) SetPaused(ctx context.Context, paused bool) error {
+	return e.call(ctx, command{kind: commandPause, paused: paused})
+}
+
+// SetReadAhead bounds how far the demuxer reads ahead, in seconds. The spike
+// uses zero while paused: pause alone holds the frame and stops audio, but the
+// demuxer keeps filling its cache from the live stream. It is an experiment
+// seam for #37, not a product setting yet.
+func (e *Engine) SetReadAhead(ctx context.Context, seconds int) error {
+	if seconds < 0 {
+		return fmt.Errorf("%w: read-ahead cannot be negative", player.ErrInvalid)
+	}
+
+	return e.call(ctx, command{kind: commandReadAhead, readAhead: seconds})
+}
+
 // Events returns the event stream. It closes when the engine closes.
 func (e *Engine) Events() <-chan player.Event {
 	return e.events
@@ -340,6 +366,15 @@ func (e *Engine) handleCommand(cmd command) {
 		cmd.done <- e.client.SetProperty("volume", mpv.FormatDouble, float64(cmd.volume))
 	case commandMute:
 		cmd.done <- e.client.SetPropertyString("mute", yesNo(cmd.muted))
+	case commandPause:
+		// libmpv keeps decoding out of the picture: pause holds the frame it
+		// shows and stops the audio output. The render thread draws nothing new
+		// until the engine calls it again.
+		cmd.done <- e.client.SetPropertyString("pause", yesNo(cmd.paused))
+	case commandReadAhead:
+		// A bounded read-ahead, in seconds. Zero stops the demuxer from filling
+		// its cache, which pause alone does not do on a live stream.
+		cmd.done <- e.client.SetPropertyString("demuxer-readahead-secs", fmt.Sprint(cmd.readAhead))
 	default:
 		cmd.done <- fmt.Errorf("%w: unknown command", player.ErrInvalid)
 	}

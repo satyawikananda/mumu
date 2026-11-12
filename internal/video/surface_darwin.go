@@ -252,6 +252,54 @@ func (s *nativeSurface) Size() (int, int) {
 	return s.state.size()
 }
 
+// NativeViewHandle returns the retained NSOpenGLView for a UI host that places
+// it as a native element, or 0 once the surface is closed.
+func (s *nativeSurface) NativeViewHandle() uintptr {
+	if s == nil || !isMainThread() {
+		return 0
+	}
+	select {
+	case <-s.closed:
+		return 0
+	default:
+	}
+
+	return uintptr(s.view)
+}
+
+// SyncDrawable refreshes the drawable from the view's own bounds. It is the
+// path for hosts that lay the view out themselves: Attach applied a frame, but
+// a hosted view is sized by the UI, and the view's window can also change when
+// the UI moves it to another window.
+func (s *nativeSurface) SyncDrawable() error {
+	if err := s.usable(); err != nil {
+		return err
+	}
+
+	if err := s.lock(); err != nil {
+		return err
+	}
+
+	window := s.view.Send(objc.RegisterName("window"))
+	if window == 0 {
+		// Out of a window: no drawable, and the render thread must not guess.
+		s.state.detach()
+		unlockErr := s.unlock()
+
+		return unlockErr
+	}
+
+	s.view.Send(objc.RegisterName("setWantsBestResolutionOpenGLSurface:"), true)
+	s.context.Send(objc.RegisterName("update"))
+
+	bounds := objc.Send[rect](s.view, objc.RegisterName("bounds"))
+	scale := float32(objc.Send[float64](window, objc.RegisterName("backingScaleFactor")))
+	s.state.resize(PixelSize(Rect{W: float32(bounds.Size.Width), H: float32(bounds.Size.Height)}, scale))
+	s.signal()
+
+	return s.unlock()
+}
+
 // Errors forwards renderer failures from the driver.
 func (s *nativeSurface) Errors() <-chan error {
 	if s.driver == nil {

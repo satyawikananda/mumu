@@ -37,6 +37,12 @@ func (e *Engine) SetVolume(context.Context, int) error { return ErrUnavailable }
 // SetMuted always reports ErrUnavailable.
 func (e *Engine) SetMuted(context.Context, bool) error { return ErrUnavailable }
 
+// SetPaused reports that this build has no libmpv runtime.
+func (e *Engine) SetPaused(context.Context, bool) error { return ErrUnavailable }
+
+// SetReadAhead reports that this build has no libmpv runtime.
+func (e *Engine) SetReadAhead(context.Context, int) error { return ErrUnavailable }
+
 // Events returns a closed stream.
 func (e *Engine) Events() <-chan player.Event {
 	events := make(chan player.Event)
