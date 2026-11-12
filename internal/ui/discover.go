@@ -91,7 +91,9 @@ type Discover struct {
 	categories []string
 	sources    []DiscoverFacet
 	logos      map[string]*ui.Bitmap
+	logoColors map[string]ui.Color
 	favorites  map[string]bool
+	search     ui.Handle
 	list       ui.ListState
 	selected   int
 	notice     string
@@ -202,6 +204,11 @@ func (d *Discover) SetLogos(logos map[string]*ui.Bitmap) {
 	d.logos = logos
 }
 
+// SetLogoColors publishes bounded artwork tints keyed by logo URL.
+func (d *Discover) SetLogoColors(colors map[string]ui.Color) {
+	d.logoColors = colors
+}
+
 // SetFavorites publishes which channel keys are favorites. Rows read the map,
 // so a favorite change never rebuilds the indexed catalog.
 func (d *Discover) SetFavorites(favorites map[string]bool) {
@@ -210,6 +217,26 @@ func (d *Discover) SetFavorites(favorites map[string]bool) {
 
 // Favorite reports whether key is a favorite, for the app and for tests.
 func (d *Discover) Favorite(key string) bool { return d.favorites[key] }
+
+// FocusSearch requests the search field's focus.
+func (d *Discover) FocusSearch() { d.search.Focus() }
+
+// HasSelection reports whether a channel row is selected.
+func (d *Discover) HasSelection() bool {
+	return d.selected >= 0 && d.selected < len(d.state.Channels)
+}
+
+// ToggleSelectedFavorite toggles the selected channel's favorite state.
+func (d *Discover) ToggleSelectedFavorite() {
+	if !d.HasSelection() || d.OnToggleFavorite == nil {
+		return
+	}
+	key := d.state.Channels[d.selected].Key
+	if key == "" {
+		return
+	}
+	d.OnToggleFavorite(key)
+}
 
 // View draws the page on the MyGo main thread.
 func (d *Discover) View(c *ui.Context, theme *ui.Theme) {
@@ -248,7 +275,7 @@ func (d *Discover) header(c *ui.Context, _ *ui.Theme) {
 
 // filters draws the search field and the category and source selectors.
 func (d *Discover) filters(c *ui.Context, _ *ui.Theme) {
-	search := ui.SearchField(c, &d.query).Label("Search channels")
+	search := ui.SearchField(c, &d.query).Label("Search channels").Bind(&d.search)
 	if search.Changed() {
 		d.emitFilter()
 	}
@@ -410,7 +437,10 @@ func (d *Discover) row(c *ui.Context, theme *ui.Theme, i int) {
 	channel := d.state.Channels[i]
 
 	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(12).Padding(8, 10).Children(func() {
-		ui.Avatar(c, channel.Name, d.logos[channel.LogoURL])
+		avatar := ui.Avatar(c, channel.Name, d.logos[channel.LogoURL])
+		if tint, ok := d.logoColors[channel.LogoURL]; ok {
+			avatar.Background(tint)
+		}
 
 		ui.Column(c).Grow(1).Gap(2).Children(func() {
 			ui.Text(c, channel.Name).FontSize(theme.Rem(1.08)).FontWeight(500).SingleLine()

@@ -2,33 +2,37 @@ package ui
 
 import "github.com/egoist/mygo/ui"
 
-// The shell's destinations and their sidebar IDs.
+// The shell's routes. Watch is a route but not a permanent navigation item.
 const (
+	destHome     = "/home"
 	destWatch    = "/watch"
 	destDiscover = "/discover"
 	destLibrary  = "/library"
 	destSettings = "/settings"
 )
 
-// destination is one screen of the shell.
-type destination struct {
-	id    string
-	label string
-}
-
-// destinations lists the shell's screens in sidebar order.
-func destinations() [4]destination {
-	return [4]destination{
-		{destWatch, "Watch"},
-		{destDiscover, "Discover"},
-		{destLibrary, "Library"},
-		{destSettings, "Settings"},
+// destinationLabel names a route in the shell chrome and tests.
+func destinationLabel(id string) string {
+	switch id {
+	case destHome:
+		return "HOME"
+	case destWatch:
+		return "WATCH"
+	case destLibrary:
+		return "LIBRARY"
+	case destSettings:
+		return "SETTINGS"
+	default:
+		return "DISCOVER"
 	}
 }
 
 // pageHeading draws a page's level-one heading.
 func pageHeading(c *ui.Context, title string) ui.Element {
-	return ui.Text(c, title).FontSize(c.Theme().Rem(2)).FontWeight(600).Role(ui.RoleHeading).Level(1)
+	t := c.Theme()
+
+	return ui.Text(c, title).Font(displayFont()).FontSize(textSize(t, 34)).
+		FontWeight(700).TextColor(t.Text).Role(ui.RoleHeading).Level(1)
 }
 
 // pageStatus fills the rest of a page with a status view.
@@ -39,22 +43,29 @@ func pageStatus(c *ui.Context, s Status) {
 // drawPage draws the screen for the current destination.
 func (s *Shell) drawPage(c *ui.Context, theme *ui.Theme) {
 	switch s.nav {
+	case destHome:
+		s.home.View(c, theme)
 	case destWatch:
 		s.watch.View(c, theme)
 	case destLibrary:
 		s.library.View(c, theme)
 	case destSettings:
-		pageHeading(c, "Settings")
-		s.drawSettings(c, theme)
+		ui.Scroll(c).Grow(1).FillWidth().Children(func() {
+			ui.Column(c).FillWidth().Gap(16).Children(func() {
+				pageHeading(c, "Settings")
+				s.drawSettings(c, theme)
+			})
+		})
 	default:
 		s.discover.View(c, theme)
 	}
 }
 
-// drawSettings draws appearance controls, catalog sources and the static
-// settings rows.
+// drawSettings draws appearance controls, catalog sources and the shared
+// shortcut reference. #40 owns the final Settings rail and sections.
 func (s *Shell) drawSettings(c *ui.Context, theme *ui.Theme) {
-	ui.Text(c, "Appearance").FontSize(theme.Rem(1.4)).FontWeight(600)
+	ui.Text(c, "Appearance").Font(displayFont()).FontSize(textSize(theme, 19)).
+		FontWeight(700).TextColor(theme.Text)
 
 	choice := int(s.themeMode) - 1
 	appearance := ui.Segmented(c, &choice, "Dark", "Light", "System").Label("Appearance").MaxWidth(320)
@@ -64,9 +75,13 @@ func (s *Shell) drawSettings(c *ui.Context, theme *ui.Theme) {
 
 	s.settings.Sources(c, theme)
 
+	ui.Text(c, "Shortcuts").Font(displayFont()).FontSize(textSize(theme, 19)).
+		FontWeight(700).TextColor(theme.Text)
+	shortcutReference(c, theme)
+
 	ui.Column(c).Gap(10).Children(func() {
-		settingsRow(c, theme, "Playback", "Watch arrives in #11")
-		settingsRow(c, theme, "About", "mumu 0.1.0 · M2")
+		settingsRow(c, theme, "Playback", "Playback settings arrive in #37")
+		settingsRow(c, theme, "About", "mumu 0.1.0 · M5")
 	})
 }
 

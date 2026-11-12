@@ -45,8 +45,11 @@ func TestLoadWatchResume(t *testing.T) {
 	if got.Channel != "My News" {
 		t.Fatalf("channel %q, want My News", got.Channel)
 	}
-	if a.shell.Destination() != "/watch" {
-		t.Fatalf("destination %q, want Watch", a.shell.Destination())
+	if a.shell.Destination() != "/home" {
+		t.Fatalf("destination %q, want Home", a.shell.Destination())
+	}
+	if got := a.shell.Home().State(); got.Kind != ui.HomeResume || got.Channel != "My News" {
+		t.Fatalf("home state %+v, want the resume card", got)
 	}
 
 	a.mu.Lock()

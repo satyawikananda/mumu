@@ -25,7 +25,7 @@ Product principles:
 - Target **macOS first**, with Apple Silicon as the initial QA target. Keep future Windows/Linux adapters possible without claiming they work today.
 - Use **libmpv** for playback (the initial Go binding candidate is `github.com/gen2brain/go-mpv`), subject to the results of issue #1.
 - Ensure Watch and PiP refer to a **single logical player session**.
-- Preserve the confirmed UX: first launch opens **Discover (Indonesia selected)**, later launches offer **Watch → Resume Last Channel** if there is a valid recent channel; **never autoplay on launch**.
+- Preserve the M5 UX: fresh install opens **Discover with no country selected**; later launches offer **Home → Resume** when a valid recent channel exists; **never autoplay on launch**.
 - Follow [`DESIGN.md`](./DESIGN.md) for layout, visual tokens, UX states and brand treatment.
 - Prefer simple, cancellable, observable Go code with bounded network and file operations.
 - Use legal/authorized streams for development and testing; respect license and copyright obligations.
@@ -70,6 +70,8 @@ The spike commands live in [its README](experiments/nativeplayback/README.md). T
 |---|---|---|
 | Language | Go 1.27.3 | Decided, pinned in `go.mod` |
 | UI | MyGo native `ui` | Decided |
+| Design system | Semantic tokens and shared native components in `internal/ui` | Foundation #33; shell/Control Center #34; page integration #35–#40 |
+| Fonts | Lexend display + Inter Tight body, bundled OFL faces | Implemented #33; no runtime download |
 | MyGo | `github.com/egoist/mygo` 0.9.0 | Pinned; upgraded in #31 for the M5 revamp |
 | Playback engine | libmpv | Conditional native child-surface path proven in M0 |
 | Go mpv binding | `gen2brain/go-mpv` 0.4.0, patched in `third_party/go-mpv` | Default darwin/arm64 adapter; the runtime is opened explicitly, never in a package init |
@@ -167,6 +169,7 @@ paint above live video while MyGo keeps all pointer input.
 - **M2 — Sources:** #7–#9 parser, reviewed catalog and multi-playlist import.
 - **M3 — Product UX:** #10–#13 Discover, Watch, PiP and Library.
 - **M4 — Release:** #14 packaging, licensing, resource/performance QA.
+- **M5 — UI revamp:** [#30](https://github.com/satyawikananda/mumu/issues/30) tracker. #31 MyGo 0.9.0, #32 overlay gate, #33 tokens/components, #34 Control Center, #35 Home, #36 Discover, #37 playback controls, #38 Watch, #39 PiP, #40 Settings, #41 accessibility/release QA. Playlist collections remain v0.2.0.
 - **After v0.1:** #15 recording, #16 time-shift/DVR; neither is an initial-release requirement.
 
 If #1 or #2 yields NO-GO, dependent production issues are **blocked**, not considered complete by swapping in a WebView or separate playback window.
@@ -178,7 +181,7 @@ Actual tree after #3:
 ```text
 cmd/mumu/             # Application entry point: wiring and Run only
 internal/app/         # Composition root, window, cancellation, background jobs
-internal/ui/          # Native shell, theme and shared views
+internal/ui/          # Native shell, semantic tokens, fonts, icons and shared components
 internal/player/      # Playback controller, state machine and Engine port (#5)
 internal/player/libmpv/  # libmpv adapter (default on darwin/arm64) and runtime discovery
 internal/player/libmpv/library/  # libmpv search order, testable without a dylib
@@ -188,10 +191,10 @@ internal/catalog/     # Channel domain, identity, validation and provider bounda
 internal/netguard/    # Bounded HTTP client and untrusted-URL policy; #7
 internal/playlist/    # M3U parsing, content detection and source loading; #7
 internal/sources/     # Catalog-to-storage mapping, built-in catalog and import service; #8/#9
-internal/logos/       # Bounded logo fetch, decode and cache; #8
+internal/logos/       # Bounded logo fetch, decode, cache and dominant artwork tint; #8/#33
 internal/storage/     # Local repositories and migrations; #6
 docs/architecture/    # ADRs, feasibility reports, evidence
-docs/ux/              # Shell wireframes, states and interaction notes
+docs/ux/              # Shell, library and M5 revamp handoff; screenshots and evidence
 experiments/          # M0 spikes and the synthetic HLS fixture
 resources/            # Packaged icon, licenses, third-party notices
 packaging/            # LGPL runtime build and macOS release gates (#14)
@@ -217,7 +220,7 @@ Architectural boundaries:
 - Events from previous channel loads must never overwrite the active channel; use request/generation identifiers or equivalent cancellation rules.
 - All native UI changes happen through MyGo's verified main-thread / UI-safe update mechanism. Never block the event loop on networking or decoder waits.
 - PiP state should distinguish main presentation, transitioning, PiP presentation and stopped state.
-- PiP **Return to Window** and **Close PiP** are separate actions. Define deterministic behavior when the main window is hidden/closed.
+- M5 target: PiP **Close/Esc stops playback**; **Return/P** moves the same session to the main window and preserves pause. PiP mute is temporary and does not rewrite the main audio intent. #39 owns the implementation; the current #12 behavior remains transitional until then.
 - Rapid channel switches, window resize, enter/leave PiP, error recovery, and app shutdown must release resources predictably.
 - Do not render a fake live seek bar: ordinary HLS live streams are not necessarily seekable; time-shift is a later milestone.
 
@@ -225,9 +228,12 @@ Architectural boundaries:
 
 - Read `DESIGN.md` **before creating or changing UI**.
 - All interface elements are MyGo native widgets or custom native drawing. Avoid browser metaphors and mock HTML compositions.
-- Use tomato red as a **sparse accent**, charcoal surfaces for prolonged viewing, and semantic colors for states.
-- Prefer native text rendering, accessibility labels, keyboard focus and sensible pointer targets.
-- Design for small/resized windows and macOS titlebar/safe area constraints; no layout that only works at a single screenshot size.
+- Use semantic tokens from `internal/ui/tokens.go`: charcoal surfaces, sparse `#F82028` brand accent, `brand-fill` for fills behind white text, and a separate keyboard ring (`#FFFFFF` dark, `#18181B` light).
+- Use Lexend for display and Inter Tight for body/controls, both bundled under `internal/ui/fonts/` with OFL licenses. Fall back to the system font if registration fails.
+- Prefer native text rendering, accessibility labels, keyboard focus and sensible pointer targets. Hover never draws the focus ring.
+- Design for the three reference sizes with `layoutFor(width, height)`: 1470x956, 1280x720 and 1024x640. Read both width and height; no layout that only works at one screenshot size.
+- Use the shared components in `internal/ui` for tiles, rows, control cards, badges, chips, keycaps and status states. Do not fork a second visual vocabulary per screen.
+- Keep the permanent sidebar removed. Control Center is an overlay, not a destination; opening it must not detach the native video surface or change the current page. Settings and category rails are screen-local.
 - Differentiate: **LIVE** (stream type), **playing/buffering/error** (player state), **verified/unknown** (availability/rights checks).
 - Support empty/loading/offline/error, including Retry and Add Playlist. Failed network calls must not freeze navigation.
 - No welcome screen. Avoid unexpected audio on app launch.
@@ -297,7 +303,7 @@ Before claiming completion:
 - **Now:** #3 bootstrapped the repository. Commands, tree and pinned versions above are verified; see the ADRs in `docs/architecture/adr/`.
 - **After #1/#2:** M0 feasibility reports and evidence are recorded under `docs/architecture/`.
 - **After #3:** Completed: `cmd/mumu`, `internal/app`, native shell, CI, README and ADRs.
-- **After #4:** Reconcile UI conventions with the implemented theme and update `DESIGN.md`; replace the placeholder shell. Implemented in this change: tokens, Dark/Light/System themes, wide sidebar, 72 pt rail and shared status views.
+- **After #4:** Reconcile UI conventions with the implemented theme and update `DESIGN.md`; replace the placeholder shell. Implemented in this change: tokens, Dark/Light/System themes, wide sidebar, 72 pt rail and shared status views. Historical: M5 #34 replaces the sidebar/rail with Control Center; do not reintroduce it.
 - **After #5/#6:** Implemented: local SQLite repositories and migrations, the playback controller/state machine, and the libmpv adapter. The app wires the local library at launch; Watch/PiP surface and UI wiring remain #11/#12. The adapter is now the default `darwin/arm64` build with an explicit, lazy runtime loader (`third_party/go-mpv`), so no build tag and no launch-time playback error.
 - **After #7/#8/#9:** Implemented: M3U domain/parser with bounded network policy, variant streams, the iptv-org community catalog with cache/blocklist/attribution, source management (import, preview, atomic refresh, toggle, remove), and native Discover/Library source UI. See `docs/architecture/sources.md` and ADR 0006.
 - **After #10/#11a/#11b:** Implemented: Discover search, category/source filters and channel selection; per-source private-host consent and scheme allowlist (ADR 0007); Watch with one shared controller, native video surface, resume, favorites, volume/mute and explicit error states. See `docs/architecture/watch.md` and `docs/architecture/video-surface.md`.
@@ -306,6 +312,8 @@ Before claiming completion:
 - **v0.1.0 release blockers:** the native view now follows the playback state in both windows (attached only for `playing`/`buffering`, detached for loading/error/stopped so the glass overlay is visible); returning from PiP recreates a closed main window by native pointer identity; a failed switch offers Back to the previous channel; a launch always starts unmuted while the last volume is restored. PiP behavior therefore changed from #12. See `docs/architecture/watch.md`, `video-surface.md` and `pip.md`.
 - **After #31 (M5 revamp baseline):** MyGo upgraded to 0.9.0 with the same Go 1.27.3 toolchain. No view code changed: the app already used checked `ui.Element` values, `ui.Handle` identity and same-pass `Changed` commits, and `go tool mygo migrate-ui .` reports no diff. SQLite now loads through the `Sqlitecore` native module; `verify-app.sh` gates `Contents/Resources/libSqlitecore.dylib`. Evidence: `docs/architecture/evidence/mygo-0.9.0-upgrade.md`.
 - **After #32 (M5 revamp, overlay gate):** CONDITIONAL GO for composing MyGo chrome above the retained libmpv view by inserting the view under MyGo's surface. Recorded: live video with clickable chrome, one session through PiP transfer, paused frame with audio stopped. Not recorded: radius clipping, PiP drag/resize details, repeated toggles, dead-stream recovery. See [ADR 0009](docs/architecture/adr/0009-native-video-overlay.md).
+- **After #33 (M5 design foundation):** semantic Dark/Light/System tokens, Lexend + Inter Tight bundled fonts, Lucide subset, responsive layout policy, shared native components and a portable handoff under `docs/ux/revamp/`. Home/Discover/Control Center page integration remains #34–#36. Evidence: `docs/ux/revamp/` and `internal/ui/*_test.go`.
+- **After #34 (M5 native Control Center):** the permanent sidebar/rail is removed. A top bar exposes Control Center and Settings; Control Center overlays the current page with real context cards and five approved icons. Home is a distinct route and startup contract; Watch remains the only native video page. One shortcut registry feeds handlers, hints and Settings; `Space` stays unavailable until #37. Evidence: `docs/ux/shell.md` and shell/attach tests.
 - Changes to player/rendering boundaries or startup UX require updating both relevant docs and acceptance tests.
 
 ## 12. Reference material

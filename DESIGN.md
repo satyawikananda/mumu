@@ -1,7 +1,10 @@
 # DESIGN.md — mumu
 
 > Design contract for **mumu**, a native, macOS-first live TV player.  
-> Version: **0.1 / design direction** — to be reconciled with the implemented MyGo design system in issue #4.  
+> Version: **M5 revamp v1 (12 November 2026)** — reconciled with the Pencil
+> handoff and tracker #30. Component/token source of truth is
+> `internal/ui/tokens.go`; the portable handoff is
+> [`docs/ux/revamp/README.md`](docs/ux/revamp/README.md).
 > Applies to: MyGo native views, dialogs, window surfaces and PiP.
 
 ## 1. Product experience
@@ -38,80 +41,90 @@ Design an original tomato mark:
 - **Silhouette:** friendly rounded tomato body, subtle organic asymmetry, not a perfect circle.
 - **Crown:** simplified 3–5 leaf forms, legible at small sizes.
 - **Media association:** a tiny negative-space play triangle or screen cue is optional, but never at the expense of recognizable tomato shape.
-- **Wordmark:** **Mumu**, approachable rounded letterforms, moderate tracking, substantial enough to read beside a 20–24 pt mark.
+- **Wordmark:** **mumu**, approachable rounded letterforms, moderate tracking, substantial enough to read beside a 20–24 pt mark.
 - **App icon:** the current mascot in `resources/icon.png`; keep simple shapes, no detailed gradients or miniature labels, and export separately for 16, 32, 64 and 1024 px.
 
 Do not copy an existing TV brand or tomato-logo asset. The first implementations may use a native-drawn placeholder; final vector artwork requires its own asset review.
 
 ### Color tokens
 
-Token names are *language-agnostic design values*, **not CSS instructions**. Implement through MyGo's theme/styling APIs after checking the pinned version.
+Token names are language-agnostic design values, not CSS instructions.
+Implement them through MyGo's theme/styling APIs. The M5 values and measured
+contrast live in the [revamp handoff](docs/ux/revamp/README.md); the Go source
+is `internal/ui/tokens.go`.
 
-The app ships **Dark** (default), **Light** and **System** appearances. Video stays on `surface.video` in both.
+The app ships **Dark** (default), **Light** and **System** appearances. Video
+stays on `video` in both.
 
 #### Dark appearance
 
 | Token | Hex | Usage |
 |---|---|---|
-| `brand.tomato` | `#FF4D4D` | Mark, selected accents, small decorative indicators |
-| `action.primary` | `#D93636` | Primary button fill where white small text is required |
-| `action.primaryHover` | `#C92C2C` | Primary button hover state |
-| `action.primaryPressed` | `#B72525` | Primary pressed/active fill |
-| `surface.canvas` | `#151517` | Main dark canvas |
-| `surface.sidebar` | `#1D1D20` | Navigation area |
-| `surface.raised` | `#262629` | Cards, controls and popovers |
-| `surface.hover` | `#333338` | Hover and selected dark surfaces |
-| `surface.video` | `#09090B` | Video backdrop/letterbox |
-| `border.subtle` | `#3A3A3F` | Separators and control outlines |
-| `text.primary` | `#F5F5F6` | Headlines, normal important text |
-| `text.secondary` | `#B8B8BF` | Descriptions and metadata |
-| `text.muted` | `#92929A` | Secondary labels, check contrast in context |
-| `state.success` | `#4DC19A` | Confirmed success only |
-| `state.warning` | `#F1B85B` | Partial/limited stream capability |
-| `state.error` | `#F36B68` | Errors and failed playback |
-| `focus.ring` | `#FF4D4D` | Keyboard focus outline |
-
-**Contrast rule:** brand `#FF4D4D` with white text is about **3.27:1**, insufficient for ordinary small text at WCAG AA. Do not place small white labels on raw brand red. Use `action.primary = #D93636` with white text (about **4.63:1**) or dark text on the lighter brand accent when appropriate. Verify exact rendered combinations and focus indicators with accessibility tools.
+| `bg` | `#0A0A0C` | Window and page canvas |
+| `surface` | `#17171C` | Fields, rows, cards |
+| `surface-2` | `#23232B` | Hover and raised surfaces |
+| `ink` | `#F5F5F7` | Primary text |
+| `muted` | `#9298A1` | Secondary text and metadata |
+| `brand` | `#F82028` | Brand dot and decorative accent |
+| `brand-fill` | `#D93636` | Fill behind white text |
+| `ring` | `#FFFFFF` | Keyboard focus ring |
+| `border` | `#3A3A3F` | Separators and control outlines |
+| `video` | `#09090B` | Video backdrop/letterbox |
+| `success` | `#4DC19A` | Confirmed success |
+| `warning` | `#F1B85B` | Limited capability, buffering |
+| `danger` | `#F36B68` | Error and unavailable |
 
 #### Light appearance
 
 | Token | Hex | Usage |
 |---|---|---|
-| `surface.canvas` | `#F7F7F8` | Main light canvas |
-| `surface.sidebar` | `#EFEFF1` | Navigation area |
-| `surface.raised` | `#FFFFFF` | Cards, controls and popovers |
-| `surface.hover` | `#E7E7EA` | Hover surfaces |
-| `surface.pressed` | `#DDDDE1` | Pressed and selected surfaces |
-| `border.subtle` | `#D5D5DA` | Separators and control outlines |
-| `text.primary` | `#18181B` | Headlines and important text |
-| `text.secondary` | `#52525B` | Descriptions and metadata |
-| `text.muted` | `#62626B` | Secondary labels |
-| `action.primary` | `#D93636` | Primary fill with white text |
-| `state.error` | `#C22B2B` | Errors |
-| `state.warning` | `#A16207` | Partial capability |
-| `state.success` | `#157F5F` | Confirmed success |
-| `focus.ring` | `#D93636` | Keyboard focus outline |
+| `bg` | `#F7F7F8` | Main light canvas |
+| `surface` | `#FFFFFF` | Cards, controls and popovers |
+| `surface-2` | `#E7E7EA` | Hover and raised surfaces |
+| `ink` | `#18181B` | Headlines and important text |
+| `muted` | `#5C5C63` | Secondary labels |
+| `brand` | `#D93636` | Brand accent |
+| `brand-fill` | `#C22B2B` | Fill behind white text |
+| `ring` | `#18181B` | Keyboard focus ring |
+| `border` | `#D5D5DA` | Separators and control outlines |
+| `video` | `#09090B` | Video backdrop/letterbox |
+| `success` | `#157F5F` | Confirmed success |
+| `warning` | `#A16207` | Partial capability |
+| `danger` | `#C22B2B` | Errors and failed playback |
 
-Rendered contrast for both appearances is enforced by `internal/ui/theme_test.go`.
+**Contrast rule:** `#F82028` with white text is **4.02:1**, below WCAG AA for
+normal text. Use `brand-fill` for buttons, LIVE badges and any fill carrying
+white text. Keep `#F82028` for dots, decorative accents and non-text marks.
+Light focus uses ink because a white ring disappears on a light canvas.
 
-Red is for actionable hierarchy and brand recognition. It must not be the only indication of errors, playback status, or selection. Avoid large red gradients, neon glows, or crimson video overlays.
+Red is for actionable hierarchy and brand recognition. It must not be the only
+indication of errors, playback status or selection. Avoid large red gradients,
+neon glows or crimson video overlays.
 
 ## 3. Typography, geometry and motion
 
 ### Type
 
-Use the macOS system font stack by default (San Francisco where available) through MyGo native text styling; avoid bundling custom fonts without a strong reason.
+Use **Lexend** for display and **Inter Tight** for body, metadata and
+controls. Both OFL families are bundled under `internal/ui/fonts/`; the app
+does not require a host font or a runtime download. Display requests
+`Lexend, Inter Tight`; body requests the theme font.
 
-| Role | Starting size | Weight | Example |
-|---|---|---|---|
-| Page heading | 26–28 pt | Semibold | Discover |
-| Section heading | 17–20 pt | Semibold | Recently watched |
-| Body / channel title | 14–15 pt | Regular / Medium | TVRI Nasional |
-| Control label | 13–14 pt | Medium | Add Playlist |
-| Metadata | 11–12 pt | Regular | Indonesia · News |
-| Large quiet placeholder | 20–24 pt | Medium | Nothing playing |
+| Role | Starting size | Weight | Family | Example |
+|---|---|---|---|---|
+| Display / hero | 76 / 60 / 48 | 700 | Lexend | Metro TV |
+| Page title | 26–34 | 600–700 | Lexend | Discover |
+| Section / tile title | 19 | 700 | Lexend | Favorites |
+| Body / channel title | 15 | 600 | Inter Tight | TVRI Nasional |
+| Control label | 13–14 | 500–600 | Inter Tight | Add Playlist |
+| Metadata | 12 | 400 | Inter Tight | Indonesia · News |
+| Label / LIVE caps | 10 | 700 | Inter Tight | LIVE |
+| Keycap / hint | 11 | 600 | Inter Tight | Esc |
 
-Use restrained type sizes and support text scaling. Never depend on a fixed number of characters fitting in one row.
+Sizes derive from the theme's 14 pt body size with `Theme.Rem`, so desktop text
+scaling is respected. Long names wrap to at most two lines in tiles and one
+line in rows, with an explicit ellipsis. Never depend on a fixed number of
+characters fitting.
 
 ### Spacing and shape
 
@@ -124,115 +137,155 @@ Use restrained type sizes and support text scaling. Never depend on a fixed numb
 
 ### Motion
 
-- UI motion is **quiet and functional**: subtle focus, drawer and hover transitions; no perpetual shimmer or gratuitous entrance animation.
-- Recommended starting ranges: 120–180 ms for small feedback, 180–240 ms for drawers; adjust to MyGo/native feel.
-- Respect **Reduce Motion**, high contrast and text scaling preferences if exposed by MyGo/platform.
-- Controls may fade after inactivity while video is playing, but keyboard focus/hover keeps them visible.
-- PiP transitions should prioritize **video/audio continuity over animation**; do not promise a smooth morph before #2 proves native surface handoff.
+- UI motion is quiet and functional: hover **160 ms EaseOut**, overlay
+  **220 ms smooth**, focus movement **Snappy**.
+- Reduced Motion is handled by MyGo: values and poses go to their target at
+  once. Do not run a second motion timer.
+- Hover may scale or change color. The keyboard ring is a separate state and
+  never appears from mouse hover.
+- Controls may recede after inactivity while video plays; keyboard focus and
+  pointer hover keep them visible.
+- PiP transitions prioritize video/audio continuity over animation. Do not
+  promise a smooth morph before the native surface handoff proves it.
 
 ## 4. Information architecture
 
-Three primary destinations; Settings is secondary:
+Target navigation is **Home**, **Discover** and **Library**, with **Settings**
+as a secondary destination. There is no permanent application sidebar.
 
 ```text
 mumu
-├── Watch       Active video, controls, compact channel drawer, resume
-├── Discover    Browse public/reviewed catalog + imported sources, search/filter
-├── Library     Favorites, Recently Watched, My Playlists, Custom Streams
-└── Settings    Playback, appearance/accessibility, source diagnostics, About
+├── Home        Valid recent channel, Resume, other channels, recent and favorite rails
+├── Discover    Country selection, search, categories, sources, channel grid
+├── Library     Favorites, Recently Watched, Playlists, Custom Streams
+└── Settings    Playback, appearance/accessibility, sources, shortcuts, About
 ```
 
-**No dedicated EPG tab in v0.1. No onboarding screens. No separate dashboard.**
+- **Home** is a feed, not active playback. It opens only when a valid recent
+  channel exists; it never autoplays.
+- **Discover** is the fresh-install destination. It starts with no country
+  selected.
+- **Library** keeps favorites, recent history and source management.
+  Curated playlist collections are **v0.2.0** and are not part of M5.
+- **Control Center** is the primary navigation/action surface, opened by a
+  visible labelled mouse action and by the keyboard. It is contextual over the
+  current screen and does not restart playback.
+- Settings and category rails are screen-local. They do not create a permanent
+  shell sidebar.
+- Native titlebar safe areas and macOS window conventions still apply.
 
-The app shell stays consistent between the three destinations. The video should remain uninterrupted when opening the Watch channel drawer; navigate away only according to the user's explicit intent.
-
-### Desktop shell wireframe
+### Desktop shell target
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────┐
-│ ● ● ●      🍅 mumu                                           ⚙           │
-├───────────────┬──────────────────────────────────────────────────────────┤
-│  ▶ Watch      │                                                          │
-│  ◈ Discover   │    Current page content                                  │
-│  ♡ Library    │    Native MyGo UI                                         │
-│               │                                                          │
-│               │    Tomato red is a precise accent, not a full surface    │
-│               │                                                          │
-│  ⚙ Settings   │                                                          │
-└───────────────┴──────────────────────────────────────────────────────────┘
+│ native title bar                                                         │
+├──────────────────────────────────────────────────────────────────────────┤
+│ screen-local rail (Settings/category) │ current page content              │
+│                                       │                                   │
+│                                       │   native MyGo surfaces            │
+│                                       │                                   │
+└──────────────────────────────────────────────────────────────────────────┘
+                    Control Center overlay when requested
 ```
 
-This is a **behavioral wireframe**, not a demand for custom macOS window controls. Use native titlebar conventions and verified MyGo APIs.
+This is a behavioral contract, not a demand for custom macOS window controls.
+
+### Control Center contract
+
+- One top bar holds the brand, the current destination, a visible labelled
+  **Control Center** action and the Settings entry.
+- Control Center opens as a native overlay above the current page. It never
+  changes the destination, so opening it over Watch keeps the video surface
+  attached and playback running.
+- Scrim: black vertical gradient, at least 60% over text areas. Backdrop blur
+  is not required.
+- Context cards use real state only: Resume/Watch, Favorites and Playlists.
+  Empty cards say so; no channel names or counts are invented.
+- Five approved icons: Home, Discover, Watch, Picture-in-Picture and Close
+  Control Center. Library remains reachable from the Favorites and Playlist
+  cards; Settings remains reachable from the top-bar gear.
+- `FocusGroup` moves cards and icons with the arrows. Enter opens the focused
+  action. Escape, outside click and Close dismiss the overlay.
+- `Modal` traps focus. Escape restores focus to the opener. The page hint bar
+  is hidden while the overlay is open.
+- One shortcut registry feeds handlers, hint bars and Settings. `Space` is
+  defined for #37 but is not advertised until live pause is implemented.
 
 ## 5. Launch and resume behavior (locked)
 
-### Flow A — First launch & discovery
+### Flow A — Fresh install
 
-**First launch means the first app opening after installation/on fresh local state.** There is **no welcome or onboarding screen**.
+**Fresh install** means the first app opening after installation or on fresh
+local state. There is **no welcome or onboarding screen**.
 
 ```mermaid
 flowchart TD
-  A[First launch] --> B[Discover — Indonesia selected]
-  B --> C{Catalog available or cached?}
-  C -->|Yes| D[Browse, search or filter channels]
-  C -->|No| E[Catalog unavailable state]
-  E --> F[Retry]
-  E --> G[Add Playlist / Add Stream]
-  D --> H[Select channel]
-  H --> I[Watch — native player]
-  G --> J[Validate and save source]
-  J --> D
+  A[Fresh launch] --> B[Discover — No country selected]
+  B --> C{Country chosen?}
+  C -->|No| D[Choose a country to get started]
+  C -->|Yes| E[Load that country's community playlist]
+  D --> F[Country metadata may load; no country playlist is fetched]
+  B --> G[Add Playlist / Add Stream remains available]
+  E --> H[Browse, search or filter channels]
 ```
 
 UI details:
 
-- Open **Discover** directly and select Indonesia as the initial region (user can change it).
-- Display **Add Playlist** without hiding it in advanced settings.
-- Fetch public catalog asynchronously; show cached data where possible; no network call should freeze navigation.
-- Do **not** autoplay a channel, show an invented popularity score, or imply every listed source is legal/online.
-- Only include built-in stream entries that pass the project's content-rights review; iptv-org is discovery data, not blanket authorization.
+- Open **Discover** directly. Show iptv-org as the source and **Choose a
+  country**. Do not preselect Indonesia.
+- Country metadata may load before selection. Do **not** fetch or display a
+  built-in country playlist until the user chooses one.
+- User-imported M3U/custom streams remain usable without a catalog country.
+- Do **not** autoplay, show an invented popularity score, or imply every listed
+  source is legal or online.
+- A failed catalog request must not freeze navigation; offer Retry and Add
+  Playlist.
 
 ### Subsequent launch
 
 ```mermaid
 flowchart TD
-  A[Subsequent launch] --> B{Valid last-watched channel?}
-  B -->|Yes| C[Watch — Resume Last Channel card]
+  A[Subsequent launch] --> B{Valid recent channel?}
+  B -->|Yes| C[Home — Resume card]
   B -->|No| D[Discover]
-  C -->|Click Resume| E[Start playback]
-  C -->|Browse instead| D
+  C -->|Resume| E[Start playback]
+  C -->|Other channels| D
 ```
 
-No surprise audio. Store a last-watched reference only when playback genuinely starts; handle missing/removed sources gracefully.
+No surprise audio. Store a recent reference only when playback genuinely
+starts. Missing or disabled recent entries route safely to Discover.
 
 ## 6. Discover — browsing channels
 
 ```text
 ┌─ Discover ──────────────────────────────────────────────────────────────┐
 │ Discover                                          [+ Add Playlist]      │
-│ [⌕ Search channels, countries or sources...]                         │
-│ [Indonesia ▾]  [All categories ▾]  [All sources ▾]                     │
+│ [⌕ Search channels, categories or countries...]                         │
+│ [Source] [Country] [Live only]              [Search hint /]             │
 │                                                                        │
-│ TV channels                                                            │
-│ ┌────────────────────────────────────────────────────────────────────┐ │
-│ │ [logo]  TVRI Nasional             Indonesia · General         [♡] │ │
-│ │ [logo]  Channel name              Indonesia · News            [♡] │ │
-│ │ [logo]  Another source            Indonesia · Entertainment   [♡] │ │
-│ └────────────────────────────────────────────────────────────────────┘ │
-│                                                                        │
-│ Select a channel → Watch; show explicit retry if a stream fails.       │
-└────────────────────────────────────────────────────────────────────────┘
+│ Categories          Indonesian channels                                │
+│  All channels        ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐     │
+│  News                │ tile │ │ tile │ │ tile │ │ tile │ │ tile │     │
+│  Kids                └──────┘ └──────┘ └──────┘ └──────┘ └──────┘     │
+│  Sport                                                                 │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 Requirements:
 
-- Prefer readable, dense-enough **rows** for many channels. Optional grid/list toggle can be deferred; avoid giant promo cards.
-- Search by channel name. Support country, category and source filters. Keep source attribution accessible.
-- Render a channel logo if available and safe to load; otherwise show a neutral TV glyph or initials.
-- If two playlists contain identically named channels, do **not** collapse them solely by display name.
-- On an empty catalog, show meaningful actions: Retry, Change filter, Add Playlist.
-- `LIVE` means live format/content, **not verified upstream availability**. Do not add green online dots without stream-level evidence.
-- Hover and keyboard selection should be distinguishable without relying only on red.
+- Maximum **20 items per browse page**; all results remain reachable through
+  paging or another explicit navigation. Do not silently cap the catalog.
+- Responsive grid: **5 / 4 / 4 columns** at the three reference sizes. At
+  compact width the category column is hidden and its filters become chips.
+- Search uses the existing virtualized row path for long results.
+- Show a monogram/logo tile, real channel name, real category/source metadata
+  and LIVE only when the stream format is known.
+- Unknown format must not become fabricated VOD or online status.
+- Empty no-country state is not a provider failure, loading state or zero
+  search result. It offers **Choose a country** and keeps Add Playlist visible.
+- Offline cached results explain the refresh failure and offer Retry.
+- Hover and keyboard focus remain distinct; selection does not rely only on
+  red.
 
 ## 7. Watch — live playback experience
 
@@ -277,53 +330,54 @@ Keep errors specific where possible but avoid exposing credentials in URLs or he
 
 ## 8. Picture-in-Picture — one player, two views
 
-M0 implementation evidence: [native playback](docs/architecture/native-playback-feasibility.md) and
-[PiP](docs/architecture/pip-feasibility.md) are **CONDITIONAL GO** on the tested Apple M3/macOS setup.
-The standalone spike moves one retained native OpenGL view between MyGo windows; it does not change the startup UX or constitute the production Watch/PiP design.
-Follow-up QA confirms drag, resize, stacking, Spaces and foreign-fullscreen behavior on the tested Mac. Captured visual gaps and OpenGL deprecation remain explicit production risks.
+M0 evidence remains **CONDITIONAL GO** on the tested Apple M3/macOS setup. The
+standalone spike moves one retained native OpenGL view between MyGo windows; it
+does not make production PiP complete. See
+[native playback](docs/architecture/native-playback-feasibility.md) and
+[PiP](docs/architecture/pip-feasibility.md).
 
-PiP is **mandatory** for mumu v0.1, but its native implementation must first pass [#2's feasibility test](https://github.com/satyawikananda/mumu/issues/2).
+PiP is mandatory for v0.1, but its native implementation must keep one logical
+session.
 
 ```text
 STATE 1 — WATCH WINDOW
 ┌─────────────────────────────────────────┐
-│ 🍅 mumu                                 │
-│ ┌─────────────────────────────────────┐ │
-│ │        Playing native video         │ │
-│ │                         [PiP ↗]     │ │
-│ └─────────────────────────────────────┘ │
+│ native video                            │
+│                         [PiP ↗]         │
 └─────────────────────────────────────────┘
-                    │ Click PiP
+                    │ Enter PiP
                     ▼
 STATE 2 — FLOATING NATIVE WINDOW
-Main Watch: "Playing in Picture-in-Picture"
-                              ┌───────────────────────────┐
-                              │ Native floating video     │
-                              │ [Volume] [Return] [Close] │
-                              └───────────────────────────┘
-                    │ Return to Window
+┌───────────────────────────┐
+│ native video              │
+│ [Volume] [Return] [Close] │
+└───────────────────────────┘
+                    │ Return / P
                     ▼
 STATE 3 — WATCH RESTORED
-Same logical player session, same channel, no deliberate stream reload.
+Same session, same channel, pause preserved.
 ```
 
 ```mermaid
 flowchart TD
   A[Watch: main window] -->|Enter PiP| B[Native mini window, same player]
-  B -->|Return to Window| A
-  B -->|Close PiP| C{Main window available?}
-  C -->|Yes| A
-  C -->|No| D[Stop playback and release resources]
+  B -->|Return / P| A
+  B -->|Close / Esc| C[Stop playback and release resources]
 ```
 
 UX specifications:
 
-- Native floating window, approximately 16:9, draggable and resizable with reasonable minimum dimensions.
-- Always on top where supported; verify behavior with macOS Spaces/fullscreen/sleep-wake.
+- Native floating window, approximately 16:9, draggable and resizable with a
+  reasonable minimum size.
 - Minimal chrome: volume/mute, Return to Window and Close.
-- Main window indicates PiP is active, without a second playing preview.
-- No duplicated audio, playback instance, channel buffer, or hidden external mpv window.
-- Returning should preserve playback if the surface bridge supports it. If not feasible, record the limitation rather than claiming a seamless transition.
+- **Close/Esc stops playback.** **Return/P** moves the same session to the main
+  window and preserves pause. Mute in PiP is temporary and does not rewrite the
+  main audio intent.
+- The main window shows a PiP-active placeholder, never a second playing
+  preview.
+- No duplicated audio, playback instance, buffer or hidden external mpv window.
+- Always-on-top, Spaces, sleep/wake and border-radius behavior require native
+  QA; do not claim them from design alone.
 
 ## 9. Library — power without clutter
 
@@ -412,25 +466,45 @@ Do not bind global media keys or steal shortcuts from other applications without
 
 ## 12. Window responsiveness
 
-- **Wide:** expanded sidebar + spacious Watch/Discover content.
-- **Medium:** compact sidebar and fewer columns in Discover; Watch retains readable controls.
-- **Narrow:** collapse sidebar to icons or a native navigation affordance, avoid clipping; channel list becomes a drawer.
-- **PiP:** separate minimal native window, not a miniature copy of the full app shell.
+The revamp uses three reference sizes and a policy that reads both width and
+height. Implementation: `layoutFor(width, height)` in `internal/ui/tokens.go`.
 
-Actual breakpoints depend on the implemented MyGo layout APIs and measured text fit; do not equate desktop points to browser CSS pixels.
+| Window | Padding | Hero title | Rail cards | Discover columns | Tile height | Settings rail |
+|---|---:|---:|---:|---:|---:|---:|
+| 1470x956 | 64 | 76 | 6 | 5 | 206 | 286 |
+| 1280x720 | 48 | 60 | 5 | 4 | 214 | 260 |
+| 1024x640 | 28 | 48 | 4 | 4 | 186 | 220 |
 
-## 13. Design review checklist (issue #4 and all UI PRs)
+- A wide window with a short height falls back to the medium layout.
+- Compact Home keeps one four-card rail; remaining library content stays
+  reachable.
+- Compact Discover hides the category column and uses filter chips.
+- Long names wrap or ellipsize inside fixed geometry. Do not rely on a single
+  screenshot size.
+- PiP is a separate minimal window, not a miniature copy of the app shell.
 
-- [ ] Tomato brand is consistent and original; sparse accent over charcoal surfaces.
-- [ ] Text/button contrast works at normal desktop sizes, including focus and disabled states.
-- [ ] First launch **directly** shows Discover, default Indonesia, Add Playlist visible.
-- [ ] Subsequent launch offers explicit Resume and **never** starts audio automatically.
-- [ ] Watch prioritizes native video; no EPG/recording/fake seek controls in v0.1.
-- [ ] Native PiP interaction follows the single-session contract and tested platform behavior.
+## 13. Design review checklist (all UI PRs)
+
+- [ ] Brand is consistent and original; `#F82028` is not used behind small
+      white text without the `brand-fill` override.
+- [ ] Text, button and muted-text contrast is at least 4.5:1 on the actual
+      background, including Light and System.
+- [ ] Fresh install directly shows Discover with **no country selected** and
+      Add Playlist visible.
+- [ ] A subsequent launch with a valid recent channel shows Home; it never
+      autoplays.
+- [ ] Control Center is reachable by pointer and keyboard; no permanent shell
+      sidebar is reintroduced.
+- [ ] Watch prioritizes native video; no fake seek, elapsed time, EPG or
+      fabricated availability.
+- [ ] PiP Close/Esc stops playback; Return/P preserves the same session and
+      pause. No second player.
 - [ ] Empty/loading/buffering/error/offline views have useful actions.
-- [ ] No WebView or simulated video canvas as a finished feature.
-- [ ] Layout remains usable at smaller/resized macOS windows.
-- [ ] Keyboard, screen reader labels, reduced motion and touch/pointer targets have been reviewed.
+- [ ] Focus ring appears only for keyboard focus and one ring is visible at a
+      time. Hover is a separate treatment.
+- [ ] Reduced Motion, text scaling, long names and logo failure/loading pass.
+- [ ] All three reference sizes remain usable; compact rules hold.
+- [ ] No WebView, browser playback, external mpv window or second decoder.
 
 ## 14. Implementation notes and references
 
@@ -443,6 +517,15 @@ Implementation notes for the shell, theme modes and responsive states live in [`
 - [MyGo architecture](https://mygo.egoist.dev/docs/architecture)
 - [M0 playback feasibility](https://github.com/satyawikananda/mumu/issues/1)
 - [M0 PiP feasibility](https://github.com/satyawikananda/mumu/issues/2)
+- [M5 tracker](https://github.com/satyawikananda/mumu/issues/30)
+- [M5 design tokens and shared components](https://github.com/satyawikananda/mumu/issues/33)
+- [M5 Control Center](https://github.com/satyawikananda/mumu/issues/34)
+- [M5 Home](https://github.com/satyawikananda/mumu/issues/35)
+- [M5 Discover](https://github.com/satyawikananda/mumu/issues/36)
+- [M5 Watch](https://github.com/satyawikananda/mumu/issues/38)
+- [M5 PiP](https://github.com/satyawikananda/mumu/issues/39)
+- [M5 Settings](https://github.com/satyawikananda/mumu/issues/40)
+- [M5 accessibility/release QA](https://github.com/satyawikananda/mumu/issues/41)
 - [Design system + native shell](https://github.com/satyawikananda/mumu/issues/4)
 - [Discover UI](https://github.com/satyawikananda/mumu/issues/10)
 - [Watch UI](https://github.com/satyawikananda/mumu/issues/11)

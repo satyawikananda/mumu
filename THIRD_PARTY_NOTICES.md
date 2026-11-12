@@ -61,6 +61,22 @@ SQLite is public domain, so it carries no redistribution obligation. The
 module is delivered by `mygo build` and signed with the app; the packaged app
 never downloads native code at run time.
 
+## Bundled UI assets
+
+The app embeds two OFL font families and a subset of Lucide icons. They are
+compiled into the binary rather than fetched at run time.
+
+| Component | Version | License | Source |
+| --- | --- | --- | --- |
+| Inter Tight (400/500/600, Latin) | Fontsource 5.3.0 | SIL OFL 1.1 | https://github.com/rsms/inter |
+| Lexend (400/500/600/700, Latin) | Fontsource 5.3.0 | SIL OFL 1.1 | https://github.com/googlefonts/lexend |
+| Lucide icons | lucide-static 1.72.0 | ISC | https://github.com/lucide-icons/lucide |
+
+License texts are in `resources/licenses/InterTight-OFL-1.1.txt`,
+`resources/licenses/Lexend-OFL-1.1.txt` and
+`resources/licenses/Lucide-ISC.txt`. The font files are in
+`internal/ui/fonts/`; the icon subset is in `internal/ui/icons/`.
+
 ## Go modules
 
 | Module | License |

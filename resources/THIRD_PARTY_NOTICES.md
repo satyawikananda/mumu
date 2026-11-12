@@ -46,6 +46,37 @@ binary.
 (Apache-2.0 or MIT or BSL-1.0) are used while building libplacebo. They are
 not part of the shipped runtime.
 
+## Bundled SQLite module
+
+`Contents/Resources/libSqlitecore.dylib` is MyGo 0.9's SQLite native module. It
+is built from the pinned MyGo module's Zig sources and compiles SQLite's
+amalgamation.
+
+| Component | Version | License | Source |
+| --- | --- | --- | --- |
+| SQLite | amalgamation pinned by hash in the MyGo module | Public domain | https://sqlite.org/copyright.html |
+| MyGo `Sqlitecore` native module | ships with MyGo 0.9.0 | MIT | https://github.com/egoist/mygo/tree/v0.9.0/plugins/sqlite/internal/sqlitecore |
+
+SQLite is public domain, so it carries no redistribution obligation. The
+module is delivered by `mygo build` and signed with the app; the packaged app
+never downloads native code at run time.
+
+## Bundled UI assets
+
+The app embeds two OFL font families and a subset of Lucide icons. They are
+compiled into the binary rather than fetched at run time.
+
+| Component | Version | License | Source |
+| --- | --- | --- | --- |
+| Inter Tight (400/500/600, Latin) | Fontsource 5.3.0 | SIL OFL 1.1 | https://github.com/rsms/inter |
+| Lexend (400/500/600/700, Latin) | Fontsource 5.3.0 | SIL OFL 1.1 | https://github.com/googlefonts/lexend |
+| Lucide icons | lucide-static 1.72.0 | ISC | https://github.com/lucide-icons/lucide |
+
+License texts are in `resources/licenses/InterTight-OFL-1.1.txt`,
+`resources/licenses/Lexend-OFL-1.1.txt` and
+`resources/licenses/Lucide-ISC.txt`. The font files are in
+`internal/ui/fonts/`; the icon subset is in `internal/ui/icons/`.
+
 ## Go modules
 
 | Module | License |
@@ -59,6 +90,12 @@ not part of the shipped runtime.
 The full dependency graph, including indirect modules, is pinned in `go.mod`
 and `go.sum`. Their license texts remain in each module's repository and in the
 Go module cache of a build.
+
+`go.digitalxero.dev/rpm`, `github.com/ProtonMail/go-crypto`,
+`github.com/cloudflare/circl`, `github.com/klauspost/compress` and
+`github.com/ulikunitz/xz` are pulled in by the pinned `github.com/egoist/mygo/cmd/mygo`
+tool for Linux package building. They are build-time only and are not linked
+into the macOS app.
 
 ## Content
 

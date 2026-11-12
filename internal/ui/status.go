@@ -34,9 +34,11 @@ func (s Status) View(c *ui.Context) {
 		case StatusLoading:
 			ui.Spinner(c).Size(20, 20).Label("Loading")
 		case StatusError:
-			ui.Text(c, "!").FontSize(t.Rem(1.4)).Bold().TextColor(t.Danger).AccessHidden(true)
+			ui.Icon(c, icons().alert).Size(24, 24).TextColor(t.Danger).AccessHidden(true)
 		case StatusOffline:
-			ui.Text(c, "!").FontSize(t.Rem(1.4)).Bold().TextColor(t.Warning).AccessHidden(true)
+			ui.Icon(c, icons().offline).Size(24, 24).TextColor(t.Warning).AccessHidden(true)
+		default:
+			ui.Icon(c, icons().tv).Size(24, 24).TextColor(t.TextMuted).AccessHidden(true)
 		}
 
 		titleColor := t.Text
@@ -47,9 +49,11 @@ func (s Status) View(c *ui.Context) {
 			titleColor = t.Warning
 		}
 
-		ui.Text(c, s.Title).FontSize(t.Rem(1.7)).FontWeight(500).TextColor(titleColor).TextAlign(ui.Center)
+		ui.Text(c, s.Title).Font(displayFont()).FontSize(textSize(t, 20)).
+			FontWeight(600).TextColor(titleColor).TextAlign(ui.Center).MaxLines(2)
 		if s.Message != "" {
-			ui.Text(c, s.Message).TextColor(t.TextMuted).TextAlign(ui.Center).MaxWidth(420)
+			ui.Text(c, s.Message).Font(bodyFont()).FontSize(textSize(t, 12)).
+				TextColor(t.TextMuted).TextAlign(ui.Center).MaxWidth(420)
 		}
 		if s.Action != "" && s.OnAction != nil {
 			ui.PrimaryButton(c, s.Action).OnClick(s.OnAction)

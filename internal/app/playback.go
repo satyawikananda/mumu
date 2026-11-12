@@ -90,6 +90,9 @@ func (a *App) startWatch() {
 	page.OnReturn = a.returnFromPiP
 	page.OnBack = a.backToPrevious
 	a.shell.OnDestinationChanged(a.watchVisibilityChanged)
+	a.shell.Home().OnResume = a.resumeWatching
+	a.shell.Home().OnWatch = a.shell.ShowWatch
+	a.shell.Home().OnBrowse = a.shell.ShowDiscover
 
 	pip := a.shell.PiP()
 	pip.OnReturn = a.returnFromPiP
@@ -277,7 +280,11 @@ func (a *App) loadWatchResume(ctx context.Context) {
 	a.mu.Unlock()
 
 	a.publishWatch()
-	a.publish(func() { a.shell.ShowWatch() })
+	a.publish(func() {
+		if a.shell.IsDiscover() {
+			a.shell.ShowHome()
+		}
+	})
 }
 
 // resumeWatching starts the offered last channel. It runs on the UI thread.
@@ -579,8 +586,36 @@ func (a *App) publishWatch() {
 	a.publish(func() {
 		a.syncSurfaceVisibility()
 		a.shell.Watch().SetState(a.watchState())
+		a.shell.Home().SetState(a.homeState())
 		a.shell.PiP().SetState(a.pipState())
 	})
+}
+
+// homeState is the small Home contract for #34. #35 expands the feed.
+func (a *App) homeState() ui.HomeState {
+	a.mu.Lock()
+	media := a.media
+	a.mu.Unlock()
+
+	switch {
+	case media.channel.ProviderID != "" &&
+		(media.snapshot.State == player.StateLoading ||
+			media.snapshot.State == player.StateBuffering ||
+			media.snapshot.State == player.StatePlaying):
+		return ui.HomeState{
+			Kind:    ui.HomeActive,
+			Channel: media.channel.Name,
+			Source:  media.sourceName,
+		}
+	case media.resume != nil:
+		return ui.HomeState{
+			Kind:    ui.HomeResume,
+			Channel: media.resume.channel.Name,
+			Source:  media.resume.sourceName,
+		}
+	default:
+		return ui.HomeState{Kind: ui.HomeEmpty}
+	}
 }
 
 // failWatch reports an actionable error on the Watch page. It can run on any
