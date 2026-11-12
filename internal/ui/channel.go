@@ -16,6 +16,9 @@ type ChannelTile struct {
 	Width  float32
 	Height float32
 	Grow   bool
+	// LiveCorner draws LIVE as a tag attached to the top-right corner instead
+	// of the bottom-left badge. Discover sets it; rails keep the badge.
+	LiveCorner bool
 	// FocusField and FocusValue bind keyboard focus to an app-owned cursor.
 	// Leave FocusValue empty for a tile outside a rail.
 	FocusField *string
@@ -88,7 +91,9 @@ func (ch ChannelTile) View(c *ui.Context) ui.Element {
 			TextColor(titleColor).Absolute().Left(15).Right(15).Top(14).
 			MaxLines(2).Ellipsis("…")
 
-		if ch.Live {
+		if ch.Live && ch.LiveCorner {
+			cornerLive(c, t).Absolute().Right(0).Top(0)
+		} else if ch.Live {
 			ui.Box(c).Absolute().Left(15).Bottom(14).Children(func() {
 				Badge{Kind: BadgeLive, Text: "LIVE"}.View(c)
 			})
@@ -138,6 +143,22 @@ func (ch ChannelTile) View(c *ui.Context) ui.Element {
 	}
 
 	return tile
+}
+
+// cornerLive draws a tile's LIVE tag: one brand surface attached to the
+// top-right corner, rounded where it meets the artwork.
+func cornerLive(c *ui.Context, t *ui.Theme) ui.Element {
+	p := paletteFor(t.Dark)
+
+	tag := ui.Row(c).Padding(4, 9).Gap(4).AlignItems(ui.Center).
+		Background(p.brandFill).Radius(0, radiusTile, 0, radiusTile)
+	tag.Children(func() {
+		ui.Box(c).Size(4, 4).Radius(2).Background(p.brandText).AccessHidden(true)
+		ui.Text(c, "LIVE").Font(bodyFont()).FontSize(textSize(t, 10)).
+			FontWeight(700).LetterSpacing(0.7).TextColor(p.brandText).SingleLine()
+	})
+
+	return tag
 }
 
 // RowState is what a virtualized list reports to a ChannelRow.

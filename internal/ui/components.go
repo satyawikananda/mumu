@@ -99,8 +99,10 @@ func (b Badge) defaultText() string {
 // Chip is an interactive filter chip. Active state changes fill, border and
 // weight together, not only the color.
 type Chip struct {
-	Key      string
-	Label    string
+	Key   string
+	Label string
+	// Icon is an optional leading glyph; the label always carries the meaning.
+	Icon     *ui.SVG
 	Active   bool
 	Disabled bool
 	OnClick  func()
@@ -140,7 +142,13 @@ func (ch Chip) View(c *ui.Context) ui.Element {
 		}
 	}
 	chip = chip.Disabled(ch.Disabled).AccessSelected(ch.Active).Label(label)
+	if ch.Icon != nil {
+		chip = chip.Gap(6)
+	}
 	chip.Children(func() {
+		if ch.Icon != nil {
+			ui.Icon(c, ch.Icon).Size(14, 14).TextColor(textColor).AccessHidden(true)
+		}
 		ui.Text(c, label).Font(bodyFont()).FontSize(textSize(t, 13)).FontWeight(weight).
 			TextColor(textColor).SingleLine()
 	})

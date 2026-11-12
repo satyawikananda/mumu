@@ -144,22 +144,51 @@ var shortcutRegistry = []Shortcut{
 		Bindings: []ShortcutBinding{{Key: ui.KeyLeft}, {Key: ui.KeyRight}, {Key: ui.KeyUp}, {Key: ui.KeyDown}},
 		Keys:     []string{"←", "→"},
 		Label:    "Move between cards", Available: true,
+		HintLabel: func(s *Shell) string {
+			if s.IsDiscover() {
+				return "Move"
+			}
+
+			return "Move between cards"
+		},
+		Run: func(s *Shell, key ui.Key) { s.moveBrowse(key) },
 	},
 	{
 		ID: ShortcutOpen, Context: ShortcutBrowse,
 		Bindings: []ShortcutBinding{{Key: ui.KeyEnter}}, Keys: []string{"⏎"},
 		Label: "Open", Available: true,
+		HintLabel: func(s *Shell) string {
+			if s.IsDiscover() {
+				return "Watch"
+			}
+
+			return "Open"
+		},
 	},
 	{
 		ID: ShortcutFavorite, Context: ShortcutBrowse,
 		Bindings: []ShortcutBinding{{Key: ui.KeyF}}, Keys: []string{"F"},
 		Label: "Favorite", Available: true,
+		HintLabel: func(s *Shell) string {
+			if s.IsDiscover() {
+				return "Favorites"
+			}
+
+			return "Favorite"
+		},
 		Run: func(s *Shell, _ ui.Key) { s.toggleBrowseFavorite() },
 	},
 	{
 		ID: ShortcutBack, Context: ShortcutBrowse,
 		Bindings: []ShortcutBinding{{Key: ui.KeyEscape}}, Keys: []string{"Esc"},
 		Label: "Back", Available: true,
+		HintLabel: func(s *Shell) string {
+			if s.IsDiscover() {
+				return "Close"
+			}
+
+			return "Back"
+		},
 		Run: func(s *Shell, _ ui.Key) { s.handleEscape() },
 	},
 	{

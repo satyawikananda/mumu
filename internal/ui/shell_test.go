@@ -17,11 +17,11 @@ func TestShellDefaultsToDiscover(t *testing.T) {
 	if got := shell.themeMode; got != ThemeDark {
 		t.Errorf("themeMode = %v, want ThemeDark", got)
 	}
-	if !tt.HasText("Discover") || !tt.HasText("No channels yet") {
-		t.Errorf("texts %q, want Discover and its empty state", tt.Texts())
+	if !tt.HasText("Discover") || !tt.HasText("Choose a country to get started") {
+		t.Errorf("texts %q, want Discover and its no-country state", tt.Texts())
 	}
-	if tt.HasText("Browse") || tt.HasText("Watch") {
-		t.Errorf("texts %q, still contain sidebar labels", tt.Texts())
+	if tt.HasText("HOME") || tt.HasText("LIBRARY") {
+		t.Errorf("texts %q, still contain sidebar destinations", tt.Texts())
 	}
 	if !tt.HasText("Control Center") {
 		t.Errorf("texts %q, want the visible Control Center action", tt.Texts())
@@ -321,18 +321,6 @@ func openSettings(t *testing.T, tt *ui.Tester) {
 	if err := tt.Click("Settings"); err != nil {
 		t.Fatal(err)
 	}
-}
-
-func countText(texts []string, want string) int {
-	var n int
-
-	for _, text := range texts {
-		if text == want {
-			n++
-		}
-	}
-
-	return n
 }
 
 // Escape closes the Library import sheet before it can navigate back.

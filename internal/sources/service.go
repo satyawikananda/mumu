@@ -14,7 +14,6 @@ import (
 const (
 	SettingRegion         = "catalog.region"
 	SettingBuiltinEnabled = "catalog.builtin.enabled"
-	DefaultRegion         = "ID"
 )
 
 const (

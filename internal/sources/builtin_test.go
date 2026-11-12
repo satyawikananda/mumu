@@ -1,6 +1,7 @@
 package sources
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -28,6 +29,7 @@ http://192.168.1.5/live.m3u8
 type testServer struct {
 	*httptest.Server
 	mu         sync.Mutex
+	requests   int
 	playlist   string
 	etag       string
 	blocklist  string
@@ -39,6 +41,7 @@ type testServer struct {
 
 func (s *testServer) handler(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
+	s.requests++
 	playlistBody, etag, fail := s.playlist, s.etag, s.fail
 	blocklistBody := s.blocklist
 	s.mu.Unlock()
@@ -120,11 +123,17 @@ func newTestService(t *testing.T) (*Service, *testServer, *storage.Store) {
 func TestBuiltinRefreshAndCache(t *testing.T) {
 	service, _, _ := newTestService(t)
 
-	if region, err := service.Region(t.Context()); err != nil || region != "ID" {
-		t.Fatalf("Region = %q, %v, want ID", region, err)
+	if region, err := service.Region(t.Context()); err != nil || region != "" {
+		t.Fatalf("Region = %q, %v, want no country before a choice", region, err)
 	}
 	if enabled, err := service.BuiltinEnabled(t.Context()); err != nil || !enabled {
 		t.Fatalf("BuiltinEnabled = %v, %v, want true", enabled, err)
+	}
+	if err := service.SetRegion(t.Context(), "ID"); err != nil {
+		t.Fatalf("SetRegion: %v", err)
+	}
+	if region, err := service.Region(t.Context()); err != nil || region != "ID" {
+		t.Fatalf("Region = %q, %v, want the stored ID", region, err)
 	}
 
 	source, err := service.RefreshBuiltin(t.Context(), "ID")
@@ -238,6 +247,97 @@ func TestRegionValidation(t *testing.T) {
 	}
 	if err := service.SetRegion(t.Context(), "USA"); !errors.Is(err, iptvorg.ErrInvalidCountry) {
 		t.Fatalf("error %v, want ErrInvalidCountry", err)
+	}
+}
+
+// A stored value is trimmed and upper-cased before validation.
+func TestRegionStoredValueNormalized(t *testing.T) {
+	service, _, store := newTestService(t)
+
+	if err := store.Settings().Set(t.Context(), SettingRegion, " us "); err != nil {
+		t.Fatalf("store region: %v", err)
+	}
+	if region, err := service.Region(t.Context()); err != nil || region != "US" {
+		t.Fatalf("Region = %q, %v, want US", region, err)
+	}
+}
+
+// A stored value that cannot identify a catalog country is reported as the
+// empty string instead of being replaced by a guessed country.
+func TestRegionInvalidStoredValue(t *testing.T) {
+	service, _, store := newTestService(t)
+
+	if err := store.Settings().Set(t.Context(), SettingRegion, "usa"); err != nil {
+		t.Fatalf("store region: %v", err)
+	}
+	region, err := service.Region(t.Context())
+	if err != nil {
+		t.Fatalf("Region: %v", err)
+	}
+	if region != "" {
+		t.Fatalf("Region = %q, want empty for an invalid stored value", region)
+	}
+}
+
+// A catalog operation without a country reports ErrNoRegion before any
+// provider or network call.
+func TestBuiltinRequiresRegion(t *testing.T) {
+	service, server, _ := newTestService(t)
+
+	for _, tc := range []struct {
+		name   string
+		region string
+		call   func(ctx context.Context, region string) error
+	}{
+		{
+			name:   "source empty region",
+			region: "",
+			call: func(ctx context.Context, region string) error {
+				_, _, _, err := service.BuiltinSource(ctx, region)
+
+				return err
+			},
+		},
+		{
+			name:   "source blank region",
+			region: "   ",
+			call: func(ctx context.Context, region string) error {
+				_, _, _, err := service.BuiltinSource(ctx, region)
+
+				return err
+			},
+		},
+		{
+			name:   "refresh empty region",
+			region: "",
+			call: func(ctx context.Context, region string) error {
+				_, err := service.RefreshBuiltin(ctx, region)
+
+				return err
+			},
+		},
+		{
+			name:   "refresh blank region",
+			region: "  ",
+			call: func(ctx context.Context, region string) error {
+				_, err := service.RefreshBuiltin(ctx, region)
+
+				return err
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := tc.call(t.Context(), tc.region); !errors.Is(err, ErrNoRegion) {
+				t.Fatalf("error %v, want ErrNoRegion", err)
+			}
+		})
+	}
+
+	server.mu.Lock()
+	requests := server.requests
+	server.mu.Unlock()
+	if requests != 0 {
+		t.Fatalf("HTTP requests %d, want none", requests)
 	}
 }
 
