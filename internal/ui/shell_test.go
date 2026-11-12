@@ -54,8 +54,8 @@ func TestShellControlCenterMouse(t *testing.T) {
 	if shell.ControlCenterOpen() || shell.IsWatch() {
 		t.Fatal("Home navigation left Control Center open or Watch selected")
 	}
-	if !tt.HasText("Home") {
-		t.Errorf("texts %q, want Home", tt.Texts())
+	if !tt.HasText("Nothing to watch yet") {
+		t.Errorf("texts %q, want the Home empty state", tt.Texts())
 	}
 }
 
@@ -114,7 +114,7 @@ func TestShellHomeWatchDistinct(t *testing.T) {
 	if got := shell.Destination(); got != destHome {
 		t.Fatalf("destination %q, want Home", got)
 	}
-	if shell.IsWatch() || !tt.HasText("Nothing to resume") {
+	if shell.IsWatch() || !tt.HasText("Nothing to watch yet") {
 		t.Fatalf("texts %q, want the Home empty state", tt.Texts())
 	}
 

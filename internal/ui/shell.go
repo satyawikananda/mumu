@@ -3,6 +3,10 @@ package ui
 
 import "github.com/egoist/mygo/ui"
 
+// chromeHeight is the top bar's height. The bar overlays the content so a
+// page's artwork can pass behind it; every page reserves the same inset.
+const chromeHeight float32 = 48
+
 // Shell is the native application shell. It owns the current destination,
 // the Control Center overlay and the page objects the app publishes into.
 type Shell struct {
@@ -18,6 +22,9 @@ type Shell struct {
 	settings  *Settings
 	watch     *Watch
 	pip       *PiP
+
+	// settingsScroll tracks the Settings page's scroll offset for the bar.
+	settingsScroll ui.ScrollState
 
 	controlCenterOpen bool
 
@@ -49,6 +56,19 @@ func NewShell() *Shell {
 	s.watch.OnBrowse = s.ShowDiscover
 	s.home.OnBrowse = s.ShowDiscover
 	s.home.OnWatch = s.ShowWatch
+	s.home.OnAddPlaylist = func() {
+		s.ShowLibrary()
+		s.library.OpenAddPlaylist()
+	}
+	s.home.OnSeeAll = func(rail HomeRail) {
+		s.ShowLibrary()
+		if rail == HomeRailRecent {
+			s.library.ShowRecent()
+
+			return
+		}
+		s.library.ShowFavorites()
+	}
 
 	return s
 }
@@ -177,12 +197,22 @@ func (s *Shell) View(c *ui.Context) {
 	})
 }
 
-// chrome draws the persistent top bar and the visible Control Center entry.
+// chrome draws the top bar above the page. It stays transparent while the page
+// is at its start, so page artwork can pass behind it, and takes a translucent
+// canvas scrim once the page scrolls under it.
 func (s *Shell) chrome(c *ui.Context, theme *ui.Theme) {
 	layout := layoutFor(c.Size())
+	p := paletteFor(theme.Dark)
+	scrolled := s.pageScrolled()
 
-	ui.Row(c).FillWidth().Height(48).Padding(8, layout.Padding).
-		AlignItems(ui.Center).Gap(12).Children(func() {
+	bar := ui.Row(c).FillWidth().Height(chromeHeight).ZIndex(1).
+		Padding(8, layout.Padding).AlignItems(ui.Center).Gap(12)
+	if scrolled {
+		bar = bar.Background(p.canvas.Alpha(0.86)).
+			Border(1, p.border).BorderWidth(0, 0, 1, 0)
+	}
+	bar.Transition(ui.ElementTransition{Colors: true, Duration: hoverMotion.Duration})
+	bar.Children(func() {
 		brand := ui.ButtonBase(c.Key("open-control-center")).Padding(4, 6).Radius(8).
 			FocusRingOffset(-2)
 		brand = brand.Label("Open Control Center").Tooltip("Control Center")
@@ -236,6 +266,26 @@ func (s *Shell) topIcon(c *ui.Context, icon *ui.SVG, label string, action func()
 		action()
 	}
 }
+
+// pageScrolled reports whether the current page is scrolled away from its
+// start, which turns the top bar into a scrim.
+func (s *Shell) pageScrolled() bool {
+	switch s.nav {
+	case destHome:
+		return s.home.Scrolled()
+	case destDiscover:
+		return s.discover.Scrolled()
+	case destLibrary:
+		return s.library.Scrolled()
+	case destSettings:
+		return s.settingsScroll.Y > 1
+	default:
+		return false
+	}
+}
+
+// ChromeScrolled reports whether the top bar shows its scrim, for tests.
+func (s *Shell) ChromeScrolled() bool { return s.pageScrolled() }
 
 // content draws the error banner, the current page and the shortcut strip.
 func (s *Shell) content(c *ui.Context, theme *ui.Theme) {

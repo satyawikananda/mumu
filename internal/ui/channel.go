@@ -8,14 +8,18 @@ import (
 
 // ChannelTile is the shared grid and rail card for a channel.
 type ChannelTile struct {
-	Key        string
-	Name       string
-	Meta       string
-	Live       bool
-	Art        Artwork
-	Width      float32
-	Height     float32
-	Grow       bool
+	Key    string
+	Name   string
+	Meta   string
+	Live   bool
+	Art    Artwork
+	Width  float32
+	Height float32
+	Grow   bool
+	// FocusField and FocusValue bind keyboard focus to an app-owned cursor.
+	// Leave FocusValue empty for a tile outside a rail.
+	FocusField *string
+	FocusValue string
 	Selected   bool
 	Disabled   bool
 	OnActivate func()
@@ -52,8 +56,8 @@ func (ch ChannelTile) View(c *ui.Context) ui.Element {
 		FocusRingOffset(-2).
 		LinearGradient(ui.LinearGradient{
 			From:  artColor,
-			To:    ui.Hex("#0B0B10"),
-			Angle: 150,
+			To:    ui.Hex("#0E0E12"),
+			Angle: 140,
 			Oklab: true,
 		})
 	switch {
@@ -125,6 +129,10 @@ func (ch ChannelTile) View(c *ui.Context) ui.Element {
 	}
 	tile.AnimatePose(pose, hoverMotion)
 
+	if ch.FocusField != nil && ch.FocusValue != "" && !ch.Disabled {
+		tile = tile.FocusBind(ch.FocusField, ch.FocusValue)
+	}
+
 	if tile.Clicked() && !ch.Disabled && ch.OnActivate != nil {
 		ch.OnActivate()
 	}
@@ -143,11 +151,17 @@ type RowState struct {
 // ChannelRow is the dense channel row for virtualized search and playlist
 // results. The list owns focus and selection; the row draws them.
 type ChannelRow struct {
-	Name     string
-	Meta     string
+	Name string
+	Meta string
+	// Note explains why the row is disabled, such as a disabled source.
+	Note     string
 	Live     bool
 	Art      Artwork
 	Disabled bool
+	// Action is an optional trailing button, such as a favorite toggle.
+	Action         string
+	ActionSelected bool
+	OnAction       func()
 }
 
 // ListView draws a row from ui.List's row state.
@@ -226,19 +240,37 @@ func (ch ChannelRow) View(c *ui.Context, state RowState) ui.Element {
 				ui.Text(c, meta).Font(bodyFont()).FontSize(textSize(t, 12)).
 					TextColor(t.TextMuted).SingleLine()
 			}
+			if note := strings.TrimSpace(ch.Note); note != "" {
+				ui.Text(c, note).Font(bodyFont()).FontSize(textSize(t, 12)).
+					TextColor(t.Warning).SingleLine()
+			}
 		})
 
 		if ch.Live {
 			Badge{Kind: BadgeLive, Text: "LIVE"}.View(c)
 		}
+
+		if ch.Action != "" && ch.OnAction != nil {
+			ui.Button(c, ch.Action).AccessSelected(ch.ActionSelected).OnClick(ch.OnAction)
+		}
 	})
 
-	row = row.Label(channelLabel(name, ch.Meta, ch.Live)).AccessSelected(state.Selected)
+	row = row.Label(ch.rowLabel(name)).AccessSelected(state.Selected)
 	if ch.Disabled {
 		row = row.Disabled(true).DimDisabled(false)
 	}
 
 	return row
+}
+
+// rowLabel is the accessible name of one row, including why it is disabled.
+func (ch ChannelRow) rowLabel(name string) string {
+	parts := []string{channelLabel(name, ch.Meta, ch.Live)}
+	if note := strings.TrimSpace(ch.Note); note != "" {
+		parts = append(parts, note)
+	}
+
+	return strings.Join(parts, ", ")
 }
 
 // ChannelGrid lays out tiles in the responsive 5/4/4 column grid.
@@ -283,6 +315,9 @@ type Rail struct {
 	Count string
 	Tiles []ChannelTile
 	Cards int
+	// SeeAllLabel is the accessible name of the optional See all action.
+	SeeAllLabel string
+	OnSeeAll    func()
 }
 
 // View draws the rail.
@@ -302,12 +337,31 @@ func (r Rail) View(c *ui.Context) ui.Element {
 		rail = rail.Key(r.Key)
 	}
 	rail.Children(func() {
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Children(func() {
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(10).Children(func() {
 			ui.Text(c, r.Title).Font(displayFont()).FontSize(textSize(t, 19)).
 				FontWeight(700).TextColor(t.Text).Grow(1).SingleLine()
 			if r.Count != "" {
 				ui.Text(c, r.Count).Font(bodyFont()).FontSize(textSize(t, 12)).
 					TextColor(t.TextMuted).SingleLine()
+			}
+			if r.OnSeeAll != nil {
+				label := r.SeeAllLabel
+				if label == "" {
+					label = "See all " + strings.ToLower(r.Title)
+				}
+				seeAll := ui.ButtonBase(c).Padding(4, 9).Radius(radiusChip).
+					FocusRingOffset(-2).Label(label).Tooltip("Open in Library")
+				if seeAll.Hovered() {
+					seeAll = seeAll.Background(t.SurfaceHover)
+				}
+				seeAll.Children(func() {
+					ui.Text(c, "See all").Font(bodyFont()).FontSize(textSize(t, 12)).
+						FontWeight(600).TextColor(t.TextMuted).SingleLine()
+				})
+				seeAll.Transition(ui.ElementTransition{Colors: true, Duration: hoverMotion.Duration})
+				if seeAll.Clicked() {
+					r.OnSeeAll()
+				}
 			}
 		})
 

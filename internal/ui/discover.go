@@ -95,6 +95,7 @@ type Discover struct {
 	favorites  map[string]bool
 	search     ui.Handle
 	list       ui.ListState
+	scroll     ui.ScrollState
 	selected   int
 	notice     string
 
@@ -157,6 +158,9 @@ func (d *Discover) indexForKey(key string) int {
 
 // State returns what the page shows, for the app and for tests.
 func (d *Discover) State() DiscoverState { return d.state }
+
+// Scrolled reports whether the catalog is scrolled away from its start.
+func (d *Discover) Scrolled() bool { return d.scroll.Y > 1 }
 
 // Region returns the selected catalog region code.
 func (d *Discover) Region() string { return d.state.Region }
@@ -421,7 +425,8 @@ func (d *Discover) channelList(c *ui.Context, theme *ui.Theme) {
 	}).
 		Grow(1).
 		Label("Channels").
-		ItemKey(func(i int) any { return d.state.Channels[i].Key })
+		ItemKey(func(i int) any { return d.state.Channels[i].Key }).
+		TrackScroll(&d.scroll)
 	if d.selected >= 0 && d.selected < len(d.state.Channels) {
 		d.selectedKey = d.state.Channels[d.selected].Key
 	} else {

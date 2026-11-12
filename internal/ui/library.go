@@ -80,6 +80,7 @@ type LibraryChannel struct {
 	Name          string
 	SourceName    string
 	Meta          string
+	LogoURL       string
 	Live          bool
 	Favorite      bool
 	Playable      bool
@@ -170,6 +171,10 @@ type Library struct {
 
 	favoriteRows []LibraryChannel
 	recentRows   []LibraryChannel
+	scrolls      [3]ui.ScrollState
+
+	logos      map[string]*ui.Bitmap
+	logoColors map[string]ui.Color
 
 	now func() time.Time
 
@@ -243,11 +248,23 @@ func (l *Library) SetState(state LibraryState) {
 // State returns what the page shows, for the app and for tests.
 func (l *Library) State() LibraryState { return l.state }
 
+// SetLogos shows decoded channel logos by URL.
+func (l *Library) SetLogos(logos map[string]*ui.Bitmap) { l.logos = logos }
+
+// SetLogoColors shows the bounded artwork tints by URL.
+func (l *Library) SetLogoColors(colors map[string]ui.Color) { l.logoColors = colors }
+
 // Section returns the visible tab.
 func (l *Library) Section() LibrarySection { return LibrarySection(l.section) }
 
+// Scrolled reports whether the visible section is scrolled from its start.
+func (l *Library) Scrolled() bool { return l.scrolls[l.section].Y > 1 }
+
 // ShowFavorites opens the Favorites tab.
 func (l *Library) ShowFavorites() { l.section = int(LibraryFavorites) }
+
+// ShowRecent opens the Recently watched tab.
+func (l *Library) ShowRecent() { l.section = int(LibraryRecent) }
 
 // ShowPlaylists opens the Playlists tab.
 func (l *Library) ShowPlaylists() { l.section = int(LibraryPlaylists) }
@@ -409,12 +426,14 @@ func (l *Library) channelSection(c *ui.Context, theme *ui.Theme, rows []LibraryC
 		return
 	}
 
-	listElement := ui.List(c, &list.state, len(rows), func(i int) {
-		l.channelRow(c, theme, rows[i], mode)
-	}).
+	listElement := ui.List(c, &list.state, len(rows)).
 		Grow(1).
 		Label(l.sectionTitle(mode)).
-		ItemKey(func(i int) any { return rows[i].Key })
+		ItemKey(func(i int) any { return rows[i].Key }).
+		TrackScroll(&l.scrolls[l.section]).
+		Rows(func(row ui.ListRow) {
+			l.channelRow(row, rows[row.Index])
+		})
 
 	if listElement.Submitted() {
 		if index := list.current(len(rows)); index >= 0 {
@@ -454,35 +473,35 @@ func (l *Library) emptyChannels(c *ui.Context, mode sectionMode) {
 	})
 }
 
-// channelRow draws one favorite or recent channel.
-func (l *Library) channelRow(c *ui.Context, theme *ui.Theme, channel LibraryChannel, _ sectionMode) {
-	ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(12).Padding(8, 10).Children(func() {
-		ui.Avatar(c, channel.Name, nil)
+// channelRow draws one favorite or recent channel with the shared row.
+func (l *Library) channelRow(row ui.ListRow, channel LibraryChannel) {
+	label := "Add to Favorites"
+	if channel.Favorite {
+		label = "Remove from Favorites"
+	}
 
-		ui.Column(c).Grow(1).Gap(2).Children(func() {
-			ui.Text(c, channel.Name).FontSize(theme.Rem(1.08)).FontWeight(500).SingleLine()
-			if meta := l.channelMeta(channel); meta != "" {
-				ui.Text(c, meta).FontSize(theme.Rem(0.85)).TextColor(theme.TextMuted).SingleLine()
-			}
-			if reason := l.unavailableReason(channel); reason != "" {
-				ui.Text(c, reason).FontSize(theme.Rem(0.85)).TextColor(theme.Warning)
-			}
-		})
+	ChannelRow{
+		Name:           channel.Name,
+		Meta:           l.channelMeta(channel),
+		Note:           l.unavailableReason(channel),
+		Live:           channel.Live,
+		Art:            l.artwork(channel),
+		Disabled:       !channel.Playable || !channel.SourceEnabled,
+		Action:         label,
+		ActionSelected: channel.Favorite,
+		OnAction:       func() { l.toggleFavorite(channel.Key) },
+	}.ListView(row.Context, row)
+}
 
-		if channel.Live {
-			ui.Text(c, "LIVE").FontSize(theme.Rem(0.8)).FontWeight(600).
-				TextColor(theme.TextMuted).Padding(2, 7).Radius(4).
-				Background(theme.Surface).Border(1, theme.Border)
-		}
+// artwork returns the published logo and tint for one row.
+func (l *Library) artwork(channel LibraryChannel) Artwork {
+	url := channel.LogoURL
 
-		label := "Add to Favorites"
-		if channel.Favorite {
-			label = "Remove from Favorites"
-		}
-		ui.Button(c, label).AccessSelected(channel.Favorite).OnClick(func() {
-			l.toggleFavorite(channel.Key)
-		})
-	})
+	return Artwork{
+		Bitmap:   l.logos[url],
+		Color:    l.logoColors[url],
+		Monogram: monogram(channel.Name),
+	}
 }
 
 // playlists draws the message banner, the source rows and Add actions.
@@ -502,7 +521,8 @@ func (l *Library) playlists(c *ui.Context, theme *ui.Theme) {
 	}).
 		Grow(1).
 		Label("Playlists").
-		ItemKey(func(i int) any { return l.state.Sources[i].ID })
+		ItemKey(func(i int) any { return l.state.Sources[i].ID }).
+		TrackScroll(&l.scrolls[LibraryPlaylists])
 
 	ui.Row(c).Gap(8).Wrap().Children(func() {
 		ui.Button(c, "Add M3U URL").OnClick(l.OpenAddPlaylist)
@@ -1061,25 +1081,5 @@ func (l *Library) channelCount(n int) string {
 
 // relative names when something happened.
 func (l *Library) relative(at time.Time) string {
-	if at.IsZero() {
-		return "not refreshed yet"
-	}
-
-	now := l.now()
-	if now.Before(at) {
-		now = at
-	}
-	age := now.Sub(at)
-	switch {
-	case age < time.Minute:
-		return "just now"
-	case age < time.Hour:
-		return fmt.Sprintf("%dm ago", int(age.Minutes()))
-	case age < 24*time.Hour:
-		return fmt.Sprintf("%dh ago", int(age.Hours()))
-	case age < 7*24*time.Hour:
-		return fmt.Sprintf("%dd ago", int(age.Hours()/24))
-	default:
-		return "on " + at.Format("2 Jan 2006")
-	}
+	return relativeTime(l.now(), at)
 }

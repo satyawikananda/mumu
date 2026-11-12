@@ -50,7 +50,7 @@ func (s *Shell) drawPage(c *ui.Context, theme *ui.Theme) {
 	case destLibrary:
 		s.library.View(c, theme)
 	case destSettings:
-		ui.Scroll(c).Grow(1).FillWidth().Children(func() {
+		ui.Scroll(c).Grow(1).FillWidth().TrackScroll(&s.settingsScroll).Children(func() {
 			ui.Column(c).FillWidth().Gap(16).Children(func() {
 				pageHeading(c, "Settings")
 				s.drawSettings(c, theme)

@@ -554,16 +554,23 @@ func (a *App) loadDiscoverCountries(ctx context.Context) {
 	}
 
 	list := make([]ui.DiscoverCountry, 0, len(countries))
+	names := make(map[string]string, len(countries))
 	for _, country := range countries {
 		name := strings.TrimSpace(country.Name)
 		if name == "" {
 			name = country.Code
 		}
 		list = append(list, ui.DiscoverCountry{Code: country.Code, Name: name})
+		names[strings.ToUpper(country.Code)] = name
 	}
+
+	a.mu.Lock()
+	a.countryNames = names
+	a.mu.Unlock()
 
 	a.publish(func() {
 		a.shell.Discover().SetCountries(list)
+		a.publishHome()
 	})
 }
 
@@ -638,9 +645,37 @@ func (a *App) prefetchLogos(ctx context.Context, gen uint64, channels []catalog.
 	})
 }
 
-// fetchLogos loads urls with bounded concurrency and publishes the decoded
-// images once. Failures stay silent: rows fall back to initials.
-func (a *App) fetchLogos(ctx context.Context, gen uint64, urls []string) {
+// prefetchArtwork loads the logos of saved channels for the Home feed and the
+// Library rows, then republishes both. The fetcher dedupes cached and in-flight
+// URLs, so a repeated library reload costs no network work.
+func (a *App) prefetchArtwork(ctx context.Context, urls []string) {
+	if len(urls) == 0 {
+		return
+	}
+
+	a.Go(func(context.Context) error {
+		images, tints := a.loadLogoImages(ctx, urls)
+		if len(images) == 0 {
+			return nil
+		}
+
+		a.publish(func() {
+			for url, img := range images {
+				a.logos.add(url, img, tints[url])
+			}
+			a.shell.Library().SetLogos(a.logos.snapshot())
+			a.shell.Library().SetLogoColors(a.logos.snapshotColors())
+			a.shell.Home().SetLogos(a.logos.snapshot())
+			a.shell.Home().SetLogoColors(a.logos.snapshotColors())
+		})
+
+		return nil
+	})
+}
+
+// loadLogoImages decodes urls with bounded concurrency. Failures stay silent:
+// tiles fall back to a monogram.
+func (a *App) loadLogoImages(ctx context.Context, urls []string) (map[string]image.Image, map[string]color.RGBA) {
 	var (
 		mu     sync.Mutex
 		images = make(map[string]image.Image, len(urls))
@@ -677,6 +712,13 @@ func (a *App) fetchLogos(ctx context.Context, gen uint64, urls []string) {
 
 	wg.Wait()
 
+	return images, tints
+}
+
+// fetchLogos loads urls with bounded concurrency and publishes the decoded
+// images once. Failures stay silent: rows fall back to initials.
+func (a *App) fetchLogos(ctx context.Context, gen uint64, urls []string) {
+	images, tints := a.loadLogoImages(ctx, urls)
 	if len(images) == 0 || !a.discover.current(gen) {
 		return
 	}

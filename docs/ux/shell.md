@@ -20,6 +20,13 @@ The permanent sidebar and 72 pt rail are removed. Every page uses one top bar:
 
 - The top bar is inside the main window below the native titlebar. It does not
   create custom traffic lights or a custom window shape.
+- The bar has no background while the current page is at its start, so Home's
+  synthesized art passes behind it. Once the page scrolls under it, the bar
+  draws a translucent canvas scrim with a bottom hairline.
+- The scrim is not a native blur. MyGo has no backdrop filter; claiming glass
+  would be false. The translucency is a canvas color at 86% opacity.
+- Scroll position comes from the page's own `ui.ScrollState`
+  (`TrackScroll`): Home, Discover, Library sections and Settings each keep one.
 - The brand lockup and the labelled **Control Center** action both open the
   overlay. Control Center is never keyboard-only.
 - **Home**, **Discover** and **Library** are primary destinations.

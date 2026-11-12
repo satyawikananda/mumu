@@ -117,6 +117,30 @@ func (c *libraryCache) snapshot() ui.LibraryState {
 	}
 }
 
+// homeSnapshot copies the entry lists and counts for the Home feed.
+//
+// The returned slices share their backing arrays and must not be mutated.
+// loadLibraryEntries replaces the cached slices instead of editing them.
+func (c *libraryCache) homeSnapshot() (
+	recent, favorites []library.Entry,
+	recentCount, favoriteCount int,
+	loaded bool,
+	loadErr string,
+) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.recent, c.favorites, len(c.recent), len(c.favorites), c.loaded, c.loadErr
+}
+
+// ready reports whether a library read already succeeded.
+func (c *libraryCache) ready() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.loaded
+}
+
 // setSources replaces the cached rows; loaded reports a successful read.
 func (c *libraryCache) setSources(list []catalog.Source) {
 	c.mu.Lock()
@@ -413,6 +437,7 @@ func (a *App) loadLibraryEntries(ctx context.Context) error {
 	// Every reload can change the favorite set (remap, cascade, another tab),
 	// so Watch and Discover follow the same write.
 	a.publishFavorites()
+	a.prefetchArtwork(ctx, artworkURLs(favorites, recent))
 
 	return nil
 }
@@ -439,7 +464,20 @@ func (a *App) loadLibraryRows(ctx context.Context, service *sources.Service) {
 
 // publishLibrary shows the cached rows on the UI thread.
 func (a *App) publishLibrary() {
-	a.publish(func() { a.shell.Library().SetState(a.libraryData.snapshot()) })
+	a.publish(func() {
+		a.shell.Library().SetState(a.libraryData.snapshot())
+		a.shell.Library().SetLogos(a.logos.snapshot())
+		a.shell.Library().SetLogoColors(a.logos.snapshotColors())
+		a.publishHome()
+	})
+}
+
+// publishHome shows the feed and its artwork. It runs on the UI thread.
+func (a *App) publishHome() {
+	home := a.shell.Home()
+	home.SetState(a.homeState())
+	home.SetLogos(a.logos.snapshot())
+	home.SetLogoColors(a.logos.snapshotColors())
 }
 
 // refreshLibrarySource re-reads one source without blocking the page.
@@ -1010,22 +1048,29 @@ func (a *App) publishFavorites() {
 func (a *App) playLibraryChannel(key string) {
 	entry, ok := a.libraryData.entry(key)
 	if !ok {
+		// A stale Home card or resume target must never start playback.
+		a.shell.ShowError("That channel is no longer in your library. Refresh its source in Playlists, or browse Discover.")
+		a.reloadLibrary()
+
 		return
 	}
 
 	if !entry.Source.Enabled {
 		a.libraryData.setMessage("That source is disabled. Enable it in Playlists, then try again.")
 		a.publishLibrary()
+		a.shell.ShowError("That channel's source is disabled. Enable it in Playlists, then try again.")
 
 		return
 	}
 	if !entry.Playable {
 		a.libraryData.setMessage("That channel has no supported stream. Refresh its source in Playlists.")
 		a.publishLibrary()
+		a.shell.ShowError("That channel has no supported stream. Refresh its source in Playlists.")
 
 		return
 	}
 
+	a.shell.ClearError()
 	a.libraryData.setMessage("")
 	a.publishLibrary()
 	a.playChannel(entry.Channel, libraryDisplayName(entry.Source))
@@ -1129,6 +1174,7 @@ func libraryChannelRow(entry library.Entry, favorite bool) ui.LibraryChannel {
 		Name:          strings.TrimSpace(entry.Channel.Name),
 		SourceName:    libraryDisplayName(entry.Source),
 		Meta:          strings.TrimSpace(entry.Channel.Group),
+		LogoURL:       strings.TrimSpace(entry.Channel.LogoURL),
 		Live:          channelLive(entry.Channel),
 		Favorite:      favorite,
 		Playable:      entry.Playable,

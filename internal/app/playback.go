@@ -32,6 +32,7 @@ const (
 
 // watchResume is the last channel offered without autoplay.
 type watchResume struct {
+	key        string
 	channel    catalog.Channel
 	sourceName string
 }
@@ -92,7 +93,9 @@ func (a *App) startWatch() {
 	a.shell.OnDestinationChanged(a.watchVisibilityChanged)
 	a.shell.Home().OnResume = a.resumeWatching
 	a.shell.Home().OnWatch = a.shell.ShowWatch
+	a.shell.Home().OnPlay = a.playLibraryChannel
 	a.shell.Home().OnBrowse = a.shell.ShowDiscover
+	a.shell.Home().OnRetry = a.reloadLibrary
 
 	pip := a.shell.PiP()
 	pip.OnReturn = a.returnFromPiP
@@ -274,6 +277,7 @@ func (a *App) loadWatchResume(ctx context.Context) {
 
 	a.mu.Lock()
 	a.media.resume = &watchResume{
+		key:        entry.Key,
 		channel:    entry.Channel,
 		sourceName: libraryDisplayName(entry.Source),
 	}
@@ -288,14 +292,32 @@ func (a *App) loadWatchResume(ctx context.Context) {
 }
 
 // resumeWatching starts the offered last channel. It runs on the UI thread.
+//
+// The key is resolved against the current library cache, so a channel whose
+// source was disabled, refreshed away or removed cannot start from a stale
+// resume reference.
 func (a *App) resumeWatching() {
 	a.mu.Lock()
 	resume := a.media.resume
 	a.mu.Unlock()
 
-	if resume != nil {
-		a.playChannel(resume.channel, resume.sourceName)
+	if resume == nil {
+		return
 	}
+	if resume.key != "" {
+		// Before the first read finishes the validated channel is still the
+		// only source of truth; afterwards the key must resolve in the cache.
+		if !a.libraryData.ready() {
+			a.playChannel(resume.channel, resume.sourceName)
+
+			return
+		}
+		a.playLibraryChannel(resume.key)
+
+		return
+	}
+
+	a.playChannel(resume.channel, resume.sourceName)
 }
 
 // retryWatching reloads the active channel. It runs on the UI thread.
@@ -586,36 +608,9 @@ func (a *App) publishWatch() {
 	a.publish(func() {
 		a.syncSurfaceVisibility()
 		a.shell.Watch().SetState(a.watchState())
-		a.shell.Home().SetState(a.homeState())
+		a.publishHome()
 		a.shell.PiP().SetState(a.pipState())
 	})
-}
-
-// homeState is the small Home contract for #34. #35 expands the feed.
-func (a *App) homeState() ui.HomeState {
-	a.mu.Lock()
-	media := a.media
-	a.mu.Unlock()
-
-	switch {
-	case media.channel.ProviderID != "" &&
-		(media.snapshot.State == player.StateLoading ||
-			media.snapshot.State == player.StateBuffering ||
-			media.snapshot.State == player.StatePlaying):
-		return ui.HomeState{
-			Kind:    ui.HomeActive,
-			Channel: media.channel.Name,
-			Source:  media.sourceName,
-		}
-	case media.resume != nil:
-		return ui.HomeState{
-			Kind:    ui.HomeResume,
-			Channel: media.resume.channel.Name,
-			Source:  media.resume.sourceName,
-		}
-	default:
-		return ui.HomeState{Kind: ui.HomeEmpty}
-	}
 }
 
 // failWatch reports an actionable error on the Watch page. It can run on any

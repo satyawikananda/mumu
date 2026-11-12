@@ -66,6 +66,8 @@ type Shortcut struct {
 	Bindings []ShortcutBinding
 	Keys     []string
 	Label    string
+	// HintLabel overrides Label in the current screen's hint bar.
+	HintLabel func(*Shell) string
 	// Available is false for a command that is not implemented yet.
 	Available bool
 	Enabled   func(*Shell) bool
@@ -161,18 +163,31 @@ var shortcutRegistry = []Shortcut{
 		Run: func(s *Shell, _ ui.Key) { s.handleEscape() },
 	},
 	{
-		ID: ShortcutSearch, Context: ShortcutHome,
-		Bindings: []ShortcutBinding{{Key: ui.KeySlash}}, Keys: []string{"/"},
-		Label: "Search", Available: true,
-		Run: func(s *Shell, _ ui.Key) { s.focusSearch() },
-	},
-	{
 		ID: ShortcutOpen, Context: ShortcutHome,
 		Bindings: []ShortcutBinding{{Key: ui.KeyEnter}}, Keys: []string{"⏎"},
 		Label: "Resume", Available: true,
-		Enabled: func(s *Shell) bool {
-			state := s.home.State()
-			return state.Kind == HomeResume || state.Kind == HomeActive
+		HintLabel: func(s *Shell) string {
+			if s.home.OnCardFocus() {
+				return "Open channel"
+			}
+
+			return "Resume"
+		},
+		Enabled: func(s *Shell) bool { return s.home.CanActivate() },
+		Run:     func(s *Shell, _ ui.Key) { s.home.Activate() },
+	},
+	{
+		ID: ShortcutMove, Context: ShortcutHome,
+		Bindings: []ShortcutBinding{{Key: ui.KeyLeft}, {Key: ui.KeyRight}},
+		Keys:     []string{"←", "→"},
+		Label:    "Move between cards", Available: true,
+		Enabled: func(s *Shell) bool { return s.home.FocusWithinRail() },
+		Run: func(s *Shell, key ui.Key) {
+			if key == ui.KeyLeft {
+				s.home.MoveRail(-1)
+			} else {
+				s.home.MoveRail(1)
+			}
 		},
 	},
 	{
@@ -180,6 +195,12 @@ var shortcutRegistry = []Shortcut{
 		Bindings: []ShortcutBinding{{Key: ui.KeyEscape}}, Keys: []string{"Esc"},
 		Label: "Control Center", Available: true,
 		Run: func(s *Shell, _ ui.Key) { s.handleEscape() },
+	},
+	{
+		ID: ShortcutSearch, Context: ShortcutHome,
+		Bindings: []ShortcutBinding{{Key: ui.KeySlash}}, Keys: []string{"/"},
+		Label: "Search channels", Available: true,
+		Run: func(s *Shell, _ ui.Key) { s.focusSearch() },
 	},
 	{
 		ID: ShortcutMove, Context: ShortcutControlCenter,
@@ -230,7 +251,11 @@ func shortcutHints(s *Shell, context ShortcutContext, limit int) []Hint {
 		if sc.Context != context || !shortcutAvailable(s, sc) {
 			continue
 		}
-		hints = append(hints, Hint{Key: strings.Join(sc.Keys, " "), Action: sc.Label})
+		label := sc.Label
+		if sc.HintLabel != nil {
+			label = sc.HintLabel(s)
+		}
+		hints = append(hints, Hint{Key: strings.Join(sc.Keys, " "), Action: label})
 		if limit > 0 && len(hints) == limit {
 			break
 		}
