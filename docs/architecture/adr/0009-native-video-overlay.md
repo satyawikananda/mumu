@@ -38,8 +38,9 @@ owner of pointer input.** Concretely, the production path is:
 4. Refresh the drawable from the hosted view's own bounds instead of applying
    frames from the app layout.
 
-Status is **CONDITIONAL GO**: composition, input, the single session and the
-pause seam are proven on macOS; the remaining checks are listed under
+Status is **CONDITIONAL GO**: composition, input, the single session, twenty
+repeated window transfers, resize/fullscreen and the container radius are
+recorded, as is the pause seam. The remaining checks are listed under
 "Not verified" in the evidence file and gate #38/#39, not this ADR.
 
 ### Why not `ui.NativeView`

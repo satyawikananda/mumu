@@ -44,7 +44,7 @@ block and the transport bar above it. The status line reports
 backing scale.
 
 Z-order, logged from the running app by walking `contentView.subviews`
-(`subview-order.log`):
+(`subview-order.txt`):
 
 ```text
 subviews bottom-to-top: [NSOpenGLView MyGoSurfaceView]
@@ -114,10 +114,27 @@ in-flight segment reads. #37 has to choose the product behavior: accept the
 small residual read, tear the connection and re-live-edge on resume, or hold
 the last frame from a captured image. #32 records the seam and the blocker.
 
+## Repeated transfers, resize, fullscreen and radius
+
+Scripted run on the same build (`repeated-transfers.txt`): 20 PiP toggles at
+500 ms, five resize/fullscreen steps, radius 24 on the hosted container.
+
+| Check | Result |
+| --- | --- |
+| PiP toggles | 20 logged transitions; the subview order stayed `[NSView MyGoSurfaceView]` after every move |
+| Stream loads | 2 `loaded` events, which is one `loadfile`; no second load, no `playing` restart |
+| Resize steps | 5 logged: 760x480, 1100x700, 900x560, fullscreen enter, fullscreen exit |
+| Fullscreen composition | chrome stayed above video; the status line reported `drawable 2940x1846` (`fullscreen-chrome.png`) |
+| Radius 24 | the container's layer masks the video's corner; the top-left corner is rounded over the window background (`radius-corner.png`) |
+| Radius 14 on the panel | the floating window keeps rounded corners with live video inside (`pip-panel.png`) |
+
+The panel keeps the same retained view and the same session; only its window
+changed. Pointer drag and resize gestures of the panel were not scripted.
+
 ## Measured cost
 
 `MYGO_FRAME_STATS=1`, `below` mode, 20 seconds with live video and full chrome
-(`frame-stats.log`): 8 frames over the 8 ms threshold. Each logged frame took
+(`frame-stats.txt`): 8 frames over the 8 ms threshold. Each logged frame took
 9.2-14.9 ms wall time, of which build was 0.1-0.2 ms, layout 0.0-4.4 ms, paint
 0.1-2.7 ms and present 3.1-14.5 ms, with 176 instances in 4 batches. The idle
 window draws nothing.
@@ -127,11 +144,9 @@ display's refresh, so the wall figure is not GPU cost.
 
 ## Not verified
 
-- Radius clipping of the hosted view at the element or window corner.
-- PiP drag and resize under the new composition; the summary strip was
-  exercised, the panel's corner radius and drag gestures were not measured.
-- Repeated PiP toggles (five and twenty times) and Spaces/fullscreen behavior
-  of another app.
+- PiP drag and resize gestures. The panel's radius and one transfer were
+  recorded; dragging and resizing the floating window by hand were not.
+- Spaces and another app's fullscreen behavior.
 - Dead-stream recovery and the error panel over live video.
 - Long sessions, 1080p, and CPU/GPU cost over minutes.
 - Any Windows or Linux behavior: the spike builds only for darwin/arm64.
