@@ -9,6 +9,10 @@ import (
 	"github.com/ebitengine/purego/objc"
 )
 
+// nsRect is NSRect: four CGFloat fields, in the same order AppKit lays them
+// out.
+type nsRect struct{ X, Y, W, H float64 }
+
 // nsWindowBelow is NSWindowBelow, the otherView of
 // addSubview:positioned:relativeTo:.
 const nsWindowBelow = ^uintptr(0)
@@ -95,4 +99,66 @@ func subviewOrder(window uintptr) []string {
 	}
 
 	return order
+}
+
+// hostedView is a clipping container for the retained view.
+//
+// A radius needs a layer that masks its subview. NSOpenGLView is not a
+// layer-backed view, so the experiment wraps it in a plain NSView whose layer
+// masks to the corner radius and carries the video as a subview.
+type hostedView struct {
+	container objc.ID
+}
+
+// newHostedView creates the container and keeps it until close.
+func newHostedView(radius float64) *hostedView {
+	container := objc.ID(objc.GetClass("NSView")).Send(objc.RegisterName("alloc"))
+	container = container.Send(objc.RegisterName("initWithFrame:"), nsRect{})
+	if container == 0 {
+		return nil
+	}
+	container.Send(objc.RegisterName("setWantsLayer:"), true)
+	if layer := container.Send(objc.RegisterName("layer")); layer != 0 {
+		layer.Send(objc.RegisterName("setMasksToBounds:"), true)
+		layer.Send(objc.RegisterName("setCornerRadius:"), radius)
+	}
+
+	return &hostedView{container: container}
+}
+
+// attach puts the video view into the container, sized to the content view,
+// and inserts the container under MyGo's surface.
+func (h *hostedView) attach(window, view uintptr) error {
+	if h == nil || h.container == 0 {
+		return errors.New("compose: no host container")
+	}
+	content := objc.ID(window).Send(objc.RegisterName("contentView"))
+	if content == 0 {
+		return errors.New("compose: window has no content view")
+	}
+
+	bounds := objc.Send[nsRect](content, objc.RegisterName("bounds"))
+	h.container.Send(objc.RegisterName("setFrame:"), nsRect{W: bounds.W, H: bounds.H})
+
+	video := objc.ID(view)
+	video.Send(objc.RegisterName("removeFromSuperview"))
+	h.container.Send(objc.RegisterName("addSubview:"), video)
+	video.Send(objc.RegisterName("setFrame:"), nsRect{W: bounds.W, H: bounds.H})
+	video.Send(objc.RegisterName("setAutoresizingMask:"), uintptr(2|16)) // width|height sizable
+
+	h.container.Send(objc.RegisterName("removeFromSuperview"))
+	content.Send(
+		objc.RegisterName("addSubview:positioned:relativeTo:"),
+		h.container, nsWindowBelow, objc.ID(0),
+	)
+
+	return nil
+}
+
+// detach removes the container from its window and keeps the video view in it.
+func (h *hostedView) detach() {
+	if h == nil || h.container == 0 {
+		return
+	}
+	h.container.Send(objc.RegisterName("removeFromSuperview"))
 }

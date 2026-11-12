@@ -119,6 +119,7 @@ func (a *app) view(c *ui.Context, mini bool) {
 	if a.keepFront {
 		activate()
 	}
+	a.drainPending()
 	if a.s.Mode.transparentRoot() {
 		c.Root().Background(ui.Transparent)
 	} else {
