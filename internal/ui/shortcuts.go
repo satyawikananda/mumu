@@ -36,7 +36,7 @@ const (
 	ShortcutPiP
 	// ShortcutDrawer toggles the channel drawer.
 	ShortcutDrawer
-	// ShortcutControlCenter opens or closes Control Center.
+	// ShortcutControlCenterCommand opens or closes Control Center.
 	ShortcutControlCenterCommand
 	// ShortcutSearch focuses the channel search.
 	ShortcutSearch

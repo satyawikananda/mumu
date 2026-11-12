@@ -114,7 +114,11 @@ func TestGalleryLightTheme(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer file.Close()
+		defer func() {
+			if err := file.Close(); err != nil {
+				t.Errorf("close light gallery capture: %v", err)
+			}
+		}()
 		if err := png.Encode(file, tt.Image()); err != nil {
 			t.Fatal(err)
 		}
@@ -180,7 +184,11 @@ func TestGalleryReferenceSizes(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				defer file.Close()
+				defer func() {
+					if err := file.Close(); err != nil {
+						t.Errorf("close gallery capture: %v", err)
+					}
+				}()
 				if err := png.Encode(file, tt.Image()); err != nil {
 					t.Fatal(err)
 				}

@@ -172,7 +172,7 @@ func (s *Shell) View(c *ui.Context) {
 			s.handleShortcuts(c)
 		}
 		if s.controlCenterOpen {
-			s.controlCenter(c).View(c)
+			s.controlCenter().View(c)
 		}
 	})
 }
@@ -320,7 +320,7 @@ func (s *Shell) toggleBrowseFavorite() {
 }
 
 // controlCenter builds the overlay from published page state.
-func (s *Shell) controlCenter(c *ui.Context) ControlCenter {
+func (s *Shell) controlCenter() ControlCenter {
 	watch := s.watch.State()
 	library := s.library.State()
 	state := ControlCenterState{
