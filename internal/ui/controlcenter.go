@@ -58,7 +58,7 @@ func (cc ControlCenterCard) View(c *ui.Context) ui.Element {
 	card := ui.ButtonBase(c).Size(width, height).Radius(radiusTile).
 		ClipInset(0, 0, 0, 0, radiusTile).FocusRingOffset(-2).
 		LinearGradient(ui.LinearGradient{
-			From:  artworkColor(c, cc.Art),
+			From:  artworkColor(cc.Art),
 			To:    ui.Hex("#101014"),
 			Angle: 135,
 			Oklab: true,

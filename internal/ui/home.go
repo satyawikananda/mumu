@@ -225,7 +225,7 @@ func (h *Home) Scrolled() bool { return h.scroll.Y > 1 }
 // View draws the Home feed on the MyGo main thread.
 func (h *Home) View(c *ui.Context, theme *ui.Theme) {
 	layout := layoutFor(c.Size())
-	t := c.Theme()
+	t := theme
 	width, height := c.Size()
 
 	h.visible = ui.FocusedValue(c, &h.focus)
@@ -272,7 +272,7 @@ func (h *Home) View(c *ui.Context, theme *ui.Theme) {
 // reaches the window edges, and it never adds a brand-colored wash.
 func (h *Home) backdrop(c *ui.Context, theme *ui.Theme, width, height, pad float32) {
 	p := paletteFor(theme.Dark)
-	art := artworkColor(c, h.heroArt())
+	art := artworkColor(h.heroArt())
 	// Light appearance keeps the art as a faint tint so the dark text stays
 	// readable; dark appearance lets the channel color lead.
 	base := art

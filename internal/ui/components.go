@@ -282,7 +282,7 @@ func artworkMonogram(art Artwork, name string) string {
 // artworkColor returns the bounded art color, or a dark neutral raised surface.
 // White text and the monogram sit on this fill in both appearances, so the
 // fallback stays dark instead of following a light theme surface.
-func artworkColor(c *ui.Context, art Artwork) ui.Color {
+func artworkColor(art Artwork) ui.Color {
 	if art.Color.A > 0 {
 		return boundedArtworkColor(art.Color)
 	}

@@ -38,7 +38,7 @@ func (ch ChannelTile) View(c *ui.Context) ui.Element {
 	if height <= 0 {
 		height = layoutFor(c.Size()).TileHeight
 	}
-	artColor := artworkColor(c, ch.Art)
+	artColor := artworkColor(ch.Art)
 	logoSize := min(float32(92), max(float32(64), height*0.44))
 	logoOffset := logoSize * 0.18
 	logoRadius := logoSize * 0.15
@@ -222,7 +222,7 @@ func (ch ChannelRow) View(c *ui.Context, state RowState) ui.Element {
 		Transition(ui.ElementTransition{Colors: true, Duration: hoverMotion.Duration})
 	row.Children(func() {
 		chip := ui.Box(c).Size(36, 36).Radius(radiusChip).Center().
-			Background(artworkColor(c, ch.Art)).ClipInset(0, 0, 0, 0, radiusChip)
+			Background(artworkColor(ch.Art)).ClipInset(0, 0, 0, 0, radiusChip)
 		chip.Children(func() {
 			if ch.Art.Bitmap != nil {
 				ui.Image(c, ch.Art.Bitmap).Size(24, 24).Fit(ui.Contain).AccessHidden(true)
