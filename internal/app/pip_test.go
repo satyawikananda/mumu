@@ -22,6 +22,7 @@ type fakeSurface struct {
 	detached  bool
 	closed    bool
 	closes    int
+	syncs     int
 	onDetach  func()
 }
 
@@ -52,6 +53,16 @@ func (f *fakeSurface) SetFrame(frame video.Rect) error {
 }
 
 func (f *fakeSurface) Size() (int, int) { return 640, 360 }
+
+// NativeViewHandle reports no native view: the fake has no AppKit objects.
+func (f *fakeSurface) NativeViewHandle() uintptr { return 0 }
+
+// SyncDrawable records hosted redraws; the fake has no drawable to refresh.
+func (f *fakeSurface) SyncDrawable() error {
+	f.syncs++
+
+	return nil
+}
 
 func (f *fakeSurface) Errors() <-chan error {
 	if f.errors == nil {

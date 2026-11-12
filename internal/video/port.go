@@ -62,6 +62,20 @@ type Surface interface {
 	// Size returns the current drawable size in backing pixels, not DIPs. A
 	// detached surface reports 0, 0.
 	Size() (width, height int)
+	// NativeViewHandle returns the platform view that shows the frames, an
+	// NSView on macOS, or 0 on a platform without a native adapter or after
+	// Close. A UI host shows that view as a native element (ui.NativeView), so
+	// MyGo draws its chrome above live video instead of the view covering it.
+	// Main thread only. The caller must not release the handle: the surface
+	// owns it until Close.
+	NativeViewHandle() uintptr
+	// SyncDrawable reads the hosted view's current bounds, refreshes the
+	// drawable size and asks the render thread for one redraw. A host that lays
+	// the view out itself calls it after a resize, a scale change or a move
+	// between windows, because Attach is not the one applying frames then.
+	// It is a no-op size-wise while the view is out of a window and returns
+	// ErrClosed after Close.
+	SyncDrawable() error
 	// Errors reports renderer failures. It closes when the render thread stops.
 	Errors() <-chan error
 	// Close stops the render thread, then releases the native view and
