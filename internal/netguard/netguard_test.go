@@ -150,7 +150,7 @@ func TestFetchBlocksPrivateDestination(t *testing.T) {
 }
 
 func TestFetchStatusError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("X-RateLimit-Remaining", "0")
 		w.Header().Set("Retry-After", "60")
 		w.Header().Set("X-RateLimit-Reset", "1700000000")

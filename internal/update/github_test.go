@@ -226,7 +226,7 @@ func TestGitHubFetcherStatusErrors(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			fetcher := testFetcher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fetcher := testFetcher(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				for key, values := range tc.header {
 					for _, value := range values {
 						w.Header().Add(key, value)
@@ -258,7 +258,7 @@ func TestGitHubFetcherStatusErrors(t *testing.T) {
 
 func TestGitHubFetcherMalformedFeed(t *testing.T) {
 	for _, body := range []string{"", "not json", `{"message":"nope"}`} {
-		fetcher := testFetcher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fetcher := testFetcher(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = w.Write([]byte(body))
 		}))
 
@@ -269,7 +269,7 @@ func TestGitHubFetcherMalformedFeed(t *testing.T) {
 }
 
 func TestGitHubFetcherEmptyFeed(t *testing.T) {
-	fetcher := testFetcher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	fetcher := testFetcher(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("[]"))
 	}))
 
@@ -287,7 +287,7 @@ func TestGitHubFetcherEmptyFeed(t *testing.T) {
 }
 
 func TestGitHubFetcherBodyLimit(t *testing.T) {
-	fetcher := testFetcher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	fetcher := testFetcher(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(strings.Repeat("x", maxReleaseBytes+1)))
 	}))
 
@@ -297,7 +297,7 @@ func TestGitHubFetcherBodyLimit(t *testing.T) {
 }
 
 func TestGitHubFetcherNetworkError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
 	baseURL := server.URL
 	server.Close()
 
@@ -312,7 +312,7 @@ func TestGitHubFetcherNetworkError(t *testing.T) {
 }
 
 func TestGitHubFetcherTimeout(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		<-r.Context().Done()
 	}))
 	t.Cleanup(server.Close)
@@ -328,7 +328,7 @@ func TestGitHubFetcherTimeout(t *testing.T) {
 }
 
 func TestGitHubFetcherCanceled(t *testing.T) {
-	fetcher := testFetcher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	fetcher := testFetcher(t, http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
