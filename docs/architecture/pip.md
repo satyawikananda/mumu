@@ -1,8 +1,9 @@
 # Picture-in-Picture presentation
 
-Issue: [#12](https://github.com/satyawikananda/mumu/issues/12). Evidence and
-constraints: [PiP feasibility](pip-feasibility.md). Rendering bridge:
-[video surface](video-surface.md). Watch states: [watch](watch.md).
+Issues: [#12](https://github.com/satyawikananda/mumu/issues/12) baseline,
+[#39](https://github.com/satyawikananda/mumu/issues/39) chrome and behavior.
+Evidence and constraints: [PiP feasibility](pip-feasibility.md). Rendering
+bridge: [video surface](video-surface.md). Watch states: [watch](watch.md).
 
 ## One session, one surface
 
@@ -26,9 +27,9 @@ with `Attach`, and both paths reuse the same retained view, context, render
 context and render thread.
 
 Inside PiP the view follows the same playback rule as the main window: it is
-attached while the player reports `playing` or `buffering`, and detached for
-`loading`, `error`, `stopping` and `stopped`. A detached floating panel shows
-its channel name and status text instead of a stale frame. The transfer itself
+attached while the player reports `playing`, `buffering` or `paused`, and
+detached for `loading`, `error`, `stopping` and `stopped`. A detached floating
+panel shows its channel name and status text instead of a stale frame. The transfer itself
 still attaches once, so entering PiP while loading leaves the panel's status
 visible until the first frame arrives.
 
@@ -41,30 +42,48 @@ targets, stopped state and 20 rapid toggles.
 
 | Event | Behavior |
 |---|---|
-| Enter PiP | Show the floating window, attach the same view, keep the main window visible with a placeholder |
-| Return to Window | Restore and show the main window, recreate it when it was closed, show Watch, report the video box again, attach the view, hide PiP |
-| Close PiP, main window exists | Return to the main window |
-| Close main window during PiP | Keep PiP, audio and the session running; forget the destroyed window and mark the surface unattached |
+| Enter PiP | Show the frameless floating window, attach the same view, keep the main window with a placeholder |
+| Return to Window / P | Restore and show the main window, recreate it when it was closed, show Watch, report the video box again, attach the view, hide PiP, keep the paused state, restore the main mute intent |
+| Close or Esc | Stop playback and close PiP, even when the main window exists; the main window stays on the stopped Watch page |
+| Close with no main window | Stop playback, release PiP once, then quit once |
+| Main window closed during PiP | Keep PiP, audio and the session running; forget the destroyed window and mark the surface unattached |
 | Return when the window cannot be recreated | Stay in PiP, keep playing, log the reason; no half transition and no playback error |
 | Return when the attach fails | Transfer rolls back to PiP; PiP stays visible and the session keeps playing |
-| Close PiP, no main window | Stop playback while the floating view is still alive, release the close listener, close the window once, quit once |
 | App quit (Cmd+Q) with PiP open | `Stop` releases the PiP close listener, then the quit sequence closes the floating window normally; the quit is not cancelled |
-| Resize PiP | Keep the video area 16:9 above the 48 pt control strip |
-| Drag PiP | Native window movement; the surface frame does not change |
+| Move/resize | Frameless 16:9 window, remembered per display and clamped into the work area |
 | App quit | Close the surface, then the engine; close the PiP window |
 
-### M5 target behavior (not implemented here)
+## Borderless chrome
 
-Tracker #30 locks a different Close behavior for the revamp:
+- PiP is a frameless, always-on-top panel with no title bar or traffic lights.
+  The video fills the whole window; there is no permanent control strip.
+- Default 640×360, compact 480×270, mini 360×203. The window stays 16:9,
+  scales its icons/chrome and uses a 14 pt frameless corner; below 360 points
+  the chrome collapses to close only. The current MyGo window option fixes the
+  corner radius at creation, so the 14/12/10 design scale is approximated by
+  the 14 pt corner at every size.
+- Pointer movement shows chrome; **2 seconds** without activity hides it while
+  the session plays. Paused, muted or signal-lost states keep it visible.
+- Top row: LIVE/PAUSED pill, channel, quality, close. Bottom row: play/pause,
+  mute, return. Scrims keep the labels legible over bright frames.
+- The top bar and empty video area drag the window; buttons keep their clicks.
 
-- **Close/Esc stops playback** and releases the session, even when the main
-  window exists.
-- **Return/P** moves the same session to the main window and preserves pause.
-- PiP mute is temporary and restores the main audio intent on Return.
+## Audio
 
-The table above describes the current #12 implementation. #39 owns the target
-change and its evidence. Do not claim the M5 contract from this document until
-#39 lands.
+- PiP mute is a temporary override on the same controller. Entering PiP starts
+  the local mute from the main intent; the floating panel can mute or unmute
+  without rewriting that intent. Returning restores the main intent and clears
+  the override, so a later session never inherits an accidental PiP mute.
+- Pause is local to the session and survives Return. Resume still reconnects to
+  the live edge through `buffering`; moving windows never calls `Play` or
+  `loadfile`.
+
+## Recovery in PiP
+
+- The floating panel uses the same three-attempt, 8-second recovery as Watch and
+  shows the attempt/countdown while reconnecting.
+- Exhaustion is terminal: no endless retrying. Retry, Return and Close remain
+  reachable, and Esc/P keep working in every state.
 
 The app stores the native `*mygo.Window` next to the interface it presents
 through, and the close callback compares that pointer. Comparing the interface
@@ -119,11 +138,14 @@ invalidates a destroyed window.
 
 ## Interaction
 
-- Visible **Return to Window** and **Close** actions, plus mute.
+- Chrome appears on pointer movement and recedes after two idle seconds while
+  playing; paused, muted and signal-lost states keep it visible.
+- Top row: channel, LIVE/PAUSED, quality and Close. Bottom row: play/pause, mute
+  and Return. Esc stops and closes; P returns to the main window.
 - The main Watch window shows `Playing in Picture-in-Picture` and offers Return;
   it never renders a second preview.
-- The PiP button on Watch is enabled only while a channel is loading, playing or
-  buffering.
+- The PiP button on Watch is enabled while a channel is loading, playing,
+  buffering or paused.
 
 ## Verification
 
@@ -145,9 +167,10 @@ Automated:
   window: one destroyed window, the listener removed before the app's close, one
   playback teardown and one quit.
 - `TestClosePiPTwiceIsIdempotent`, `TestStopReleasesPiPCloseListener` and
-  `TestClosePiPWithMainWindowReturns` cover the duplicate close, the quit path
-  and the Return path.
-- `TestPiPControls`, `TestPiPMuted` and `TestPiPError` cover the mini player.
+  `TestClosePiPStopsWithMainWindow` cover the duplicate close, the quit path and
+  the new stop-with-main-window contract.
+- `TestPiPMuteIsTemporary`, `TestPiPCloseClearsTemporaryMute` and the PiP UI
+  tests cover the local mute override, restoration and chrome states.
 - `go test -race ./...`, `go vet ./...` and `go tool mygo vet .` pass locally;
   golangci-lint runs in CI; linux/amd64 and darwin/amd64 cross-builds stay green.
 
@@ -174,9 +197,8 @@ Recorded on 12 November 2026 with MyGo 0.9.0: entering PiP and pressing
 Return/P moved the same session back to the main window, a volume or mute change
 made in PiP did not overwrite the main audio intent after Return, closing PiP
 while playing left the session recoverable in the main window, and a relaunch
-kept favorites, recent history and settings.
-
-Sleep/wake and external-display recovery remain unverified, as recorded in the
-feasibility report. The repeated-toggle, Spaces, foreign-fullscreen, Cmd+Q and
-dead-stream steps above were not re-run in that session, so production PiP is
-**implemented and partially verified on device**.
+kept favorites, recent history and settings. That run predates the M5 behavior
+change: Close now stops, the window is borderless, mute is a local override and
+geometry is remembered per display. The borderless drag/resize, Spaces,
+foreign-fullscreen, Cmd+Q and dead-stream steps still need a fresh native run,
+so production PiP remains **implemented and partially verified on device**.

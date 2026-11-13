@@ -252,7 +252,7 @@ func TestPreviousTracksOnlyPlayingChannel(t *testing.T) {
 			a.media.snapshot = player.Snapshot{State: tc.state}
 			a.mu.Unlock()
 
-			a.playStream(next, next.Streams[0], "My list")
+			a.playChannel(next, "My list")
 
 			a.mu.Lock()
 			previous := a.media.previous
@@ -336,8 +336,8 @@ func TestWatchBackReplaysPreviousChannel(t *testing.T) {
 	a.startWatch()
 
 	page := a.shell.Watch()
-	if page.OnBack == nil {
-		t.Fatal("startWatch did not wire OnBack")
+	if page.OnPreviousChannel == nil {
+		t.Fatal("startWatch did not wire OnPreviousChannel")
 	}
 
 	a.mu.Lock()
@@ -346,7 +346,7 @@ func TestWatchBackReplaysPreviousChannel(t *testing.T) {
 	a.media.snapshot = player.Snapshot{State: player.StateError, Error: "Stream failed"}
 	a.mu.Unlock()
 
-	page.OnBack()
+	page.OnPreviousChannel()
 
 	waitForLoads(t, engine, 1)
 	deadline := time.Now().Add(time.Second)

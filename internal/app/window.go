@@ -83,6 +83,16 @@ func (a *App) openWindow() {
 	storeErr := a.storeErr
 	a.mu.Unlock()
 
+	if win != nil {
+		if off, err := startActivityMonitor(win.NativeHandle(), a.noteWatchActivity); err != nil {
+			slog.Debug("watch activity monitor unavailable", "error", err)
+		} else {
+			a.mu.Lock()
+			a.mainActivityOff = off
+			a.mu.Unlock()
+		}
+	}
+
 	if storeErr != nil {
 		a.shell.ShowError(storeMessage(storeErr))
 	}
@@ -104,10 +114,16 @@ func (a *App) mainWindowClosed(win *mygo.Window) {
 	a.mainWin = nil
 	a.win = nil
 	surface := a.surface
+	off := a.mainActivityOff
+	a.mainActivityOff = nil
 	detach := a.media.attached && a.presentation == video.PresentationMain
 	// The view went down with the window; the flag must say so.
 	a.media.attached = false
 	a.mu.Unlock()
+
+	if off != nil {
+		off()
+	}
 
 	if !detach || surface == nil {
 		return

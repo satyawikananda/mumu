@@ -1,6 +1,6 @@
 # ADR 0009: MyGo chrome above the native libmpv video surface
 
-- Status: accepted, **CONDITIONAL GO** for manual insertion under MyGo's surface
+- Status: accepted; production integration landed in #38 (see [Watch](../watch.md))
 - Date: 2026-11-12
 - Issues: [#32](https://github.com/satyawikananda/mumu/issues/32), tracker [#30](https://github.com/satyawikananda/mumu/issues/30)
 - Evidence: [overlay-2026-11-12](../evidence/overlay-2026-11-12/README.md)
@@ -92,17 +92,17 @@ path must not release the view while a window still hosts it.
 #32 proves the seam; it does not redesign Watch or PiP.
 
 - `internal/video` keeps `Attach`/`Detach`/`SetFrame` and gains
-  `NativeViewHandle` plus `SyncDrawable`. `Attach` still positions the view for
-  the `above` path.
-- #38 owns the production attach: insert below the surface, transparent root on
-  the Watch page, chrome scrims and the drawer, and the per-layout
-  `SyncDrawable` call.
+  `NativeViewHandle` plus `SyncDrawable`. `Attach` inserts below the MyGo
+  surface in the production path, with the old above-content ordering only as a
+  fallback when that view is absent.
+- #38 owns the production attach, and #37/#38/#39 use it: insert below the
+  surface, transparent root on Watch and PiP, chrome scrims and the drawer, and
+  the per-layout `SyncDrawable` call.
 - #39 owns PiP: the same retained view moves between two windows, so the panel
   needs the same insertion and a drawable refresh after the move, plus drag and
   radius checks.
-- #37 owns pause behavior. `libmpv.Engine.SetPaused` and `SetReadAhead` exist as
-  experiment seams; the product needs a controller state and a decision about
-  the residual live read-ahead.
+- #37 owns pause behavior. `libmpv.Engine.SetPaused` and `SetReadAhead` are the
+  product/an experiment seam respectively; see [ADR 0010](0010-live-pause-and-recovery.md).
 
 ## Measured cost
 

@@ -19,6 +19,10 @@ const (
 // Player is the UI-facing playback control surface.
 type Player interface {
 	Play(source Source) error
+	PlayRequest(request Request) error
+	Pause() error
+	Resume() error
+	SelectQuality(label string) error
 	Stop() error
 	SetVolume(volume int) error
 	SetMuted(muted bool) error
@@ -55,7 +59,32 @@ type Controller struct {
 	closeErr error
 
 	generation uint64
-	loadTimer  *time.Timer
+	episode    uint64
+
+	// request is the current episode's variants and quality selection. order
+	// is the attempt order, selected is "auto" or the resolved label.
+	request         Request
+	order           []Variant
+	selectedQuality string
+	attempt         int
+	attemptStarted  time.Time
+	lastProgress    time.Duration
+
+	// paused is the viewer's local pause intent; enginePaused tracks the
+	// native property, which can outlive one attempt. hasFrame reports that a
+	// real frame reached the screen, which decides whether recovery can keep
+	// showing it.
+	paused       bool
+	enginePaused bool
+	// unpauseOnLoad resumes a paused frame after a reload, for Resume, a new
+	// channel or a quality change while playing.
+	unpauseOnLoad bool
+	hasFrame      bool
+	loading       bool
+	retryPending  bool
+	stallTimer    *time.Timer
+	retryTimer    *time.Timer
+	retryTick     *time.Timer
 }
 
 type intentKind uint8
@@ -65,13 +94,17 @@ const (
 	intentStop
 	intentVolume
 	intentMute
+	intentPause
+	intentResume
+	intentQuality
 )
 
 type intent struct {
-	kind   intentKind
-	source Source
-	volume int
-	muted  bool
+	kind    intentKind
+	request Request
+	volume  int
+	muted   bool
+	quality string
 }
 
 var _ Player = (*Controller)(nil)
@@ -98,10 +131,11 @@ func New(engine Engine, opts ...Option) *Controller {
 		done:    make(chan struct{}),
 		subs:    map[uint64]func(Snapshot){},
 		snap: Snapshot{
-			State:  StateIdle,
-			Detail: "Idle",
-			Volume: cfg.initialVolume,
-			Muted:  cfg.initialMuted,
+			State:   StateIdle,
+			Detail:  "Idle",
+			Volume:  cfg.initialVolume,
+			Muted:   cfg.initialMuted,
+			Quality: Quality{Selected: qualityAuto},
 		},
 	}
 
@@ -111,15 +145,19 @@ func New(engine Engine, opts ...Option) *Controller {
 	return controller
 }
 
-// Play requests a source. The newest request wins while others are queued.
+// Play requests one source. It is PlayRequest with a single Auto variant.
 //
 // Play rejects an empty URL and any scheme other than http or https; a
 // private host or a header is a source-policy decision made before this call.
 func (c *Controller) Play(source Source) error {
-	if strings.TrimSpace(source.URL) == "" {
-		return fmt.Errorf("%w: source URL is empty", ErrInvalid)
-	}
-	if _, err := sourceScheme(source); err != nil {
+	return c.PlayRequest(Request{Variants: []Variant{{Source: source}}, Quality: qualityAuto})
+}
+
+// PlayRequest requests one channel as an ordered variant list and a quality
+// selection. The newest request wins while others are queued.
+func (c *Controller) PlayRequest(request Request) error {
+	request, err := normalizeRequest(request)
+	if err != nil {
 		return err
 	}
 	if c.isDone() {
@@ -129,7 +167,49 @@ func (c *Controller) Play(source Source) error {
 		return ErrBusy
 	}
 
-	return c.post(intent{kind: intentPlay, source: source})
+	return c.post(intent{kind: intentPlay, request: request})
+}
+
+// Pause holds the displayed frame and stops audio and read-ahead.
+func (c *Controller) Pause() error {
+	if c.isDone() {
+		return ErrClosed
+	}
+
+	state := c.Snapshot().State
+	if state == StatePaused || (state != StatePlaying && state != StateBuffering) {
+		return nil
+	}
+
+	return c.post(intent{kind: intentPause})
+}
+
+// Resume reconnects a paused episode at the live edge. It never seeks or
+// continues from the paused position.
+func (c *Controller) Resume() error {
+	if c.isDone() {
+		return ErrClosed
+	}
+	if c.Snapshot().State != StatePaused {
+		return nil
+	}
+
+	return c.post(intent{kind: intentResume})
+}
+
+// SelectQuality switches the current episode to another declared variant. The
+// label is an exact playlist label; an unavailable label falls back to Auto.
+func (c *Controller) SelectQuality(label string) error {
+	if c.isDone() {
+		return ErrClosed
+	}
+
+	state := c.Snapshot().State
+	if state == StateStopping || !state.Active() {
+		return ErrNoSession
+	}
+
+	return c.post(intent{kind: intentQuality, quality: strings.TrimSpace(label)})
 }
 
 // sourceScheme returns the validated scheme of source. The URL own scheme
@@ -289,7 +369,8 @@ func (c *Controller) run() {
 	for {
 		select {
 		case <-c.ctx.Done():
-			c.stopLoadTimer()
+			c.stopTimers()
+			c.cancelRecovery()
 			c.transition(StateStopping, "Stopping")
 			c.engineStop()
 			c.transition(StateStopped, "Stopped")
@@ -297,8 +378,12 @@ func (c *Controller) run() {
 			return
 		case first := <-c.intents:
 			c.drainIntents(first)
-		case <-c.loadTimerC():
-			c.handleLoadTimeout()
+		case <-c.stallTimerC():
+			c.handleStallTimeout()
+		case <-c.retryTimerC():
+			c.handleRetryTimer()
+		case <-c.retryTickC():
+			c.handleRetryTick()
 		case event, ok := <-c.engine.Events():
 			if !ok {
 				c.handleEvent(Event{Kind: EventShutdown})
@@ -328,14 +413,21 @@ func (c *Controller) drainIntents(first intent) {
 
 func (c *Controller) applyIntents(pending []intent) {
 	lastPlay := -1
+	lastQuality := -1
 	for i := range pending {
-		if pending[i].kind == intentPlay {
+		switch pending[i].kind {
+		case intentPlay:
 			lastPlay = i
+		case intentQuality:
+			lastQuality = i
 		}
 	}
 
 	for i, in := range pending {
 		if in.kind == intentPlay && i != lastPlay {
+			continue
+		}
+		if in.kind == intentQuality && i != lastQuality {
 			continue
 		}
 		c.handleIntent(in)
@@ -345,43 +437,19 @@ func (c *Controller) applyIntents(pending []intent) {
 func (c *Controller) handleIntent(in intent) {
 	switch in.kind {
 	case intentPlay:
-		c.handlePlay(in.source)
+		c.handlePlayRequest(in.request)
 	case intentStop:
 		c.handleStop()
 	case intentVolume:
 		c.handleVolume(in.volume)
 	case intentMute:
 		c.handleMute(in.muted)
-	}
-}
-
-func (c *Controller) handlePlay(source Source) {
-	if c.Snapshot().State == StateStopping {
-		return
-	}
-
-	c.stopLoadTimer()
-	c.generation++
-	generation := c.generation
-
-	c.update(func(s *Snapshot) {
-		s.State = StateLoading
-		s.Generation = generation
-		s.Source = source
-		s.Detail = "Loading"
-		s.Error = ""
-		s.Metadata = Metadata{}
-		s.Capabilities = Capabilities{}
-		s.Metrics = Metrics{Generation: generation}
-	})
-	c.resetLoadTimer()
-
-	ctx, cancel := context.WithTimeout(c.ctx, c.cfg.commandTimeout)
-	defer cancel()
-
-	if err := c.engine.Load(ctx, generation, source); err != nil {
-		c.stopLoadTimer()
-		c.fail(generation, fmt.Errorf("load source: %w", err))
+	case intentPause:
+		c.handlePause()
+	case intentResume:
+		c.handleResume()
+	case intentQuality:
+		c.handleQuality(in.quality)
 	}
 }
 
@@ -393,11 +461,23 @@ func (c *Controller) handleStop() {
 		return
 	}
 
+	c.cancelRecovery()
+	c.stopTimers()
 	c.generation++
-	c.stopLoadTimer()
+	c.paused = false
+	c.enginePaused = false
+	c.unpauseOnLoad = false
+	c.hasFrame = false
+	c.loading = false
+	c.attempt = 0
+	c.lastProgress = 0
 	c.transition(StateStopping, "Stopping")
 	c.engineStop()
-	c.transition(StateStopped, "Stopped")
+	c.update(func(s *Snapshot) {
+		s.State = StateStopped
+		s.Detail = "Stopped"
+		s.Recovery = Recovery{}
+	})
 }
 
 func (c *Controller) handleVolume(volume int) {
@@ -423,17 +503,6 @@ func (c *Controller) handleMute(muted bool) {
 	}
 }
 
-func (c *Controller) handleLoadTimeout() {
-	snapshot := c.Snapshot()
-	if snapshot.State != StateLoading {
-		return
-	}
-
-	c.stopLoadTimer()
-	c.fail(snapshot.Generation, errors.New("stream did not start in time"))
-	c.engineStop()
-}
-
 func (c *Controller) handleEvent(event Event) {
 	if event.Generation != 0 && event.Generation != c.generation {
 		return
@@ -441,40 +510,54 @@ func (c *Controller) handleEvent(event Event) {
 
 	switch event.Kind {
 	case EventLoaded:
-		if c.Snapshot().State == StateLoading {
-			c.update(func(s *Snapshot) { s.Detail = "Loaded" })
-		}
+		c.loading = false
+		c.unpauseAfterLoad()
 	case EventStarted:
 		if c.Snapshot().State == StateLoading {
 			c.update(func(s *Snapshot) { s.Detail = "Starting" })
 		}
 	case EventPlaying:
-		c.stopLoadTimer()
+		if c.paused {
+			return
+		}
+		c.loading = false
+		c.hasFrame = true
+		c.attempt = 1
 		state := c.Snapshot().State
 		if state == StateLoading || state == StatePlaying || state == StateBuffering {
 			c.transition(StatePlaying, "Playing")
+			c.clearRecovery()
 		}
 	case EventBuffering:
+		if c.paused {
+			return
+		}
 		state := c.Snapshot().State
 		switch {
 		case event.Buffering && state == StatePlaying:
 			c.transition(StateBuffering, "Buffering")
 		case !event.Buffering && state == StateBuffering:
 			c.transition(StatePlaying, "Playing")
+			c.clearRecovery()
 		}
 	case EventEnded:
-		c.stopLoadTimer()
+		if c.paused {
+			return
+		}
 		if event.Err != nil {
-			c.fail(event.Generation, event.Err)
+			c.attemptFailed(event.Generation, event.Err)
 		} else if c.Snapshot().State != StateError {
+			c.stopTimers()
 			c.transition(StateStopped, "Playback ended")
 		}
 	case EventFailed:
-		c.stopLoadTimer()
+		if c.paused && !c.loading {
+			return
+		}
 		if event.Err != nil {
-			c.fail(event.Generation, event.Err)
+			c.attemptFailed(event.Generation, event.Err)
 		} else {
-			c.fail(event.Generation, errors.New(event.Detail))
+			c.attemptFailed(event.Generation, errors.New(event.Detail))
 		}
 	case EventMetrics:
 		c.applyMetrics(event)
@@ -485,11 +568,30 @@ func (c *Controller) handleEvent(event Event) {
 	}
 }
 
+// unpauseAfterLoad releases a paused engine once the replacement file is
+// loaded, so a new channel or a quality switch never plays the old buffer.
+func (c *Controller) unpauseAfterLoad() {
+	if !c.unpauseOnLoad || c.paused || !c.enginePaused {
+		return
+	}
+
+	c.unpauseOnLoad = false
+	c.enginePaused = false
+
+	ctx, cancel := context.WithTimeout(c.ctx, c.cfg.commandTimeout)
+	defer cancel()
+
+	if err := c.engine.SetPaused(ctx, false); err != nil && !errors.Is(err, ErrClosed) {
+		c.cfg.logger.Debug("player resume", "error", err)
+	}
+}
+
 func (c *Controller) applyMetrics(event Event) {
 	if event.Metrics.Generation != 0 && event.Metrics.Generation != c.generation {
 		return
 	}
 
+	progressed := event.Metrics.TimePos > c.lastProgress
 	c.update(func(s *Snapshot) {
 		s.Metrics = event.Metrics
 		if event.Metadata != (Metadata{}) {
@@ -497,6 +599,9 @@ func (c *Controller) applyMetrics(event Event) {
 		}
 		if event.Capabilities != (Capabilities{}) {
 			s.Capabilities = event.Capabilities
+		}
+		if c.paused || s.Recovery.Terminal {
+			return
 		}
 
 		switch {
@@ -508,17 +613,24 @@ func (c *Controller) applyMetrics(event Event) {
 			s.State = StatePlaying
 			s.Detail = "Playing"
 			s.Error = ""
+			s.Recovery = Recovery{}
 		case s.State == StatePlaying && event.Metrics.PausedForCache:
 			s.State = StateBuffering
 			s.Detail = "Buffering"
 		case s.State == StateBuffering && !event.Metrics.PausedForCache:
 			s.State = StatePlaying
 			s.Detail = "Playing"
+			s.Recovery = Recovery{}
 		}
 	})
 
-	if event.Metrics.TimePos > 0 {
-		c.stopLoadTimer()
+	if progressed && !c.paused && c.Snapshot().State != StateError {
+		c.lastProgress = event.Metrics.TimePos
+		c.hasFrame = true
+		c.armStallTimer()
+	}
+	if !c.paused && c.Snapshot().State == StatePlaying && c.attempt != 1 {
+		c.attempt = 1
 	}
 }
 
@@ -529,24 +641,6 @@ func (c *Controller) transition(state State, detail string) {
 		if state != StateError {
 			s.Error = ""
 		}
-	})
-}
-
-func (c *Controller) fail(generation uint64, err error) {
-	if err == nil {
-		return
-	}
-
-	detail := sanitizeDetail(err.Error())
-	c.cfg.logger.Debug("player failure", "generation", generation, "detail", detail)
-
-	c.update(func(s *Snapshot) {
-		if s.Generation != generation {
-			return
-		}
-		s.State = StateError
-		s.Detail = detail
-		s.Error = detail
 	})
 }
 
@@ -630,47 +724,6 @@ func (c *Controller) shutdownEngine() {
 		c.closeMu.Unlock()
 		c.cfg.logger.Warn("player engine close", "error", err)
 	}
-}
-
-func (c *Controller) resetLoadTimer() {
-	if c.cfg.loadingTimeout <= 0 {
-		return
-	}
-
-	if c.loadTimer == nil {
-		c.loadTimer = time.NewTimer(c.cfg.loadingTimeout)
-
-		return
-	}
-
-	if !c.loadTimer.Stop() {
-		select {
-		case <-c.loadTimer.C:
-		default:
-		}
-	}
-	c.loadTimer.Reset(c.cfg.loadingTimeout)
-}
-
-func (c *Controller) stopLoadTimer() {
-	if c.loadTimer == nil {
-		return
-	}
-
-	if !c.loadTimer.Stop() {
-		select {
-		case <-c.loadTimer.C:
-		default:
-		}
-	}
-}
-
-func (c *Controller) loadTimerC() <-chan time.Time {
-	if c.loadTimer == nil {
-		return nil
-	}
-
-	return c.loadTimer.C
 }
 
 func clampVolume(volume int) int {

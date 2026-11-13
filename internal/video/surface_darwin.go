@@ -171,7 +171,7 @@ func (s *nativeSurface) Attach(window uintptr, frame Rect) error {
 		return err
 	}
 	s.view.Send(objc.RegisterName("removeFromSuperview"))
-	content.Send(objc.RegisterName("addSubview:"), s.view)
+	insertBelowMyGoSurface(content, s.view)
 	s.context.Send(objc.RegisterName("clearDrawable"))
 	s.context.Send(objc.RegisterName("setView:"), s.view)
 	s.applyFrameLocked(content, frame)
@@ -344,6 +344,84 @@ func (s *nativeSurface) usable() error {
 		return ErrClosed
 	default:
 		return nil
+	}
+}
+
+// nsWindowBelow is NSWindowBelow, the otherView of
+// addSubview:positioned:relativeTo:.
+const nsWindowBelow = ^uintptr(0)
+
+// myGoSurfaceView is MyGo's layer-backed view. The video view must sit below
+// it, so MyGo chrome, scrims and pointer input stay above live video.
+const myGoSurfaceView = "MyGoSurfaceView"
+
+// insertBelowMyGoSurface places view under MyGo's surface. A host without that
+// view, as a test window or a future MyGo release that renames it, keeps the
+// previous above-content behaviour instead of failing playback.
+func insertBelowMyGoSurface(content, view objc.ID) {
+	surface := findSubview(content, myGoSurfaceView)
+	if surface == 0 {
+		content.Send(objc.RegisterName("addSubview:"), view)
+		slog.Default().Debug("video: MyGo surface view missing; view attached above chrome")
+
+		return
+	}
+
+	content.Send(
+		objc.RegisterName("addSubview:positioned:relativeTo:"),
+		view, nsWindowBelow, surface,
+	)
+}
+
+// findSubview returns the first direct subview with the given class name.
+func findSubview(content objc.ID, class string) objc.ID {
+	if content == 0 {
+		return 0
+	}
+
+	subviews := content.Send(objc.RegisterName("subviews"))
+	if subviews == 0 {
+		return 0
+	}
+
+	count := int(objc.Send[uint64](subviews, objc.RegisterName("count")))
+	for i := range count {
+		view := objc.Send[objc.ID](subviews, objc.RegisterName("objectAtIndex:"), uint64(i))
+		if view != 0 && className(view) == class {
+			return view
+		}
+	}
+
+	return 0
+}
+
+// className returns a view's Objective-C class name.
+func className(view objc.ID) string {
+	if view == 0 {
+		return ""
+	}
+
+	name := view.Send(objc.RegisterName("className"))
+	if name == 0 {
+		return ""
+	}
+	bytes := objc.Send[unsafe.Pointer](name, objc.RegisterName("UTF8String"))
+	if bytes == nil {
+		return ""
+	}
+
+	return cString(bytes)
+}
+
+// cString copies a NUL-terminated C string.
+func cString(p unsafe.Pointer) string {
+	var out []byte
+	for i := 0; ; i++ {
+		ch := *(*byte)(unsafe.Add(p, i))
+		if ch == 0 {
+			return string(out)
+		}
+		out = append(out, ch)
 	}
 }
 

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -187,8 +188,8 @@ func TestShellShortcutReference(t *testing.T) {
 	if !tt.HasText("Mute") || !tt.HasText("Fullscreen") || !tt.HasText("Control Center") {
 		t.Fatalf("texts %q, want shared shortcut labels", tt.Texts())
 	}
-	if tt.HasText("Play or pause") {
-		t.Fatalf("texts %q advertised the unimplemented Space action", tt.Texts())
+	if !tt.HasText("Play or pause") || !tt.HasText("Try again") {
+		t.Fatalf("texts %q, want the implemented Space and retry actions", tt.Texts())
 	}
 
 	groups := shortcutGroups()
@@ -311,6 +312,144 @@ func TestShellDestinationChanged(t *testing.T) {
 	}
 	if !shell.IsWatch() {
 		t.Fatal("IsWatch = false after ShowWatch")
+	}
+}
+
+// Watch is full-bleed: the shell bar, its inset and its hint strip stay out
+// of the picture.
+func TestShellWatchFullBleed(t *testing.T) {
+	shell := NewShell()
+	shell.ShowWatch()
+	tt := ui.NewTester(shell.View, 1280, 720)
+
+	if tt.HasText("WATCH") {
+		t.Fatalf("texts %q, want no shell destination label over the picture", tt.Texts())
+	}
+	if tt.HasText("Open Control Center") {
+		t.Fatalf("texts %q, want no shell top bar on Watch", tt.Texts())
+	}
+	if !tt.HasText("Nothing playing") {
+		t.Fatalf("texts %q, want the Watch page itself", tt.Texts())
+	}
+	if err := tt.Click("Back"); err != nil {
+		t.Fatal(err)
+	}
+	if got := shell.Destination(); got != destDiscover {
+		t.Fatalf("destination %q, want Discover after Back", got)
+	}
+}
+
+// Escape cancels a first connect instead of opening Control Center.
+func TestShellEscapeCancelsConnecting(t *testing.T) {
+	shell := NewShell()
+	cancelled := 0
+	shell.Watch().OnCancel = func() { cancelled++ }
+	shell.Watch().SetState(WatchState{Kind: WatchLoading, Channel: "TVRI"})
+	shell.ShowWatch()
+
+	tt := ui.NewTester(shell.View, 1100, 720)
+	tt.Key(0, ui.KeyEscape)
+	if cancelled != 1 {
+		t.Fatalf("cancel called %d times, want 1", cancelled)
+	}
+	if shell.ControlCenterOpen() {
+		t.Fatal("Escape opened Control Center while connecting")
+	}
+}
+
+// Control Center counts as activity: the page's chrome is still there when
+// the overlay closes.
+func TestShellControlCenterKeepsWatchChrome(t *testing.T) {
+	shell := NewShell()
+	shell.Watch().SetState(WatchState{Kind: WatchPlaying, Channel: "Metro TV"})
+	shell.ShowWatch()
+
+	tt := ui.NewTester(shell.View, 1280, 720)
+	if err := tt.Click("Control Center"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Advance(5 * time.Second)
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
+	if shell.ControlCenterOpen() {
+		t.Fatal("Escape did not close Control Center")
+	}
+	if !shell.Watch().ChromeVisible() {
+		t.Fatal("the Watch chrome idled away under Control Center")
+	}
+}
+
+// A handled player key brings hidden chrome back for a keyboard viewer.
+func TestShellKeyRevealsChrome(t *testing.T) {
+	shell := NewShell()
+	muted := 0
+	shell.Watch().OnToggleMute = func() { muted++ }
+	shell.Watch().SetState(WatchState{Kind: WatchPlaying, Channel: "Metro TV"})
+	shell.ShowWatch()
+
+	tt := ui.NewTester(shell.View, 1280, 720)
+	tt.Advance(3 * time.Second)
+	if shell.Watch().ChromeVisible() {
+		t.Fatal("chrome did not hide")
+	}
+
+	tt.Key(0, ui.KeyM)
+	tt.Frame()
+	if !shell.Watch().ChromeVisible() {
+		t.Fatal("a handled key did not reveal the chrome")
+	}
+	if muted != 1 {
+		t.Fatalf("mute toggled %d times, want 1", muted)
+	}
+}
+
+// Space has no session to pause while the first connect runs.
+func TestShellSpaceIgnoresConnecting(t *testing.T) {
+	shell := NewShell()
+	paused := 0
+	shell.Watch().OnTogglePause = func() { paused++ }
+	shell.Watch().SetState(WatchState{Kind: WatchLoading, Channel: "TVRI"})
+	shell.ShowWatch()
+
+	tt := ui.NewTester(shell.View, 1100, 720)
+	tt.Key(0, ui.KeySpace)
+	if paused != 0 {
+		t.Fatalf("Space paused %d times while connecting, want none", paused)
+	}
+}
+
+// Cmd+, opens Settings from the Watch route.
+func TestShellCmdCommaSettings(t *testing.T) {
+	shell := NewShell()
+	shell.ShowWatch()
+	tt := ui.NewTester(shell.View, 1100, 720)
+
+	tt.Key(ui.Cmd, ui.KeyComma)
+	if got := shell.Destination(); got != destSettings {
+		t.Fatalf("destination %q, want Settings", got)
+	}
+}
+
+// Space and R reach the player actions from the shell registry.
+func TestShellWatchSpaceAndRetry(t *testing.T) {
+	shell := NewShell()
+	paused, retried := 0, 0
+	shell.Watch().OnTogglePause = func() { paused++ }
+	shell.Watch().OnRetry = func() { retried++ }
+	shell.Watch().SetState(WatchState{Kind: WatchPlaying, Channel: "Metro TV"})
+	shell.ShowWatch()
+
+	tt := ui.NewTester(shell.View, 1100, 720)
+	tt.Key(0, ui.KeySpace)
+	if paused != 1 {
+		t.Fatalf("Space paused %d times, want 1", paused)
+	}
+
+	shell.Watch().SetState(WatchState{Kind: WatchError, Channel: "Metro TV", Error: "Failed."})
+	tt.Frame()
+	tt.Key(0, ui.KeyR)
+	if retried != 1 {
+		t.Fatalf("R retried %d times, want 1 in the error state", retried)
 	}
 }
 

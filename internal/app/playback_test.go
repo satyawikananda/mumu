@@ -321,13 +321,97 @@ func waitForLoads(t *testing.T, engine *fakeEngine, want int) {
 	t.Fatalf("engine loads = %d, want %d", engine.loadCount(), want)
 }
 
-// markPlayingRecent records only real playback, once per generation.
+// The one episode request keeps every supported variant and prefers live/HLS
+// for Auto and the chosen label for an explicit quality.
+func TestChannelRequest(t *testing.T) {
+	channel := catalog.Channel{Streams: []catalog.Stream{
+		{URL: "rtsp://example.com/live", Quality: "4K", Live: true},
+		{URL: "https://example.com/plain.flv", Quality: "SD"},
+		{URL: "https://example.com/live.m3u8", Quality: "720p", HLS: true, Live: true},
+		{URL: "https://example.com/low.m3u8", Quality: "480p", HLS: true, Live: true},
+	}}
+
+	request, ok := channelRequest(channel, "auto")
+	if !ok || len(request.Variants) != 3 {
+		t.Fatalf("request %+v ok=%t, want three supported variants", request, ok)
+	}
+	if request.Variants[0].Source.URL != "https://example.com/live.m3u8" {
+		t.Fatalf("first variant %q, want the live HLS stream", request.Variants[0].Source.URL)
+	}
+
+	request, ok = channelRequest(channel, "480p")
+	if !ok || request.Variants[0].Quality != "480p" {
+		t.Fatalf("request %+v, want the explicit 480p variant first", request)
+	}
+
+	if _, ok := channelRequest(catalog.Channel{Streams: []catalog.Stream{{URL: "udp://1.2.3.4:1234"}}}, "auto"); ok {
+		t.Fatal("built a request from an unsupported scheme")
+	}
+}
+
+// Quality options are Auto plus the real labels only.
+func TestQualityOptions(t *testing.T) {
+	channel := catalog.Channel{Streams: []catalog.Stream{
+		{Quality: "720p"},
+		{Quality: "480p"},
+		{Quality: "720p"},
+		{Quality: ""},
+	}}
+	options := qualityOptions(channel, "480p")
+	if len(options) != 3 {
+		t.Fatalf("options %+v, want Auto, 720p and 480p", options)
+	}
+	if options[0].Label != qualityAuto || options[0].Selected {
+		t.Fatalf("first option %+v, want unselected Auto", options[0])
+	}
+	if !options[2].Selected || options[2].Label != "480p" {
+		t.Fatalf("selected option %+v, want 480p", options[2])
+	}
+}
+
+// A committed quality change updates the request even before a controller
+// exists, so Retry and the next Play use it.
+func TestSelectQualityUpdatesRequest(t *testing.T) {
+	a, _ := discoverTestApp(t)
+	a.media.channel = catalog.Channel{SourceID: "s", ProviderID: "p", Name: "News"}
+	a.media.request = player.Request{Quality: qualityAuto}
+
+	a.selectWatchQuality("720p")
+
+	if got := a.media.request.Quality; got != "720p" {
+		t.Fatalf("request quality %q, want 720p", got)
+	}
+}
+
+// The top-bar Back is a route action, not the previous-channel recovery. It
+// must remain the shell's callback after startWatch wires the page.
+func TestWatchBackReturnsToPreviousRoute(t *testing.T) {
+	a, _ := discoverTestApp(t)
+	a.startWatch()
+
+	a.shell.ShowHome()
+	a.shell.ShowWatch()
+	if a.shell.Destination() != "/watch" {
+		t.Fatalf("destination %q, want Watch", a.shell.Destination())
+	}
+	if a.shell.Watch().OnBack == nil {
+		t.Fatal("startWatch left no route Back action")
+	}
+
+	a.shell.Watch().OnBack()
+
+	if got := a.shell.Destination(); got != "/home" {
+		t.Fatalf("destination %q, want the previous Home route", got)
+	}
+}
+
+// markPlayingRecent records only real playback, once per episode.
 func TestMarkPlayingRecentNeedsPlaying(t *testing.T) {
 	a, _ := discoverTestApp(t)
 
 	a.media.channel = catalog.Channel{SourceID: "source-a", ProviderID: "provider-a", Name: "News"}
-	a.markPlayingRecent(player.Snapshot{State: player.StateLoading, Generation: 1})
-	if a.media.markedGen != 0 {
+	a.markPlayingRecent(player.Snapshot{State: player.StateLoading, Generation: 1, Episode: 1})
+	if a.media.markedEpisode != 0 {
 		t.Fatal("marked recent before playback")
 	}
 }

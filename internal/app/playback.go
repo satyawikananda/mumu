@@ -26,6 +26,8 @@ const (
 	legacyPlaybackSettingMuted = "playback.muted"
 	// playbackTimeout bounds a settings read or write.
 	playbackTimeout = 5 * time.Second
+	// qualityAuto keeps the supported-stream order the app already chooses.
+	qualityAuto = "auto"
 	// videoAspect is the video area's target aspect ratio.
 	videoAspect = 16.0 / 9.0
 )
@@ -42,6 +44,7 @@ type previousChannel struct {
 	channel    catalog.Channel
 	stream     catalog.Stream
 	sourceName string
+	quality    string
 }
 
 // mediaState is the playback and channel state shared by workers and the UI.
@@ -49,16 +52,18 @@ type mediaState struct {
 	channel     catalog.Channel
 	stream      catalog.Stream
 	sourceName  string
+	request     player.Request
 	snapshot    player.Snapshot
 	playbackErr string
 	drawer      []ui.WatchChannel
 	resume      *watchResume
 	previous    *previousChannel
-	markedGen   uint64
+	// markedEpisode is the playback episode whose real frame was already
+	// recorded, so retries do not add history and a paused resume updates once.
+	markedEpisode uint64
 	// audioGen is the playback generation whose effective volume and mute were
 	// already logged, so a silent stream leaves one line instead of none.
-	audioGen uint64
-	// attached reports the retained view showing in the main window, and
+	audioGen uint64 // attached reports the retained view showing in the main window, and
 	// pipAttached reports it showing in the floating player. Both are false
 	// while the view is detached, so neither can claim a drawable it lost.
 	attached    bool
@@ -82,14 +87,17 @@ func (a *App) startWatch() {
 	page.OnResume = a.resumeWatching
 	page.OnRetry = a.retryWatching
 	page.OnBrowse = a.shell.ShowDiscover
+	page.OnPreviousChannel = a.backToPrevious
+	page.OnCancel = a.cancelWatching
 	page.OnVolume = a.setPlaybackVolume
 	page.OnToggleMute = a.togglePlaybackMute
+	page.OnTogglePause = a.togglePlaybackPause
+	page.OnSelectQuality = a.selectWatchQuality
 	page.OnFullscreen = a.toggleFullscreen
 	page.OnToggleFavorite = a.toggleWatchFavorite
 	page.OnSelectChannel = a.selectWatchChannel
 	page.OnEnterPiP = a.enterPiP
 	page.OnReturn = a.returnFromPiP
-	page.OnBack = a.backToPrevious
 	a.shell.OnDestinationChanged(a.watchVisibilityChanged)
 	a.shell.Home().OnResume = a.resumeWatching
 	a.shell.Home().OnWatch = a.shell.ShowWatch
@@ -101,11 +109,14 @@ func (a *App) startWatch() {
 	pip.OnReturn = a.returnFromPiP
 	pip.OnClose = a.closePiP
 	pip.OnToggleMute = a.togglePiPMute
+	pip.OnTogglePause = a.togglePlaybackPause
+	pip.OnRetry = a.retryWatching
 
 	a.loadPlaybackSettings()
 
 	a.Go(func(ctx context.Context) error {
 		a.loadWatchResume(ctx)
+		a.loadPiPGeometries(ctx)
 
 		return nil
 	})
@@ -320,41 +331,55 @@ func (a *App) resumeWatching() {
 	a.playChannel(resume.channel, resume.sourceName)
 }
 
-// retryWatching reloads the active channel. It runs on the UI thread.
+// retryWatching replays the active request from attempt one. It runs on the UI
+// thread.
 func (a *App) retryWatching() {
+	a.revealWatch()
+
 	a.mu.Lock()
-	channel, stream, sourceName := a.media.channel, a.media.stream, a.media.sourceName
+	channel, request, sourceName := a.media.channel, a.media.request, a.media.sourceName
 	a.mu.Unlock()
 
-	if channel.ProviderID == "" || stream.URL == "" {
+	if channel.ProviderID == "" || len(request.Variants) == 0 {
 		return
 	}
 
-	a.playStream(channel, stream, sourceName)
+	a.playRequest(channel, request, sourceName)
 }
 
-// playChannel starts a channel from the catalog. It runs on the UI thread.
+// playChannel starts a channel from the catalog with its default quality. It
+// runs on the UI thread.
 func (a *App) playChannel(channel catalog.Channel, sourceName string) {
-	stream, ok := pickStream(channel)
+	a.playChannelQuality(channel, sourceName, qualityAuto)
+}
+
+// playChannelQuality starts a channel with an explicit quality label, or Auto.
+func (a *App) playChannelQuality(channel catalog.Channel, sourceName, selected string) {
+	request, ok := channelRequest(channel, selected)
 	if !ok {
 		a.failWatch("This channel has no supported stream URL.")
 
 		return
 	}
 
-	a.playStream(channel, stream, sourceName)
+	a.playRequest(channel, request, sourceName)
 }
 
-// playStream sends one stream to the shared controller.
+// playRequest sends one episode to the shared controller.
 //
 // Before the new channel replaces the active one, a channel that was really
 // presenting frames becomes the "previous" one, so a failed switch can offer a
 // way back. A channel that never played, the same channel, or a state that
 // never showed video (loading, error) is not remembered.
-func (a *App) playStream(channel catalog.Channel, stream catalog.Stream, sourceName string) {
-	scheme, err := streamScheme(stream.URL)
-	if err != nil {
-		a.failWatch("Only http and https streams are supported.")
+func (a *App) playRequest(channel catalog.Channel, request player.Request, sourceName string) {
+	if len(request.Variants) == 0 {
+		a.failWatch("This channel has no supported stream URL.")
+
+		return
+	}
+	stream, ok := streamForURL(channel, request.Variants[0].Source.URL)
+	if !ok {
+		a.failWatch("This channel has no supported stream URL.")
 
 		return
 	}
@@ -368,13 +393,15 @@ func (a *App) playStream(channel catalog.Channel, stream catalog.Stream, sourceN
 			channel:    old,
 			stream:     a.media.stream,
 			sourceName: a.media.sourceName,
+			quality:    a.media.request.Quality,
 		}
 	}
 
 	a.media.channel = channel
 	a.media.stream = stream
 	a.media.sourceName = sourceName
-	a.media.markedGen = 0
+	a.media.request = request
+	a.media.markedEpisode = 0
 	a.media.playbackErr = ""
 	a.media.resume = nil
 	a.mu.Unlock()
@@ -396,14 +423,7 @@ func (a *App) playStream(channel catalog.Channel, stream catalog.Stream, sourceN
 		return
 	}
 
-	// The surface exists now. It is attached once the controller reports real
-	// frames; until then the page keeps its glass loading overlay above it.
-	source := player.Source{
-		URL:     stream.URL,
-		Scheme:  scheme,
-		Headers: streamHeaders(stream.Headers),
-	}
-	if err := controller.Play(source); err != nil {
+	if err := controller.PlayRequest(request); err != nil {
 		a.failWatch("The player could not start this stream.")
 	}
 }
@@ -416,11 +436,11 @@ func (a *App) backToPrevious() {
 	a.media.previous = nil
 	a.mu.Unlock()
 
-	if previous == nil || previous.stream.URL == "" {
+	if previous == nil {
 		return
 	}
 
-	a.playStream(previous.channel, previous.stream, previous.sourceName)
+	a.playChannelQuality(previous.channel, previous.sourceName, previous.quality)
 }
 
 // selectWatchChannel switches to a drawer row. It runs on the UI thread.
@@ -471,20 +491,20 @@ func (a *App) logPlaybackAudio(snapshot player.Snapshot) {
 	)
 }
 
-// markPlayingRecent records a real playback start once per generation.
+// markPlayingRecent records a real playback start once per episode.
 func (a *App) markPlayingRecent(snapshot player.Snapshot) {
-	if snapshot.State != player.StatePlaying || snapshot.Generation == 0 {
+	if snapshot.State != player.StatePlaying || snapshot.Episode == 0 {
 		return
 	}
 
 	a.mu.Lock()
 	channel := a.media.channel
-	if channel.ProviderID == "" || a.media.markedGen == snapshot.Generation {
+	if channel.ProviderID == "" || a.media.markedEpisode == snapshot.Episode {
 		a.mu.Unlock()
 
 		return
 	}
-	a.media.markedGen = snapshot.Generation
+	a.media.markedEpisode = snapshot.Episode
 	a.mu.Unlock()
 
 	a.GoQuiet(func(ctx context.Context) {
@@ -538,6 +558,21 @@ func (a *App) watchState() ui.WatchState {
 		Favorite:  a.libraryData.favorite(channelKey(media.channel)),
 		Live:      media.stream.Live || media.snapshot.Capabilities.Live,
 		Status:    media.snapshot.Detail,
+		Paused:    media.snapshot.State == player.StatePaused,
+		Quality: ui.WatchQuality{
+			Selected: media.snapshot.Quality.Selected,
+			Current:  media.snapshot.Quality.Current,
+			Known:    media.snapshot.Quality.Known,
+			Fallback: media.snapshot.Quality.Fallback,
+		},
+		Qualities: qualityOptions(media.channel, media.snapshot.Quality.Selected),
+		Recovery: ui.WatchRecovery{
+			Attempt:     media.snapshot.Recovery.Attempt,
+			MaxAttempts: media.snapshot.Recovery.MaxAttempts,
+			Pending:     media.snapshot.Recovery.Pending,
+			Terminal:    media.snapshot.Recovery.Terminal,
+			RetryIn:     media.snapshot.Recovery.RetryIn,
+		},
 	}
 
 	if media.channel.ProviderID == "" {
@@ -561,6 +596,7 @@ func (a *App) watchState() ui.WatchState {
 	if media.playbackErr != "" {
 		state.Kind = ui.WatchError
 		state.Error = media.playbackErr
+		state.Recovery = ui.WatchRecovery{}
 	}
 
 	// A failed switch offers a way back only when a different channel was
@@ -574,6 +610,10 @@ func (a *App) watchState() ui.WatchState {
 	state.Channels = make([]ui.WatchChannel, 0, len(media.drawer))
 	for _, row := range media.drawer {
 		row.Current = row.Key == channelKey(media.channel)
+		if row.LogoURL != "" {
+			bitmap, tint := a.logos.lookup(row.LogoURL)
+			row.Art = ui.Artwork{Bitmap: bitmap, Color: tint}
+		}
 		state.Channels = append(state.Channels, row)
 	}
 
@@ -589,6 +629,8 @@ func watchKind(state player.State) ui.WatchKind {
 		return ui.WatchPlaying
 	case player.StateBuffering:
 		return ui.WatchBuffering
+	case player.StatePaused:
+		return ui.WatchPaused
 	case player.StateError:
 		return ui.WatchError
 	case player.StateStopping, player.StateStopped:
@@ -649,7 +691,7 @@ func (a *App) reportSurfaceFailure(err error) {
 // the only states where the native view may cover the page: buffering keeps the
 // last frame, and its badge lives in the control strip below the video.
 func presentingState(state player.State) bool {
-	return state == player.StatePlaying || state == player.StateBuffering
+	return state == player.StatePlaying || state == player.StateBuffering || state == player.StatePaused
 }
 
 // applyVideoFrame places the native surface over the page's video box.
@@ -773,6 +815,9 @@ func (a *App) attachVideoSurface() error {
 		if err := surface.Attach(win.NativeHandle(), target); err != nil {
 			return fmt.Errorf("attach main window: %w", err)
 		}
+		if err := surface.SyncDrawable(); err != nil && !errors.Is(err, video.ErrClosed) {
+			slog.Debug("sync main drawable", "error", err)
+		}
 
 		a.mu.Lock()
 		a.media.attached = true
@@ -783,6 +828,9 @@ func (a *App) attachVideoSurface() error {
 
 	if err := surface.SetFrame(target); err != nil {
 		slog.Debug("resize video surface", "error", err)
+	}
+	if err := surface.SyncDrawable(); err != nil && !errors.Is(err, video.ErrClosed) {
+		slog.Debug("sync main drawable", "error", err)
 	}
 
 	return nil
@@ -808,6 +856,9 @@ func (a *App) attachPiPSurface() {
 
 			return
 		}
+		if err := surface.SyncDrawable(); err != nil && !errors.Is(err, video.ErrClosed) {
+			slog.Debug("sync picture-in-picture drawable", "error", err)
+		}
 
 		a.mu.Lock()
 		a.media.pipAttached = true
@@ -818,6 +869,9 @@ func (a *App) attachPiPSurface() {
 
 	if err := surface.SetFrame(target); err != nil {
 		slog.Debug("resize picture-in-picture surface", "error", err)
+	}
+	if err := surface.SyncDrawable(); err != nil && !errors.Is(err, video.ErrClosed) {
+		slog.Debug("sync picture-in-picture drawable", "error", err)
 	}
 }
 
@@ -853,6 +907,8 @@ func (a *App) watchSurfaceErrors(surface video.Surface) {
 
 // toggleWatchFavorite adds or removes the active channel.
 func (a *App) toggleWatchFavorite() {
+	a.revealWatch()
+
 	a.mu.Lock()
 	channel := a.media.channel
 	a.mu.Unlock()
@@ -870,6 +926,8 @@ func (a *App) toggleWatchFavorite() {
 // setPlaybackVolume changes the volume and remembers it. Without a controller
 // it still updates the page, so the choice survives until the first Play.
 func (a *App) setPlaybackVolume(volume int) {
+	a.revealWatch()
+
 	a.mu.Lock()
 	controller := a.controller
 	a.media.snapshot.Volume = volume
@@ -886,8 +944,20 @@ func (a *App) setPlaybackVolume(volume int) {
 // togglePlaybackMute flips the mute state for this session.
 //
 // Mute is not persisted: the approved policy is that every launch starts
-// audible, so the toggle changes the running player only.
+// audible, so the toggle changes the running player only. While the floating
+// panel presents the session, the toggle is its temporary local override.
 func (a *App) togglePlaybackMute() {
+	a.revealWatch()
+
+	a.mu.Lock()
+	pipActive := a.presentation == video.PresentationPiP
+	a.mu.Unlock()
+	if pipActive {
+		a.togglePiPMute()
+
+		return
+	}
+
 	a.mu.Lock()
 	controller := a.controller
 	muted := !a.media.snapshot.Muted
@@ -920,6 +990,8 @@ func (a *App) savePlaybackSetting(key, value string) {
 
 // toggleFullscreen asks the main window for native fullscreen.
 func (a *App) toggleFullscreen() {
+	a.revealWatch()
+
 	a.publish(func() {
 		if a.win != nil {
 			a.win.ToggleFullScreen()
@@ -959,6 +1031,206 @@ func (a *App) shutdownPlayback() {
 		_ = engine.Close(ctx)
 		cancel()
 	}
+}
+
+// noteWatchActivity refreshes the Watch chrome timeout. Pointer movement keeps
+// hidden chrome hidden so the bottom chevron stays clickable; a press, key or
+// scroll reveals it. Only a reveal invalidates the window.
+func (a *App) noteWatchActivity(kind activityKind) {
+	now := time.Now()
+	if kind == activityMove {
+		a.shell.Watch().NotePointerMove(now)
+
+		return
+	}
+	if a.shell.Watch().NoteActivity(now) {
+		a.publish(func() {})
+	}
+}
+
+// notePiPActivity refreshes the floating player's chrome timeout. PiP shows its
+// chrome on pointer movement, as the approved design asks.
+func (a *App) notePiPActivity(activityKind) {
+	if a.shell.PiP().NoteActivity(time.Now()) {
+		a.publish(func() {})
+	}
+}
+
+// revealWatch shows the chrome before a user action that would otherwise run
+// against hidden controls, so a keyboard command has visible feedback.
+func (a *App) revealWatch() {
+	if a.shell.Watch().NoteActivity(time.Now()) {
+		a.publish(func() {})
+	}
+}
+
+// togglePlaybackPause pauses the current frame or reconnects it at the live
+// edge. It runs on the UI thread.
+func (a *App) togglePlaybackPause() {
+	a.revealWatch()
+
+	a.mu.Lock()
+	controller, state := a.controller, a.media.snapshot.State
+	a.mu.Unlock()
+
+	if controller == nil {
+		return
+	}
+
+	var err error
+	if state == player.StatePaused {
+		err = controller.Resume()
+	} else {
+		err = controller.Pause()
+	}
+	if err != nil {
+		slog.Debug("toggle playback pause", "error", err)
+	}
+}
+
+// selectWatchQuality switches the current episode to a real variant. The
+// choice applies to this channel only and is never persisted.
+func (a *App) selectWatchQuality(label string) {
+	a.revealWatch()
+
+	label = strings.TrimSpace(label)
+	if label == "" {
+		label = qualityAuto
+	}
+
+	a.mu.Lock()
+	controller := a.controller
+	request := a.media.request
+	request.Quality = label
+	a.media.request = request
+	a.mu.Unlock()
+
+	if controller == nil {
+		return
+	}
+	if err := controller.SelectQuality(label); err != nil && !errors.Is(err, player.ErrNoSession) {
+		slog.Debug("select stream quality", "error", err)
+	}
+}
+
+// cancelWatching ends the connecting attempt and leaves Watch.
+func (a *App) cancelWatching() {
+	a.mu.Lock()
+	controller := a.controller
+	a.mu.Unlock()
+
+	if controller != nil {
+		_ = controller.Stop()
+	}
+	a.shell.ShowHome()
+}
+
+// channelRequest builds the one episode request for a channel. The preferred
+// live/HLS variant stays first for Auto; an explicit label moves its first
+// match to the front and keeps every other supported variant for recovery.
+func channelRequest(channel catalog.Channel, selected string) (player.Request, bool) {
+	variants := make([]player.Variant, 0, len(channel.Streams))
+	seen := make(map[string]bool, len(channel.Streams))
+	preferred := -1
+
+	for _, stream := range channel.Streams {
+		rawURL := strings.TrimSpace(stream.URL)
+		if rawURL == "" || seen[rawURL] {
+			continue
+		}
+		scheme, err := streamScheme(rawURL)
+		if err != nil {
+			continue
+		}
+		seen[rawURL] = true
+
+		variants = append(variants, player.Variant{
+			Source: player.Source{
+				URL:     rawURL,
+				Scheme:  scheme,
+				Headers: streamHeaders(stream.Headers),
+			},
+			Quality: strings.TrimSpace(stream.Quality),
+		})
+		if preferred < 0 && (stream.Live || stream.HLS) {
+			preferred = len(variants) - 1
+		}
+	}
+
+	if len(variants) == 0 {
+		return player.Request{}, false
+	}
+	if preferred > 0 {
+		order := make([]player.Variant, 0, len(variants))
+		order = append(order, variants[preferred])
+		order = append(order, variants[:preferred]...)
+		order = append(order, variants[preferred+1:]...)
+		variants = order
+	}
+
+	selected = strings.TrimSpace(selected)
+	if selected == "" {
+		selected = qualityAuto
+	}
+	if !strings.EqualFold(selected, qualityAuto) {
+		for i, variant := range variants {
+			if !strings.EqualFold(variant.Quality, selected) {
+				continue
+			}
+			if i > 0 {
+				order := make([]player.Variant, 0, len(variants))
+				order = append(order, variant)
+				order = append(order, variants[:i]...)
+				order = append(order, variants[i+1:]...)
+				variants = order
+			}
+
+			break
+		}
+	}
+
+	return player.Request{Variants: variants, Quality: selected}, true
+}
+
+// qualityOptions lists Auto plus the real labels this channel declares. An
+// unlabelled variant is never presented as a quality choice, though it still
+// participates in recovery.
+func qualityOptions(channel catalog.Channel, selected string) []ui.WatchQualityOption {
+	selected = strings.TrimSpace(selected)
+	options := []ui.WatchQualityOption{{
+		Label:    qualityAuto,
+		Selected: selected == "" || strings.EqualFold(selected, qualityAuto),
+	}}
+	seen := map[string]bool{qualityAuto: true}
+
+	for _, stream := range channel.Streams {
+		label := strings.TrimSpace(stream.Quality)
+		if label == "" || seen[strings.ToLower(label)] {
+			continue
+		}
+		seen[strings.ToLower(label)] = true
+		options = append(options, ui.WatchQualityOption{
+			Label:    label,
+			Selected: strings.EqualFold(selected, label),
+		})
+	}
+
+	return options
+}
+
+// streamForURL resolves the catalog stream a request presents, so the page's
+// live badge and the previous-channel entry keep the real metadata.
+func streamForURL(channel catalog.Channel, rawURL string) (catalog.Stream, bool) {
+	for _, stream := range channel.Streams {
+		if strings.TrimSpace(stream.URL) == rawURL {
+			return stream, true
+		}
+	}
+	if len(channel.Streams) > 0 {
+		return channel.Streams[0], true
+	}
+
+	return catalog.Stream{}, false
 }
 
 // pickStream chooses the first supported stream variant.

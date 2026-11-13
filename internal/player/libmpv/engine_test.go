@@ -101,7 +101,7 @@ func TestIntegrationHLS(t *testing.T) {
 
 	controller := player.New(
 		engine,
-		player.WithLoadingTimeout(20*time.Second),
+		player.WithStallTimeout(20*time.Second),
 		player.WithInitialMuted(true),
 	)
 	t.Cleanup(func() {
@@ -121,6 +121,22 @@ func TestIntegrationHLS(t *testing.T) {
 		snapshot := controller.Snapshot()
 		switch snapshot.State {
 		case player.StatePlaying:
+			if err := controller.Pause(); err != nil {
+				t.Fatalf("Pause: %v", err)
+			}
+			waitForState(t, controller, player.StatePaused, 5*time.Second)
+			time.Sleep(1200 * time.Millisecond)
+			held := controller.Snapshot()
+			time.Sleep(1200 * time.Millisecond)
+			later := controller.Snapshot()
+			if later.Metrics.TimePos != held.Metrics.TimePos {
+				t.Fatalf("paused time-pos moved from %s to %s; the frame is not held", held.Metrics.TimePos, later.Metrics.TimePos)
+			}
+			if err := controller.Resume(); err != nil {
+				t.Fatalf("Resume: %v", err)
+			}
+			waitForState(t, controller, player.StatePlaying, 25*time.Second)
+
 			if err := controller.SetVolume(20); err != nil {
 				t.Fatalf("SetVolume: %v", err)
 			}
@@ -154,4 +170,23 @@ func waitStopped(t *testing.T, controller *player.Controller) {
 	}
 
 	t.Fatalf("playback did not stop; last snapshot %+v", controller.Snapshot())
+}
+
+// waitForState waits for one real engine transition within the timeout and
+// returns the snapshot that showed it.
+func waitForState(t *testing.T, controller *player.Controller, want player.State, timeout time.Duration) player.Snapshot {
+	t.Helper()
+
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		snapshot := controller.Snapshot()
+		if snapshot.State == want {
+			return snapshot
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	t.Fatalf("state %s, want %s; last snapshot %+v", controller.Snapshot().State, want, controller.Snapshot())
+
+	return player.Snapshot{}
 }

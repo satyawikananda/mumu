@@ -47,7 +47,7 @@ func TestIntegrationSoak(t *testing.T) {
 
 	controller := player.New(
 		engine,
-		player.WithLoadingTimeout(20*time.Second),
+		player.WithStallTimeout(20*time.Second),
 		player.WithInitialMuted(true),
 	)
 	t.Cleanup(func() {

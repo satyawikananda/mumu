@@ -19,6 +19,10 @@ type ChannelTile struct {
 	// LiveCorner draws LIVE as a tag attached to the top-right corner instead
 	// of the bottom-left badge. Discover sets it; rails keep the badge.
 	LiveCorner bool
+	// Drawer draws the compact Watch channel-drawer variant: a 150 pt card
+	// with the name at 15 pt, an upright logo card and a status line instead
+	// of the bottom-left badge.
+	Drawer bool
 	// FocusField and FocusValue bind keyboard focus to an app-owned cursor.
 	// Leave FocusValue empty for a tile outside a rail.
 	FocusField *string
@@ -43,8 +47,19 @@ func (ch ChannelTile) View(c *ui.Context) ui.Element {
 	}
 	artColor := artworkColor(ch.Art)
 	logoSize := min(float32(92), max(float32(64), height*0.44))
+	if ch.Drawer {
+		logoSize = min(float32(64), max(float32(48), height*0.42))
+	}
+	inset := float32(15)
+	if ch.Drawer {
+		inset = 12
+	}
 	logoOffset := logoSize * 0.18
 	logoRadius := logoSize * 0.15
+	if ch.Drawer {
+		logoOffset = 0
+		logoRadius = min(10, logoSize*0.18)
+	}
 	title := strings.TrimSpace(ch.Name)
 	if title == "" {
 		title = "Untitled channel"
@@ -52,6 +67,10 @@ func (ch ChannelTile) View(c *ui.Context) ui.Element {
 	titleColor := ui.Hex("#FFFFFF")
 	if ch.Disabled {
 		titleColor = p.muted
+	}
+	titleSize := textSize(t, 19)
+	if ch.Drawer {
+		titleSize = textSize(t, 15)
 	}
 
 	tile := ui.ButtonBase(c).Height(height).Radius(radiusTile).
@@ -87,23 +106,32 @@ func (ch ChannelTile) View(c *ui.Context) ui.Element {
 				},
 			})
 
-		ui.Text(c, title).Font(displayFont()).FontSize(textSize(t, 19)).FontWeight(700).
-			TextColor(titleColor).Absolute().Left(15).Right(15).Top(14).
+		ui.Text(c, title).Font(displayFont()).FontSize(titleSize).FontWeight(700).
+			TextColor(titleColor).Absolute().Left(inset).Right(inset).Top(inset).
 			MaxLines(2).Ellipsis("…")
 
-		if ch.Live && ch.LiveCorner {
+		switch {
+		case ch.Drawer && ch.Live:
+			drawerLive(c, t).Absolute().Left(inset).Bottom(inset - 2)
+		case ch.Drawer:
+			// A channel the app did not mark live keeps a clean card.
+		case ch.Live && ch.LiveCorner:
 			cornerLive(c, t).Absolute().Right(0).Top(0)
-		} else if ch.Live {
-			ui.Box(c).Absolute().Left(15).Bottom(14).Children(func() {
+		case ch.Live:
+			ui.Box(c).Absolute().Left(inset).Bottom(inset - 1).Children(func() {
 				Badge{Kind: BadgeLive, Text: "LIVE"}.View(c)
 			})
 		}
 
 		logo := ui.Box(c).Size(logoSize, logoSize).Radius(logoRadius).
 			Background(ui.Hex("#FFFFFF")).
-			Shadow(0, 8, 24, 0, ui.RGBA(0, 0, 0, 0.40)).
-			Transform(ui.Rotation(-18)).TransformOrigin(1, 1).
-			Absolute().Right(-logoOffset).Bottom(-logoOffset)
+			Shadow(0, 8, 24, 0, ui.RGBA(0, 0, 0, 0.40))
+		if ch.Drawer {
+			logo = logo.Absolute().Right(inset).Bottom(inset)
+		} else {
+			logo = logo.Transform(ui.Rotation(-18)).TransformOrigin(1, 1).
+				Absolute().Right(-logoOffset).Bottom(-logoOffset)
+		}
 		logo.Children(func() {
 			ui.Column(c).Fill().Center().Children(func() {
 				if ch.Art.Bitmap != nil {
@@ -159,6 +187,20 @@ func cornerLive(c *ui.Context, t *ui.Theme) ui.Element {
 	})
 
 	return tag
+}
+
+// drawerLive draws the compact status line of a drawer tile: a white dot and
+// LIVE, quiet enough to sit under the channel name.
+func drawerLive(c *ui.Context, t *ui.Theme) ui.Element {
+	status := ui.Row(c).Gap(4).AlignItems(ui.Center)
+	status.Children(func() {
+		ui.Box(c).Size(4, 4).Radius(2).Background(videoInk).AccessHidden(true)
+		ui.Text(c, "LIVE").Font(bodyFont()).FontSize(textSize(t, 9)).
+			FontWeight(700).LetterSpacing(0.6).
+			TextColor(videoInk.Alpha(0.88)).SingleLine()
+	})
+
+	return status
 }
 
 // RowState is what a virtualized list reports to a ChannelRow.

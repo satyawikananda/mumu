@@ -155,11 +155,14 @@ paint above live video while MyGo keeps all pointer input.
 - `video.Surface` exposes `NativeViewHandle` and `SyncDrawable` for a host that
   lays the view out itself. The app must call `SyncDrawable` after layout, a
   window move or a scale change.
-- `libmpv.Engine.SetPaused` and `SetReadAhead` are experiment seams for #37.
-  Pause holds the displayed frame and stops audio; a live stream still reads
-  ahead a little, which #37 must resolve before claiming a stopped read-ahead.
-- Do not detach live video to show an overlay, and do not add a second view,
-  decoder or player for PiP. Evidence:
+- `libmpv.Engine.SetPaused` is the product pause path (ADR 0010). Pause holds
+  the displayed frame and stops audio; the adapter also sets
+  `demuxer-readahead-secs=0`, but a live stream keeps a small residual read
+  (playlist refresh and in-flight segments). Do not claim a silent network or a
+  zero read-ahead; measure and document it. `Resume` reloads at the live edge,
+  never seeks to the paused position.
+- `SetReadAhead` remains an experiment seam. Do not detach live video to show an
+  overlay, and do not add a second view, decoder or player for PiP. Evidence:
   `docs/architecture/evidence/overlay-2026-11-12/`.
 
 ## 5. Phases and implementation gates
@@ -216,11 +219,14 @@ Architectural boundaries:
 ## 7. Player and PiP invariants
 
 - Exactly **one active viewing session** and at most one current primary stream in v0.1.
-- Player state must distinguish: `idle`, `loading`, `playing`, `buffering`, `error`, `stopping`, `stopped` (adapt naming only with tests/docs).
+- Player state distinguishes: `idle`, `loading`, `playing`, `buffering`,
+  `paused`, `error`, `stopping`, `stopped` (adapt naming only with tests/docs).
+  Recovery is bounded to three attempts with an 8-second no-progress deadline and
+  an 8-second floor between attempt starts; variants stay inside one channel.
 - Events from previous channel loads must never overwrite the active channel; use request/generation identifiers or equivalent cancellation rules.
 - All native UI changes happen through MyGo's verified main-thread / UI-safe update mechanism. Never block the event loop on networking or decoder waits.
 - PiP state should distinguish main presentation, transitioning, PiP presentation and stopped state.
-- M5 target: PiP **Close/Esc stops playback**; **Return/P** moves the same session to the main window and preserves pause. PiP mute is temporary and does not rewrite the main audio intent. #39 owns the implementation; the current #12 behavior remains transitional until then.
+- PiP **Close/Esc stops playback**; **Return/P** moves the same session to the main window and preserves pause. PiP mute is temporary and restores the main audio intent on Return. Implemented in #39 with a frameless 16:9 panel, hover chrome and per-display geometry.
 - Rapid channel switches, window resize, enter/leave PiP, error recovery, and app shutdown must release resources predictably.
 - Do not render a fake live seek bar: ordinary HLS live streams are not necessarily seekable; time-shift is a later milestone.
 
@@ -313,10 +319,13 @@ Before claiming completion:
 - **After #31 (M5 revamp baseline):** MyGo upgraded to 0.9.0 with the same Go 1.27.3 toolchain. No view code changed: the app already used checked `ui.Element` values, `ui.Handle` identity and same-pass `Changed` commits, and `go tool mygo migrate-ui .` reports no diff. SQLite now loads through the `Sqlitecore` native module; `verify-app.sh` gates `Contents/Resources/libSqlitecore.dylib`. Evidence: `docs/architecture/evidence/mygo-0.9.0-upgrade.md`.
 - **After #32 (M5 revamp, overlay gate):** CONDITIONAL GO for composing MyGo chrome above the retained libmpv view by inserting the view under MyGo's surface. Recorded: live video with clickable chrome, one session through PiP transfer, paused frame with audio stopped. Not recorded: radius clipping, PiP drag/resize details, repeated toggles, dead-stream recovery. See [ADR 0009](docs/architecture/adr/0009-native-video-overlay.md).
 - **After #33 (M5 design foundation):** semantic Dark/Light/System tokens, Lexend + Inter Tight bundled fonts, Lucide subset, responsive layout policy, shared native components and a portable handoff under `docs/ux/revamp/`. Home/Discover/Control Center page integration remains #34–#36. Evidence: `docs/ux/revamp/` and `internal/ui/*_test.go`.
-- **After #34 (M5 native Control Center):** the permanent sidebar/rail is removed. A top bar exposes Control Center and Settings; Control Center overlays the current page with real context cards and five approved icons. Home is a distinct route and startup contract; Watch remains the only native video page. One shortcut registry feeds handlers, hints and Settings; `Space` stays unavailable until #37. Evidence: `docs/ux/shell.md` and shell/attach tests.
+- **After #34 (M5 native Control Center):** the permanent sidebar/rail is removed. A top bar exposes Control Center and Settings; Control Center overlays the current page with real context cards and five approved icons. Home is a distinct route and startup contract; Watch remains the only native video page. One shortcut registry feeds handlers, hints and Settings. Evidence: `docs/ux/shell.md` and shell/attach tests.
 - **After #35 (M5 Home feed):** Home is a data-backed feed built from `internal/library` through the shared `libraryCache`: synthesized hero art, explicit Resume, Recent and Favorites rails, counts and `See all`. Compact keeps both rails and scrolls (approved deviation from `R7ZZ2`). Library Favorites/Recently Watched use the shared `ChannelRow` with bounded artwork. Resume resolves its key at click time, so disabled or removed sources never play. Evidence: `docs/ux/home.md`, Home capture test and app feed tests.
 - **After #36 (M5 Discover):** a fresh install opens the approved no-country state; `sources.Service.Region` no longer defaults to Indonesia and `BuiltinSource`/`RefreshBuiltin` reject an empty region with `ErrNoRegion` before any network call. Country metadata and imported sources may load, but no country playlist is fetched until the viewer chooses. Discover adds a category rail beside the channel grid (a third at wide, 236 pt at medium, chips at compact), a native search field, a Country filter with a searchable country modal, infinite scrolling in batches of 40 rows with a loading skeleton, and the virtualized row list for search. Discover tiles show LIVE as a tag attached to the top-right corner; Home rails keep the bottom-left badge. The source and Live only chips were removed as no longer relevant. A saved country is kept on restart; an unknown saved code returns to the no-country state with an explicit message instead of being replaced. Evidence: `docs/ux/discover.md`, discover capture tests and app/source tests.
 - Changes to player/rendering boundaries or startup UX require updating both relevant docs and acceptance tests.
+- **After #37 (live pause, recovery and quality):** `player` gains `StatePaused`, `PlayRequest`, `Pause`, `Resume`, `SelectQuality`, episode identity, bounded recovery and truthful variant metadata; libmpv bounds read-ahead while paused. Resume reloads at the live edge. See [ADR 0010](docs/architecture/adr/0010-live-pause-and-recovery.md).
+- **After #38 (immersive Watch):** the retained video view is inserted under `MyGoSurfaceView`, Watch is full-bleed with scrims, a non-interactive live line, a 420 pt channel drawer, real quality selection and 3-second idle chrome; the system pointer hides with the chrome and a pointer move restores both, while shell chrome stays hidden on that route. See [Watch](docs/architecture/watch.md).
+- **After #39 (PiP):** the floating panel is frameless, 16:9, remembers its frame per display, keeps temporary mute local, stops on Close/Esc and preserves pause on Return. See [PiP](docs/architecture/pip.md).
 
 ## 12. Reference material
 

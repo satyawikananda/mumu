@@ -54,6 +54,13 @@ func NewShell() *Shell {
 		s.ShowLibrary()
 		s.library.ShowPlaylists()
 	}
+	s.watch.OnBack = s.leaveWatch
+	s.watch.OnOpenControlCenter = s.OpenControlCenter
+	s.watch.OnSettings = s.ShowSettings
+	s.watch.SetMark(s.mark)
+	s.watch.SetHints(func(limit int) []Hint {
+		return shortcutHints(s, ShortcutPlayer, limit)
+	})
 	s.watch.OnBrowse = s.ShowDiscover
 	s.home.OnBrowse = s.ShowDiscover
 	s.home.OnWatch = s.ShowWatch
@@ -177,7 +184,7 @@ func (s *Shell) goBack() {
 // PiPView draws the floating player with the app's theme.
 func (s *Shell) PiPView(c *ui.Context) {
 	theme := themeForContext(s.themeMode, c)
-	ui.Themed(c, theme).Fill().Background(watchVideoColor).Children(func() {
+	ui.Themed(c, theme).Fill().Background(ui.Transparent).Children(func() {
 		s.pip.View(c, theme)
 	})
 }
@@ -186,11 +193,25 @@ func (s *Shell) PiPView(c *ui.Context) {
 func (s *Shell) View(c *ui.Context) {
 	theme := themeForContext(s.themeMode, c)
 
-	ui.Themed(c, theme).Fill().Children(func() {
-		s.chrome(c, theme)
+	themed := ui.Themed(c, theme).Fill()
+	if s.IsWatch() {
+		// Watch is a hole in MyGo's surface: the retained video sits under it.
+		// The Themed column would otherwise paint the opaque canvas over it.
+		themed = themed.Background(ui.Transparent)
+	}
+	themed.Children(func() {
+		// Watch is full-bleed: the picture owns the window and the page draws
+		// its own chrome, so the shell bar and its inset stay out of the way.
+		if !s.IsWatch() {
+			s.chrome(c, theme)
+		}
 		s.content(c, theme)
 		if !s.controlCenterOpen {
 			s.handleShortcuts(c)
+		} else if s.watch.NoteActivity(c.Now()) {
+			// The overlay is not the picture's chrome; keep the page's own
+			// controls from idling away underneath it.
+			c.Invalidate()
 		}
 		if s.controlCenterOpen {
 			s.controlCenter().View(c)
@@ -290,6 +311,12 @@ func (s *Shell) ChromeScrolled() bool { return s.pageScrolled() }
 
 // content draws the error banner, the current page and the shortcut strip.
 func (s *Shell) content(c *ui.Context, theme *ui.Theme) {
+	if s.IsWatch() {
+		s.watchContent(c, theme)
+
+		return
+	}
+
 	layout := layoutFor(c.Size())
 	p := paletteFor(theme.Dark)
 
@@ -310,6 +337,22 @@ func (s *Shell) content(c *ui.Context, theme *ui.Theme) {
 			}
 		}
 	})
+}
+
+// watchContent draws Watch edge to edge. The page owns its hint bar, so the
+// shell draws neither padding, canvas nor strip on this route.
+func (s *Shell) watchContent(c *ui.Context, theme *ui.Theme) {
+	ui.Column(c).Grow(1).FillWidth().Children(func() {
+		s.drawPage(c, theme)
+	})
+
+	if s.err == "" || s.controlCenterOpen {
+		return
+	}
+	ui.Box(c).Absolute().Left(0).Right(0).Top(0).Padding(12, 20).ZIndex(2).
+		Children(func() {
+			s.errorBanner(c, theme, paletteFor(theme.Dark))
+		})
 }
 
 // errorBanner shows a dismissable error above the page content.
@@ -336,16 +379,31 @@ func (s *Shell) handleShortcuts(c *ui.Context) {
 		for _, binding := range sc.Bindings {
 			if c.Shortcut(binding.Mods, binding.Key) {
 				sc.Run(s, binding.Key)
+				if context == ShortcutPlayer && s.watch.NoteActivity(c.Now()) {
+					// A key is activity: the picture's chrome comes back for a
+					// viewer driving the player from the keyboard.
+					c.Invalidate()
+				}
+
 				return
 			}
 		}
 	}
 }
 
-// handleEscape closes the topmost local layer or navigates back.
+// handleEscape closes the topmost local layer, cancels a first connect, or
+// navigates back.
 func (s *Shell) handleEscape() {
 	if s.watch.DrawerOpen() {
 		s.watch.CloseDrawer()
+		return
+	}
+	if s.watch.QualityOpen() {
+		s.watch.CloseQuality()
+		return
+	}
+	if s.nav == destWatch && s.watch.IsInitialLoading() {
+		s.watch.Cancel()
 		return
 	}
 
@@ -355,6 +413,16 @@ func (s *Shell) handleEscape() {
 	default:
 		s.goBack()
 	}
+}
+
+// leaveWatch returns to the previous destination, or Home when Watch was
+// opened directly.
+func (s *Shell) leaveWatch() {
+	if s.previous != "" {
+		s.goBack()
+		return
+	}
+	s.ShowHome()
 }
 
 // focusSearch sends the viewer to Discover and focuses its search field.
@@ -407,7 +475,7 @@ func (s *Shell) controlCenter() ControlCenter {
 	switch watch.Kind {
 	case WatchResume:
 		state.Resume = true
-	case WatchLoading, WatchBuffering, WatchPlaying:
+	case WatchLoading, WatchBuffering, WatchPlaying, WatchPaused:
 		state.Active = true
 	}
 	state.FavoriteNames = firstNames(library.Favorites)

@@ -46,6 +46,20 @@ func presentingApp(t *testing.T) (*App, *fakeSurface) {
 	return a, surface
 }
 
+// A paused frame keeps the native view attached; loading and error release it.
+func TestPresentingStateIncludesPaused(t *testing.T) {
+	for _, state := range []player.State{player.StatePlaying, player.StateBuffering, player.StatePaused} {
+		if !presentingState(state) {
+			t.Fatalf("%s should keep the video surface attached", state)
+		}
+	}
+	for _, state := range []player.State{player.StateLoading, player.StateError, player.StateStopped, player.StateIdle} {
+		if presentingState(state) {
+			t.Fatalf("%s should detach the video surface", state)
+		}
+	}
+}
+
 // The video box reported before the engine exists is still attached on the
 // first frame; this was the "stream cannot play" regression.
 func TestAttachAfterLazySurfaceCreation(t *testing.T) {

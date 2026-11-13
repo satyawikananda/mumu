@@ -77,6 +77,12 @@ type Engine struct {
 	pendingGeneration uint64
 	activeGeneration  uint64
 	activeEntry       int64
+
+	// paused and readAhead belong to the pump goroutine. readAhead keeps the
+	// value the runtime had before a pause bounded it to zero, so unpause
+	// restores the same look-ahead instead of guessing a default.
+	paused    bool
+	readAhead string
 }
 
 var _ player.Engine = (*Engine)(nil)
@@ -220,10 +226,9 @@ func (e *Engine) SetMuted(ctx context.Context, muted bool) error {
 
 // SetPaused pauses or resumes playback without reloading the source.
 //
-// It is the seam the overlay experiment needs: a paused stream keeps the frame
-// the render thread last presented, its audio output pauses, and the demuxer
-// stops reading ahead. It is not part of player.Engine yet; issue #37 owns the
-// product behavior of live pause and live-edge resume.
+// Pause holds the frame the render thread last presented, stops audio and asks
+// the demuxer to stop reading ahead. Live streams still refresh their playlist
+// and finish in-flight reads, so the network is bounded, not silent.
 func (e *Engine) SetPaused(ctx context.Context, paused bool) error {
 	return e.call(ctx, command{kind: commandPause, paused: paused})
 }
@@ -356,6 +361,9 @@ func (e *Engine) handleCommand(cmd command) {
 		e.activeEntry = 0
 		e.mu.Unlock()
 
+		e.paused = false
+		e.readAhead = ""
+
 		err := e.client.CommandAsync(0, []string{"stop"})
 		// Drop the fields with the session: the next load sets its own.
 		if clearErr := e.setPlaybackHeaders(nil); clearErr != nil {
@@ -367,10 +375,7 @@ func (e *Engine) handleCommand(cmd command) {
 	case commandMute:
 		cmd.done <- e.client.SetPropertyString("mute", yesNo(cmd.muted))
 	case commandPause:
-		// libmpv keeps decoding out of the picture: pause holds the frame it
-		// shows and stops the audio output. The render thread draws nothing new
-		// until the engine calls it again.
-		cmd.done <- e.client.SetPropertyString("pause", yesNo(cmd.paused))
+		cmd.done <- e.setPaused(cmd.paused)
 	case commandReadAhead:
 		// A bounded read-ahead, in seconds. Zero stops the demuxer from filling
 		// its cache, which pause alone does not do on a live stream.
@@ -378,6 +383,42 @@ func (e *Engine) handleCommand(cmd command) {
 	default:
 		cmd.done <- fmt.Errorf("%w: unknown command", player.ErrInvalid)
 	}
+}
+
+// setPaused applies the pause property and bounds read-ahead. It runs on the
+// pump goroutine and keeps the runtime value it must restore.
+func (e *Engine) setPaused(paused bool) error {
+	if e.paused == paused {
+		return nil
+	}
+
+	if paused {
+		if value := e.client.GetPropertyString("demuxer-readahead-secs"); strings.TrimSpace(value) != "" {
+			e.readAhead = value
+		}
+		if err := e.client.SetPropertyString("pause", yesNo(true)); err != nil {
+			return err
+		}
+		if err := e.client.SetPropertyString("demuxer-readahead-secs", "0"); err != nil {
+			e.cfg.Logger.Debug("player read-ahead", "error", err)
+		}
+		e.paused = true
+
+		return nil
+	}
+
+	if e.readAhead != "" {
+		if err := e.client.SetPropertyString("demuxer-readahead-secs", e.readAhead); err != nil {
+			e.cfg.Logger.Debug("player read-ahead", "error", err)
+		}
+	}
+	if err := e.client.SetPropertyString("pause", yesNo(false)); err != nil {
+		return err
+	}
+	e.paused = false
+	e.readAhead = ""
+
+	return nil
 }
 
 // setPlaybackHeaders forwards only the sanitized User-Agent and Referer

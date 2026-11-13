@@ -8,11 +8,12 @@ import (
 
 func TestPlayerShortcuts(t *testing.T) {
 	shell := NewShell()
-	muted, fullscreen, pip, volume := 0, 0, 0, 0
+	muted, fullscreen, pip, volume, paused := 0, 0, 0, 0, 0
 	shell.Watch().OnToggleMute = func() { muted++ }
 	shell.Watch().OnFullscreen = func() { fullscreen++ }
 	shell.Watch().OnEnterPiP = func() { pip++ }
 	shell.Watch().OnVolume = func(v int) { volume = v }
+	shell.Watch().OnTogglePause = func() { paused++ }
 	shell.Watch().SetState(WatchState{Kind: WatchPlaying, Channel: "Metro TV", Volume: 50, Channels: []WatchChannel{{Key: "one", Name: "One"}}})
 	shell.ShowWatch()
 
@@ -21,11 +22,13 @@ func TestPlayerShortcuts(t *testing.T) {
 	tt.Key(0, ui.KeyUp)
 	tt.Key(0, ui.KeyF)
 	tt.Key(0, ui.KeyP)
-	tt.Key(0, ui.KeyC)
+	// Space belongs to the page while no control has focus; C opens the
+	// drawer afterwards, where Space activates the focused tile instead.
 	tt.Key(0, ui.KeySpace)
+	tt.Key(0, ui.KeyC)
 
-	if muted != 1 || fullscreen != 1 || pip != 1 {
-		t.Fatalf("mute=%d fullscreen=%d pip=%d, want one each", muted, fullscreen, pip)
+	if muted != 1 || fullscreen != 1 || pip != 1 || paused != 1 {
+		t.Fatalf("mute=%d fullscreen=%d pip=%d pause=%d, want one each", muted, fullscreen, pip, paused)
 	}
 	if volume != 55 {
 		t.Fatalf("volume = %d, want 55", volume)
