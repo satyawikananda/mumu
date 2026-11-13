@@ -23,9 +23,6 @@ type Shell struct {
 	watch     *Watch
 	pip       *PiP
 
-	// settingsScroll tracks the Settings page's scroll offset for the bar.
-	settingsScroll ui.ScrollState
-
 	controlCenterOpen bool
 
 	onDestinationChanged func(watch bool)
@@ -50,10 +47,8 @@ func NewShell() *Shell {
 		s.library.OpenAddPlaylist()
 	}
 	s.discover.OnOpenSettings = s.ShowSettings
-	s.settings.OnManagePlaylists = func() {
-		s.ShowLibrary()
-		s.library.ShowPlaylists()
-	}
+	s.settings.OnTheme = s.SetThemeMode
+	s.settings.SetMark(s.mark)
 	s.watch.OnBack = s.leaveWatch
 	s.watch.OnOpenControlCenter = s.OpenControlCenter
 	s.watch.OnSettings = s.ShowSettings
@@ -113,6 +108,19 @@ func (s *Shell) ShowLibrary() { s.navigate(destLibrary) }
 
 // ShowSettings makes Settings the current destination.
 func (s *Shell) ShowSettings() { s.navigate(destSettings) }
+
+// SetThemeMode changes the shell appearance and the Settings page's selected
+// card. The app calls it after loading or confirming a stored preference.
+func (s *Shell) SetThemeMode(mode ThemeMode) {
+	if mode < ThemeDark || mode > ThemeSystem {
+		mode = ThemeDark
+	}
+	s.themeMode = mode
+	s.settings.SetTheme(mode)
+}
+
+// ThemeMode returns the current appearance.
+func (s *Shell) ThemeMode() ThemeMode { return s.themeMode }
 
 // OnDestinationChanged reports every destination change. The callback runs on
 // the UI thread and receives whether Watch is now visible.
@@ -300,7 +308,7 @@ func (s *Shell) pageScrolled() bool {
 	case destLibrary:
 		return s.library.Scrolled()
 	case destSettings:
-		return s.settingsScroll.Y > 1
+		return s.settings.Scrolled()
 	default:
 		return false
 	}

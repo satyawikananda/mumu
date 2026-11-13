@@ -20,6 +20,8 @@ import (
 const (
 	// playbackSettingVolume stores the last confirmed volume.
 	playbackSettingVolume = "playback.volume"
+	// playbackStartMutedSetting stores whether new channels open muted.
+	playbackStartMutedSetting = "playback.startMuted"
 	// legacyPlaybackSettingMuted is the mute preference older releases wrote.
 	// Mute is never restored now: every launch starts audible, so the key is
 	// only read once to delete it and stop it being inherited.
@@ -210,9 +212,9 @@ func (a *App) openPlayer() (*player.Controller, error) {
 	return controller, nil
 }
 
-// loadPlaybackSettings restores the last volume. Mute is deliberately not
-// restored: the approved policy is that every launch starts audible, so a
-// viewer who muted before quitting still hears the next launch.
+// loadPlaybackSettings restores the last volume and the playback preferences
+// shown by Settings. Mute is deliberately not restored: the approved policy is
+// that every launch starts audible.
 //
 // It runs before any controller usually exists, so it also primes the state the
 // Watch page and a later controller read.
@@ -231,15 +233,10 @@ func (a *App) loadPlaybackSettings() {
 			return
 		}
 
-		volume, errVolume := strconv.Atoi(settings[playbackSettingVolume])
-		if errVolume != nil || volume < 0 || volume > 100 {
-			// A missing or unusable key must not leave the engine at zero.
-			volume = player.DefaultVolume
-		}
+		a.applyPlaybackPreferences(settings)
 
 		a.mu.Lock()
-		a.media.snapshot.Volume = volume
-		a.media.snapshot.Muted = false
+		volume := a.media.snapshot.Volume
 		controller := a.controller
 		a.mu.Unlock()
 
@@ -257,6 +254,7 @@ func (a *App) loadPlaybackSettings() {
 		}
 
 		a.publishWatch()
+		a.publishSettingsValues()
 	})
 }
 
@@ -344,11 +342,11 @@ func (a *App) retryWatching() {
 		return
 	}
 
-	a.playRequest(channel, request, sourceName)
+	a.playRequest(channel, request, sourceName, false)
 }
 
-// playChannel starts a channel from the catalog with its default quality. It
-// runs on the UI thread.
+// playChannel starts a channel from the catalog at Auto quality. It runs on
+// the UI thread.
 func (a *App) playChannel(channel catalog.Channel, sourceName string) {
 	a.playChannelQuality(channel, sourceName, qualityAuto)
 }
@@ -362,7 +360,7 @@ func (a *App) playChannelQuality(channel catalog.Channel, sourceName, selected s
 		return
 	}
 
-	a.playRequest(channel, request, sourceName)
+	a.playRequest(channel, request, sourceName, true)
 }
 
 // playRequest sends one episode to the shared controller.
@@ -371,7 +369,15 @@ func (a *App) playChannelQuality(channel catalog.Channel, sourceName, selected s
 // presenting frames becomes the "previous" one, so a failed switch can offer a
 // way back. A channel that never played, the same channel, or a state that
 // never showed video (loading, error) is not remembered.
-func (a *App) playRequest(channel catalog.Channel, request player.Request, sourceName string) {
+//
+// newLoad applies the start-muted preference. A retry of the active channel
+// keeps the viewer's runtime audio intent.
+func (a *App) playRequest(
+	channel catalog.Channel,
+	request player.Request,
+	sourceName string,
+	newLoad bool,
+) {
 	if len(request.Variants) == 0 {
 		a.failWatch("This channel has no supported stream URL.")
 
@@ -425,7 +431,27 @@ func (a *App) playRequest(channel catalog.Channel, request player.Request, sourc
 
 	if err := controller.PlayRequest(request); err != nil {
 		a.failWatch("The player could not start this stream.")
+
+		return
 	}
+	if newLoad {
+		a.applyStartAudio(controller)
+	}
+}
+
+// applyStartAudio applies the explicit start-muted preference to a new channel
+// load. Runtime mute and PiP's temporary mute never write the preference.
+func (a *App) applyStartAudio(controller *player.Controller) {
+	muted := a.settingsData.startMutedValue()
+
+	a.mu.Lock()
+	a.media.snapshot.Muted = muted
+	a.mu.Unlock()
+
+	if err := controller.SetMuted(muted); err != nil {
+		slog.Debug("apply start muted", "error", err)
+	}
+	a.publishWatch()
 }
 
 // backToPrevious returns to the channel that played before the failed switch.
@@ -961,6 +987,14 @@ func (a *App) togglePlaybackMute() {
 	a.mu.Lock()
 	controller := a.controller
 	muted := !a.media.snapshot.Muted
+	a.mu.Unlock()
+	if controller != nil {
+		// The controller owns the running audio intent. Reading its snapshot
+		// avoids flipping a stale optimistic value after a channel load.
+		muted = !controller.Snapshot().Muted
+	}
+
+	a.mu.Lock()
 	a.media.snapshot.Muted = muted
 	a.mu.Unlock()
 

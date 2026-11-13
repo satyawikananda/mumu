@@ -412,6 +412,7 @@ func (a *App) loadLibrary(ctx context.Context) {
 		a.libraryData.setMessage("")
 	}
 	a.publishLibrary()
+	a.refreshAboutCounts()
 }
 
 // loadLibraryEntries reloads favorites and recent channels into the cache.

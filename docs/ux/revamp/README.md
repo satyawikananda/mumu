@@ -15,9 +15,12 @@ recorded on 12 November 2026 from the approved Pencil document.
 This handoff covers the foundation delivered by
 [#33](https://github.com/satyawikananda/mumu/issues/33), the native shell
 delivered by [#34](https://github.com/satyawikananda/mumu/issues/34), the Home
-feed delivered by [#35](https://github.com/satyawikananda/mumu/issues/35) and
-the Discover page delivered by [#36](https://github.com/satyawikananda/mumu/issues/36).
-Watch, PiP and Settings page integration remain owned by #37–#40.
+feed delivered by [#35](https://github.com/satyawikananda/mumu/issues/35), the
+Discover page delivered by [#36](https://github.com/satyawikananda/mumu/issues/36),
+live pause and recovery by [#37](https://github.com/satyawikananda/mumu/issues/37),
+immersive Watch by [#38](https://github.com/satyawikananda/mumu/issues/38),
+PiP by [#39](https://github.com/satyawikananda/mumu/issues/39), and Settings by
+[#40](https://github.com/satyawikananda/mumu/issues/40).
 
 ## Scope
 

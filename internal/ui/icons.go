@@ -127,6 +127,9 @@ var eyeOffSVG []byte
 //go:embed icons/sliders-horizontal.svg
 var slidersSVG []byte
 
+//go:embed icons/layers.svg
+var layersSVG []byte
+
 // iconSet holds the parsed Lucide icons used by the native UI.
 type iconSet struct {
 	watch      *ui.SVG
@@ -169,6 +172,7 @@ type iconSet struct {
 	eye        *ui.SVG
 	eyeOff     *ui.SVG
 	sliders    *ui.SVG
+	layers     *ui.SVG
 }
 
 // icons parses the embedded SVG icons once.
@@ -214,5 +218,6 @@ var icons = sync.OnceValue(func() iconSet {
 		eye:        ui.MustParseSVG(eyeSVG),
 		eyeOff:     ui.MustParseSVG(eyeOffSVG),
 		sliders:    ui.MustParseSVG(slidersSVG),
+		layers:     ui.MustParseSVG(layersSVG),
 	}
 })

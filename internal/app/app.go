@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -43,8 +44,16 @@ type App struct {
 	logos             *logoCache
 	library           runSession
 	libraryData       *libraryCache
-	settings          runSession
 	settingsData      *settingsCache
+	appearance        runSession
+	startMuted        runSession
+	about             runSession
+	updateCheck       runSession
+	updates           releaseChecker
+	// appVersion and buildInfo are test seams for the native About data;
+	// production values are MyGo and runtime/debug.
+	appVersion func() string
+	buildInfo  func() (*debug.BuildInfo, bool)
 
 	// mainWin is the native window the current a.win adapts. Compare this
 	// pointer, never the mainWindow interface: a closed window's adapter has a
@@ -121,6 +130,9 @@ func New() *App {
 		settingsData:   newSettingsCache(),
 		pipGeometries:  map[int64]pipGeometry{},
 		media:          mediaState{snapshot: player.Snapshot{Volume: player.DefaultVolume, Quality: player.Quality{Selected: qualityAuto}}},
+		appVersion:     mygo.App.Version,
+		buildInfo:      debug.ReadBuildInfo,
+		updates:        newReleaseChecker(),
 	}
 	a.newMainWindow = a.createMainWindow
 
@@ -133,6 +145,7 @@ func (a *App) Run() error {
 	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { a.Stop() })
 	mygo.App.WhenReady(func() {
 		a.openLocalStore()
+		a.loadStartupPreferences()
 		a.openCatalog()
 		a.openUserLibrary()
 		a.openWindow()

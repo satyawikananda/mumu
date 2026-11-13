@@ -185,11 +185,14 @@ func TestShellShortcutReference(t *testing.T) {
 	tt := ui.NewTester(shell.View, 1100, 720)
 
 	openSettings(t, tt)
+	if err := tt.Click("Shortcuts"); err != nil {
+		t.Fatal(err)
+	}
 	if !tt.HasText("Mute") || !tt.HasText("Fullscreen") || !tt.HasText("Control Center") {
 		t.Fatalf("texts %q, want shared shortcut labels", tt.Texts())
 	}
-	if !tt.HasText("Play or pause") || !tt.HasText("Try again") {
-		t.Fatalf("texts %q, want the implemented Space and retry actions", tt.Texts())
+	if !tt.HasText("Play or pause") || !tt.HasText("Channel drawer") {
+		t.Fatalf("texts %q, want the implemented player actions", tt.Texts())
 	}
 
 	groups := shortcutGroups()
@@ -262,9 +265,15 @@ func TestShellMinimumSize(t *testing.T) {
 	if err := tt.Click("Settings"); err != nil {
 		t.Fatal(err)
 	}
+	if _, ok := tt.Find("System"); !ok {
+		t.Fatalf("texts %q, want the appearance control", tt.Texts())
+	}
+
+	tt.Scroll(500, 300, 0, 400)
+	tt.Frame()
 	system, ok := tt.Find("System")
 	if !ok {
-		t.Fatalf("texts %q, want the appearance control", tt.Texts())
+		t.Fatalf("texts %q, want the appearance control after scrolling", tt.Texts())
 	}
 	if system.X < 0 || system.Y < 0 || system.X+system.W > 640 || system.Y+system.H > 420 {
 		t.Errorf("System box %+v is outside 640x420", system)
