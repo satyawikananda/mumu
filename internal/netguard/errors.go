@@ -2,7 +2,11 @@
 // bounded responses and a dialer that refuses loopback and private networks.
 package netguard
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+	"net/http"
+)
 
 // Sentinel errors identify blocked requests without exposing their URLs.
 var (
@@ -21,3 +25,19 @@ var (
 	// ErrStatus reports a non-success HTTP status.
 	ErrStatus = errors.New("unexpected HTTP status")
 )
+
+// StatusError reports a non-success HTTP status together with the response
+// headers, so callers can inspect rate limits and retry hints. It unwraps to
+// ErrStatus, which keeps errors.Is(err, ErrStatus) working.
+type StatusError struct {
+	Code   int
+	Header http.Header
+}
+
+// Error implements error.
+func (e *StatusError) Error() string {
+	return fmt.Sprintf("%s: %d", ErrStatus, e.Code)
+}
+
+// Unwrap reports ErrStatus.
+func (e *StatusError) Unwrap() error { return ErrStatus }

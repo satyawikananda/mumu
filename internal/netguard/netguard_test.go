@@ -148,3 +148,38 @@ func TestFetchBlocksPrivateDestination(t *testing.T) {
 		t.Fatalf("error %v, want ErrPrivateAddress", err)
 	}
 }
+
+func TestFetchStatusError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-RateLimit-Remaining", "0")
+		w.Header().Set("Retry-After", "60")
+		w.Header().Set("X-RateLimit-Reset", "1700000000")
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = w.Write([]byte(strings.Repeat("x", 1<<20)))
+	}))
+	defer server.Close()
+
+	// The body is larger than MaxBytes: a status response must be reported
+	// from its headers without reading or bounding the body first.
+	_, err := testClient(true).Fetch(t.Context(), Request{URL: server.URL, MaxBytes: 10})
+	if !errors.Is(err, ErrStatus) {
+		t.Fatalf("error %v, want ErrStatus", err)
+	}
+
+	var status *StatusError
+	if !errors.As(err, &status) {
+		t.Fatalf("error %v, want *StatusError", err)
+	}
+	if status.Code != http.StatusTooManyRequests {
+		t.Fatalf("code %d, want %d", status.Code, http.StatusTooManyRequests)
+	}
+	if got := status.Header.Get("X-RateLimit-Remaining"); got != "0" {
+		t.Fatalf("X-RateLimit-Remaining = %q, want 0", got)
+	}
+	if got := status.Header.Get("Retry-After"); got != "60" {
+		t.Fatalf("Retry-After = %q, want 60", got)
+	}
+	if got := status.Error(); !strings.Contains(got, "429") {
+		t.Fatalf("Error() = %q, want the status code", got)
+	}
+}

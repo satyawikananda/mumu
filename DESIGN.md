@@ -158,7 +158,7 @@ mumu
 ├── Home        Valid recent channel, Resume, other channels, recent and favorite rails
 ├── Discover    Country selection, search, categories, sources, channel grid
 ├── Library     Favorites, Recently Watched, Playlists, Custom Streams
-└── Settings    Playback, appearance/accessibility, sources, shortcuts, About
+└── Settings    Appearance/theme, start muted, shortcuts, About
 ```
 
 - **Home** is a feed, not active playback. It opens only when a valid recent
@@ -209,7 +209,7 @@ This is a behavioral contract, not a demand for custom macOS window controls.
 - `Modal` traps focus. Escape restores focus to the opener. The page hint bar
   is hidden while the overlay is open.
 - One shortcut registry feeds handlers, hint bars and Settings. `Space` is
-  defined for #37 but is not advertised until live pause is implemented.
+  defined and advertised because live pause is implemented.
 
 ## 5. Launch and resume behavior (locked)
 
@@ -428,14 +428,29 @@ flowchart TD
 
 ## 10. Settings — small but useful
 
-Recommended v0.1 sections:
+Settings is a secondary destination with a screen-local
+Appearance / Shortcuts / About rail. It is not a permanent shell sidebar.
 
-- **Playback:** default volume/mute, hardware decoding preference where supported, network/retry configuration with safe defaults.
-- **Sources:** catalog refresh, cache, playlist diagnostics and clear-cache controls.
-- **Appearance & accessibility:** theme mode (dark-first; system/light as follow-up if feasible), reduce motion, readable scaling.
-- **About:** version, website/repository, licenses, attributions and a clear source-rights statement.
+- **Appearance:** Dark, Light and System persist across restart and apply
+  immediately. Start muted defaults off and applies to new channel loads
+  without changing the current channel. Runtime mute and PiP's temporary mute
+  never rewrite that preference. Default quality and Sources are not exposed
+  in this build; playback still selects Auto per stream.
+- **Shortcuts:** a read-only reference rendered from the one shortcut registry,
+  grouped by the contexts actually implemented. No remapping UI and no second
+  command list.
+- **About:** actual version, commit, Go/MyGo runtime, platform, logical display
+  size and text scale, real enabled-source counts and verified project links.
+  Copy system info is redacted. There is no log or license folder action.
+- **Updates:** manual only, using GitHub release metadata. Stable builds ignore
+  prereleases; prerelease builds inspect stable and same-channel prereleases.
+  States are explicit: idle, checking, current, available, no release, access,
+  network and rate limit. The release-page action opens a real page; there is no
+  background updater, download, auto-install or invented check timestamp.
 
-Keep troubleshooting controls behind **Advanced**. Do not expose mpv option names to everyday users unless accompanied by plain-language guidance.
+Keep troubleshooting controls behind **Advanced**. Do not expose mpv option
+names to everyday users unless accompanied by plain-language guidance. Do not
+show mock versions, channel counts, runtime strings or update timestamps.
 
 ## 11. States, accessibility and performance
 

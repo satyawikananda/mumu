@@ -50,45 +50,8 @@ func (s *Shell) drawPage(c *ui.Context, theme *ui.Theme) {
 	case destLibrary:
 		s.library.View(c, theme)
 	case destSettings:
-		ui.Scroll(c).Grow(1).FillWidth().TrackScroll(&s.settingsScroll).Children(func() {
-			ui.Column(c).FillWidth().Gap(16).Children(func() {
-				pageHeading(c, "Settings")
-				s.drawSettings(c, theme)
-			})
-		})
+		s.settings.View(c, theme)
 	default:
 		s.discover.View(c, theme)
 	}
-}
-
-// drawSettings draws appearance controls, catalog sources and the shared
-// shortcut reference. #40 owns the final Settings rail and sections.
-func (s *Shell) drawSettings(c *ui.Context, theme *ui.Theme) {
-	ui.Text(c, "Appearance").Font(displayFont()).FontSize(textSize(theme, 19)).
-		FontWeight(700).TextColor(theme.Text)
-
-	choice := int(s.themeMode) - 1
-	appearance := ui.Segmented(c, &choice, "Dark", "Light", "System").Label("Appearance").MaxWidth(320)
-	if appearance.Changed() {
-		s.themeMode = ThemeMode(choice + 1)
-	}
-
-	s.settings.Sources(c, theme)
-
-	ui.Text(c, "Shortcuts").Font(displayFont()).FontSize(textSize(theme, 19)).
-		FontWeight(700).TextColor(theme.Text)
-	shortcutReference(c, theme)
-
-	ui.Column(c).Gap(10).Children(func() {
-		settingsRow(c, theme, "Playback", "Playback settings arrive in #40")
-		settingsRow(c, theme, "About", "mumu 0.1.0 · M5")
-	})
-}
-
-// settingsRow draws a static settings line that is not interactive.
-func settingsRow(c *ui.Context, theme *ui.Theme, title, detail string) {
-	ui.Row(c).AlignItems(ui.Center).Gap(12).Children(func() {
-		ui.Text(c, title)
-		ui.Text(c, detail).TextColor(theme.TextMuted)
-	})
 }

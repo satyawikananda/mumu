@@ -148,7 +148,7 @@ func (c *Client) Fetch(ctx context.Context, request Request) (Response, error) {
 		return response, nil
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return Response{}, fmt.Errorf("%w: %d", ErrStatus, resp.StatusCode)
+		return Response{}, &StatusError{Code: resp.StatusCode, Header: resp.Header.Clone()}
 	}
 	if resp.ContentLength > limit {
 		return Response{}, fmt.Errorf("%w: content length %d", ErrResponseTooLarge, resp.ContentLength)

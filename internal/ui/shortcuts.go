@@ -80,6 +80,7 @@ type Shortcut struct {
 
 // ShortcutGroup is one Settings section.
 type ShortcutGroup struct {
+	Context   ShortcutContext
 	Title     string
 	Shortcuts []Shortcut
 }
@@ -263,7 +264,7 @@ var shortcutRegistry = []Shortcut{
 		ID: ShortcutMove, Context: ShortcutControlCenter,
 		Bindings: []ShortcutBinding{{Key: ui.KeyLeft}, {Key: ui.KeyRight}},
 		Keys:     []string{"←", "→"},
-		Label:    "Move", Available: true,
+		Label:    "Move between cards", Available: true,
 	},
 	{
 		ID: ShortcutOpen, Context: ShortcutControlCenter,
@@ -339,52 +340,133 @@ func shortcutHints(s *Shell, context ShortcutContext, limit int) []Hint {
 	return hints
 }
 
-// shortcutGroups returns the stable Settings reference. Dynamic availability
-// such as an active channel is not used here; only commands implemented in
-// this build are listed.
+// shortcutReferenceLayout is the visual order of the Settings reference. It
+// names registry entries; labels and keys stay owned by shortcutRegistry.
+var shortcutReferenceLayout = []struct {
+	Context ShortcutContext
+	Title   string
+	IDs     []ShortcutID
+}{
+	{
+		Context: ShortcutPlayer,
+		Title:   "Player",
+		IDs: []ShortcutID{
+			ShortcutPlayPause, ShortcutMute, ShortcutVolume, ShortcutFullscreen,
+			ShortcutPiP, ShortcutDrawer, ShortcutControlCenterCommand,
+		},
+	},
+	{
+		Context: ShortcutBrowse,
+		Title:   "Browse",
+		IDs: []ShortcutID{
+			ShortcutSearch, ShortcutMove, ShortcutOpen, ShortcutFavorite, ShortcutBack,
+		},
+	},
+	{
+		Context: ShortcutControlCenter,
+		Title:   "Control Center",
+		IDs:     []ShortcutID{ShortcutMove, ShortcutOpen, ShortcutClose},
+	},
+}
+
+// shortcutGroups returns the Settings reference in visual order. Home, retry
+// and the Settings command stay implemented but are not part of this panel.
 func shortcutGroups() []ShortcutGroup {
-	groups := []ShortcutGroup{
-		{Title: "Player", Shortcuts: nil},
-		{Title: "Browse", Shortcuts: nil},
-		{Title: "Control Center", Shortcuts: nil},
-	}
-	for _, sc := range shortcutRegistry {
-		if !sc.Available {
-			continue
+	groups := make([]ShortcutGroup, 0, len(shortcutReferenceLayout))
+	for _, layout := range shortcutReferenceLayout {
+		group := ShortcutGroup{Context: layout.Context, Title: layout.Title}
+		for _, id := range layout.IDs {
+			for _, sc := range shortcutRegistry {
+				if sc.Context == layout.Context && sc.ID == id && sc.Available {
+					group.Shortcuts = append(group.Shortcuts, sc)
+
+					break
+				}
+			}
 		}
-		switch sc.Context {
-		case ShortcutPlayer:
-			groups[0].Shortcuts = append(groups[0].Shortcuts, sc)
-		case ShortcutBrowse:
-			groups[1].Shortcuts = append(groups[1].Shortcuts, sc)
-		case ShortcutControlCenter:
-			groups[2].Shortcuts = append(groups[2].Shortcuts, sc)
-		}
+		groups = append(groups, group)
 	}
 
 	return groups
 }
 
-// shortcutReference draws the read-only shortcut list used by Settings.
-func shortcutReference(c *ui.Context, theme *ui.Theme) ui.Element {
-	column := ui.Column(c).FillWidth().Gap(18)
-	column.Children(func() {
-		for _, group := range shortcutGroups() {
-			ui.Column(c).FillWidth().Gap(8).Children(func() {
-				ui.Text(c, group.Title).Font(displayFont()).FontSize(textSize(theme, 19)).
-					FontWeight(700).TextColor(theme.Text).Role(ui.RoleHeading).Level(2)
-				for _, sc := range group.Shortcuts {
-					ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(12).Children(func() {
-						ui.Text(c, sc.Label).Font(bodyFont()).FontSize(textSize(theme, 13)).
-							TextColor(theme.Text).Grow(1).SingleLine()
-						for _, key := range sc.Keys {
-							Keycap{Label: key}.View(c)
-						}
-					})
-				}
-			})
-		}
+// shortcutReference draws the read-only shortcut cards used by Settings.
+func shortcutReference(c *ui.Context, theme *ui.Theme, width float32) ui.Element {
+	groups := shortcutGroups()
+	if width < 680 || len(groups) < 3 {
+		column := ui.Column(c).FillWidth().Gap(16)
+		column.Children(func() {
+			for _, group := range groups {
+				shortcutCard(c, theme, group)
+			}
+		})
+
+		return column
+	}
+
+	grid := ui.Grid(c).FillWidth().Columns(2).Gap(16).AlignItems(ui.Start)
+	grid.Children(func() {
+		ui.Column(c).RowSpan(2).FillWidth().Children(func() {
+			shortcutCard(c, theme, groups[0])
+		})
+		shortcutCard(c, theme, groups[1])
+		shortcutCard(c, theme, groups[2])
 	})
 
-	return column
+	return grid
+}
+
+// shortcutCard draws one group as the designed surface card.
+func shortcutCard(c *ui.Context, theme *ui.Theme, group ShortcutGroup) {
+	if len(group.Shortcuts) == 0 {
+		return
+	}
+
+	card := ui.Column(c).FillWidth().Background(theme.Surface).
+		Border(1, theme.Border.Alpha(0.55)).Radius(radiusTile).
+		Padding(16, 18)
+	card.Children(func() {
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(8).Children(func() {
+			if icon := shortcutGroupIcon(group.Context); icon != nil {
+				ui.Icon(c, icon).Size(15, 15).TextColor(theme.TextMuted).
+					AccessHidden(true)
+			}
+			ui.Text(c, strings.ToUpper(group.Title)).Font(bodyFont()).
+				FontSize(textSize(theme, 10)).FontWeight(700).
+				LetterSpacing(1.2).TextColor(theme.TextMuted).
+				Role(ui.RoleHeading).Level(2)
+		})
+
+		rows := ui.Column(c).FillWidth().Padding(0, 0, 0, 4).
+			Dividers(1, theme.Border.Alpha(0.45))
+		rows.Children(func() {
+			for _, sc := range group.Shortcuts {
+				shortcutRow(c, theme, sc)
+			}
+		})
+	})
+}
+
+// shortcutRow draws one label and its keys as plain right-aligned text.
+func shortcutRow(c *ui.Context, theme *ui.Theme, sc Shortcut) {
+	ui.Row(c).FillWidth().Height(40).AlignItems(ui.Center).Gap(16).Children(func() {
+		ui.Text(c, sc.Label).Font(bodyFont()).FontSize(textSize(theme, 13)).
+			TextColor(theme.TextMuted).Grow(1).SingleLine()
+		ui.Text(c, strings.Join(sc.Keys, " ")).Font(bodyFont()).
+			FontSize(textSize(theme, 12)).TextColor(theme.TextMuted).SingleLine()
+	})
+}
+
+// shortcutGroupIcon selects the Lucide mark for one reference card.
+func shortcutGroupIcon(context ShortcutContext) *ui.SVG {
+	switch context {
+	case ShortcutPlayer:
+		return icons().play
+	case ShortcutBrowse:
+		return icons().compass
+	case ShortcutControlCenter:
+		return icons().layers
+	default:
+		return nil
+	}
 }

@@ -8,18 +8,20 @@ mumu is written in Go and draws its entire interface with
 [MyGo](https://mygo.egoist.dev) native UI. It has no WebView, no HTML or
 JavaScript frontend, and no hosted backend.
 
-**Status:** M5 UI revamp in progress. MyGo 0.9.0, the overlay gate, the
-shared design foundation (#31–#33) and the native Control Center (#34) are in
-place: semantic Dark/Light/System tokens, bundled Lexend/Inter Tight fonts,
-shared native components, responsive layout policy, a permanent-sidebar-free
-shell, Home/Watch separation and one shortcut registry. The [portable
-handoff](docs/ux/revamp/README.md) records the design contract. Home feed rails,
-Discover, Watch, PiP and Settings page integration remain #35–#40. The native shell, local SQLite stores, playback controller, M3U/catalog
-pipeline and per-source network policy are implemented. Discover, Watch and
-Picture-in-Picture use one shared player and native surface. The macOS app
-bundles a pinned LGPL libmpv runtime. Native playback and PiP remain conditional
-on the M0 findings in [`docs/architecture/`](docs/architecture/); full app
-playback, PiP and the 60-minute soak still need the manual QA in
+**Status:** M5 UI revamp implemented. MyGo 0.9.0, the overlay gate, the
+shared design foundation (#31–#33), the native Control Center (#34), Home,
+Discover, Watch, PiP and Settings (#35–#40) are in place: semantic
+Dark/Light/System tokens, bundled Lexend/Inter Tight fonts, shared native
+components, responsive layout policy, a permanent-sidebar-free shell, Home/Watch
+separation, one shortcut registry and persisted Settings preferences. The
+[portable handoff](docs/ux/revamp/README.md) records the design contract.
+Accessibility and release QA remain #41. The native shell, local SQLite stores,
+playback controller, M3U/catalog pipeline and per-source network policy are
+implemented. Discover, Watch and Picture-in-Picture use one shared player and
+native surface. The macOS app bundles a pinned LGPL libmpv runtime. Native
+playback and PiP remain conditional on the M0 findings in
+[`docs/architecture/`](docs/architecture/); full app playback, PiP and the
+60-minute soak still need the manual QA in
 [`docs/release/qa-matrix.md`](docs/release/qa-matrix.md).
 
 ## Requirements

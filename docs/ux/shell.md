@@ -32,7 +32,9 @@ The permanent sidebar and 72 pt rail are removed. Every page uses one top bar:
 - **Home**, **Discover** and **Library** are primary destinations.
 - **Watch** is reached from Resume/active-session cards and the Control Center
   channel action. It is not a permanent sidebar item.
-- **Settings** is reachable from the top-bar gear and is secondary.
+- **Settings** is reachable from the top-bar gear and is secondary. Its
+  Appearance/Shortcuts/About rail and panel scroll are documented in
+  [Settings](settings.md).
 - Fresh install opens Discover. A later launch with a valid recent channel
   opens Home. Neither path autoplays.
 - Home is a feed, not active playback. Watch is the only page that owns the
@@ -104,8 +106,7 @@ Settings.
 | Control Center | `Esc` | Close |
 
 - Single-key shortcuts wait while `Context.FocusTakesText()` is true.
-- `Space` is defined for #37 but not available or advertised yet. Do not add it
-  to the hint bar or Settings reference before the pause implementation lands.
+- `Space` is defined and advertised because live pause is implemented.
 - No global media keys and no app-wide quit shortcut.
 
 ## Escape order
