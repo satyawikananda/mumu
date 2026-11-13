@@ -80,7 +80,7 @@ func (s *Shell) drawSettings(c *ui.Context, theme *ui.Theme) {
 	shortcutReference(c, theme)
 
 	ui.Column(c).Gap(10).Children(func() {
-		settingsRow(c, theme, "Playback", "Playback settings arrive in #37")
+		settingsRow(c, theme, "Playback", "Playback settings arrive in #40")
 		settingsRow(c, theme, "About", "mumu 0.1.0 · M5")
 	})
 }

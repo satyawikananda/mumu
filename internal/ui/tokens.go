@@ -85,6 +85,23 @@ func layoutFor(width, height float32) Layout {
 // target when the desktop asks for reduced motion.
 var hoverMotion = ui.Animation{Duration: 160 * time.Millisecond, Ease: ui.EaseOut}
 
+// Watch and PiP draw their chrome over live video, which is dark in both
+// appearances. These are the semantic video-overlay values: white ink and
+// translucent white surfaces on top of the picture, not theme surfaces that
+// would turn light in the light appearance. Contrast is measured against the
+// top scrim (#000000D9): ink 18.9:1, muted 8.7:1, faint 5.6:1.
+var (
+	videoInk     = ui.Hex("#FFFFFF")
+	videoMuted   = ui.Hex("#FFFFFF").Alpha(0.72)
+	videoFaint   = ui.Hex("#FFFFFF").Alpha(0.56)
+	videoHover   = ui.Hex("#FFFFFF").Alpha(0.12)
+	videoRaised  = ui.Hex("#FFFFFF").Alpha(0.16)
+	videoLine    = ui.Hex("#FFFFFF").Alpha(0.18)
+	videoDim     = ui.RGBA(0, 0, 0, 0.38)
+	videoPanel   = ui.Hex("#08090B").Alpha(0.96)
+	videoDivider = ui.Hex("#FFFFFF").Alpha(0.10)
+)
+
 // Shape tokens. The theme keeps the control default at 10; these name the
 // component exceptions instead of hardcoding hex-like values in views.
 const (

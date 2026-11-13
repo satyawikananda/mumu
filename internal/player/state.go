@@ -13,6 +13,7 @@ const (
 	StateLoading
 	StatePlaying
 	StateBuffering
+	StatePaused
 	StateError
 	StateStopping
 	StateStopped
@@ -29,6 +30,8 @@ func (s State) String() string {
 		return "playing"
 	case StateBuffering:
 		return "buffering"
+	case StatePaused:
+		return "paused"
 	case StateError:
 		return "error"
 	case StateStopping:
@@ -43,7 +46,7 @@ func (s State) String() string {
 // CanPlay reports whether a new Play may start from this state.
 func (s State) CanPlay() bool {
 	switch s {
-	case StateIdle, StateError, StateStopped:
+	case StateIdle, StateLoading, StatePlaying, StateBuffering, StatePaused, StateError, StateStopped:
 		return true
 	default:
 		return false
@@ -53,7 +56,7 @@ func (s State) CanPlay() bool {
 // Active reports whether the state has a source in progress.
 func (s State) Active() bool {
 	switch s {
-	case StateLoading, StatePlaying, StateBuffering, StateStopping:
+	case StateLoading, StatePlaying, StateBuffering, StatePaused, StateStopping:
 		return true
 	default:
 		return false

@@ -163,9 +163,11 @@ func (i *discoverIndex) drawerChannels(limit int) []ui.WatchChannel {
 			meta += name
 		}
 		rows = append(rows, ui.WatchChannel{
-			Key:  discoverKey(channel, position),
-			Name: channel.Name,
-			Meta: meta,
+			Key:     discoverKey(channel, position),
+			Name:    channel.Name,
+			Meta:    meta,
+			LogoURL: channel.LogoURL,
+			Live:    catalog.HasLiveStream(channel),
 		})
 	}
 
@@ -400,6 +402,12 @@ func (c *logoCache) add(url string, img image.Image, tint color.RGBA) {
 		delete(c.bitmaps, oldest)
 		delete(c.colors, oldest)
 	}
+}
+
+// lookup returns one cached bitmap and tint without copying the cache, for a
+// small set of drawer rows on the UI thread.
+func (c *logoCache) lookup(url string) (*myui.Bitmap, myui.Color) {
+	return c.bitmaps[url], c.colors[url]
 }
 
 // snapshot copies the cache for a page's next frame.

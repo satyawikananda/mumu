@@ -15,34 +15,44 @@ stateDiagram-v2
   [*] --> idle
   idle --> loading: Play
   loading --> playing: Loaded / PlaybackRestart / time-pos > 0
-  loading --> error: timeout or load failure
+  loading --> buffering: attempt failed, retry scheduled
+  loading --> error: attempts exhausted
   playing --> buffering: paused-for-cache
   buffering --> playing: cache resumed
+  playing --> paused: Pause
+  buffering --> paused: Pause
+  paused --> buffering: Resume (reload to live edge)
+  paused --> loading: Play (new channel)
+  playing --> buffering: attempt failed, retry scheduled
   loading --> stopped: End(EOF)
   playing --> stopped: End(EOF)
   buffering --> stopped: End(EOF)
   loading --> error: End(error)
   playing --> error: End(error)
   buffering --> error: End(error)
-  error --> loading: Play
+  error --> loading: Play / Retry
   stopped --> loading: Play
   idle --> stopped: Stop
   loading --> stopping: Stop
   playing --> stopping: Stop
   buffering --> stopping: Stop
+  paused --> stopping: Stop
   error --> stopping: Stop
   stopping --> stopped
   stopped --> [*]: Close
 ```
 
 `StateUnknown` is the zero value. `stopped` still accepts `Play`; `Close` is
-terminal.
+terminal. A recovery attempt that fails while a frame exists stays in
+`buffering` so the last frame remains visible; one that fails before the first
+frame stays in `loading`.
 
 ## API
 
 ```go
 controller := player.New(engine,
-    player.WithLoadingTimeout(20*time.Second),
+    player.WithStallTimeout(8*time.Second),
+    player.WithRetryFloor(8*time.Second),
     player.WithFullscreenHandler(func() { /* dispatch to the window */ }),
 )
 
@@ -52,6 +62,16 @@ controller.Subscribe(func(snapshot player.Snapshot) {
 })
 
 err := controller.Play(player.Source{URL: "https://example.com/live.m3u8"})
+err = controller.PlayRequest(player.Request{
+    Variants: []player.Variant{
+        {Source: player.Source{URL: "https://example.com/720.m3u8"}, Quality: "720p"},
+        {Source: player.Source{URL: "https://example.com/480.m3u8"}, Quality: "480p"},
+    },
+    Quality: "auto",
+})
+err = controller.Pause()
+err = controller.Resume()
+err = controller.SelectQuality("480p")
 err = controller.SetVolume(30)
 err = controller.SetMuted(false)
 err = controller.RequestFullscreen()
@@ -59,10 +79,11 @@ err = controller.Stop()
 err = controller.Close(ctx)
 ```
 
-`Play`, `Stop`, `SetVolume` and `SetMuted` enqueue intents and return
-promptly. The intent queue is bounded. Multiple `Play` intents in one drain
-keep only the newest, so rapid selection does not load every intermediate
-channel.
+`Play`, `PlayRequest`, `Pause`, `Resume`, `SelectQuality`, `Stop`,
+`SetVolume` and `SetMuted` enqueue intents and return promptly. The intent
+queue is bounded. Multiple `Play` intents in one drain keep only the newest, so
+rapid selection does not load every intermediate channel. Pause, reconnect and
+variant selection are described in [ADR 0010](adr/0010-live-pause-and-recovery.md).
 
 ## Stale events and generations
 
@@ -157,17 +178,19 @@ MUMU_MPV_LIBRARY=/private/tmp/mumu-runtime/lib MUMU_MPV_TEST=1 \
   go test -run TestIntegrationEngineCreateLoadStop -v ./internal/player/libmpv
 ```
 
-The HLS test verifies load, playing, volume, mute, stop and close over a
-synthetic H.264/AAC HLS stream. It does not render video and does not claim
-universal codec support or hardware decoding. The recorded run is
-`player-controller-smoke.log` (local run artifact, not committed).
+The HLS test verifies load, playing, pause, live-edge resume, volume, mute, stop
+and close over a synthetic H.264/AAC HLS stream. It does not render video and
+does not claim universal codec support, a zero network pause or hardware
+decoding. The recorded run is `player-controller-smoke.log` (local run artifact,
+not committed).
 
 ## Limitations
 
-- No native video surface in #5; Watch/PiP presentation belongs to #11/#12.
-  The render port and the darwin child-surface adapter are described in
-  [native video surface](video-surface.md).
+- The controller owns state only; Watch/PiP presentation belongs to the surface
+  and app layers. The adapter is described in [native video surface](video-surface.md).
 - No seek/reverse API in v0.1. Live streams are not assumed seekable.
+- Pause bounds read-ahead but does not close the live demuxer; a small residual
+  network read remains (ADR 0010).
 - Native teardown can outlive `Close` when a context deadline expires.
 - Event ordering is tested against the pinned libmpv runtime, not every
   version.

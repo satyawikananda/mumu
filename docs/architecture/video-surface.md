@@ -60,12 +60,11 @@ Detach()               removeFromSuperview → clearDrawable → drawable size 0
   again, and a closed window clears it. The flag is the only guard for `Detach`,
   so a navigation detach can never pull the drawable out of the floating player.
 - Attachment follows the **playback state**, not only navigation. The view is
-  attached while the player reports `playing` or `buffering` and detached for
-  `loading`, `error`, `stopping`, `stopped` and idle — and, in the main window,
-  only while Watch is the current page. MyGo draws the loading and error panels
-  inside the same box, and a native subview is always above that layer, so the
-  view must be gone for those panels to be visible. Buffering keeps the last
-  frame and shows its badge below the video instead.
+  attached while the player reports `playing`, `buffering` or `paused` and
+  detached for `loading`, `error`, `stopping`, `stopped` and idle — and, in the
+  main window, only while Watch is the current page. A paused frame is the
+  picture, so its surface stays. Buffering keeps the last frame and shows its
+  overlay above it.
 - The state change and the drawable change happen in one UI-thread closure, and
   the drawable change comes first. `Attach`/`Detach` must be on the main thread;
   the app calls them from `Window.Update`, never from a worker.
@@ -91,19 +90,23 @@ Detach()               removeFromSuperview → clearDrawable → drawable size 0
 
 ### Hosted under MyGo's surface
 
-ADR 0009 adds a second presentation for the same retained view: it can sit
-**under** MyGo's surface instead of over the content view. The app moves it with
-`addSubview:positioned:relativeTo: NSWindowBelow`, leaves the window root
-transparent, and calls `SyncDrawable` after layout, a window move or a scale
-change. MyGo's layer is not opaque, so the video shows through pixels the view
-leaves empty, and MyGo keeps all pointer input because it never placed the view
-itself.
+ADR 0009 adds the production presentation for the same retained view: it sits
+**under** MyGo's surface instead of over the content view. `Attach` moves it
+with `addSubview:positioned:relativeTo: NSWindowBelow`, relative to the
+`MyGoSurfaceView` it finds among the content view's subviews. When that view is
+absent, as in a test window or a future MyGo rename, it falls back to the old
+above-content ordering and logs one debug line instead of failing playback.
 
-This is the path the M5 revamp uses, and the reason the loading/error detach
-above is temporary: once #38 lands, those panels paint over live video. The
-`ui.NativeView` element does not work for interactive chrome, because MyGo hands
-the pointer to a placed view across its whole box. See
-[ADR 0009](adr/0009-native-video-overlay.md) and the
+The Watch and PiP views paint their root transparent, so video shows through
+pixels MyGo leaves empty and MyGo keeps all pointer input: it never placed the
+view itself, so its hit test does not hand the pointer to the video view.
+`SyncDrawable` runs after attach, layout, resize or a move between windows,
+because the app lays the view out and the drawable must follow the hosted
+bounds.
+
+Loading and terminal error remain detached: their full-window panels do not
+want a stale frame behind them. Buffering, paused and playing stay attached.
+See [ADR 0009](adr/0009-native-video-overlay.md) and the
 [evidence](evidence/overlay-2026-11-12/README.md) for the recorded behavior.
 
 ## Lifetime

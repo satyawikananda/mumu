@@ -13,6 +13,7 @@ type fakeEngine struct {
 	mu     sync.Mutex
 	loads  int
 	source player.Source
+	pauses []bool
 	events chan player.Event
 	once   sync.Once
 }
@@ -40,6 +41,14 @@ func (e *fakeEngine) Stop(context.Context) error { return nil }
 func (e *fakeEngine) SetVolume(context.Context, int) error { return nil }
 
 func (e *fakeEngine) SetMuted(context.Context, bool) error { return nil }
+
+func (e *fakeEngine) SetPaused(_ context.Context, paused bool) error {
+	e.mu.Lock()
+	e.pauses = append(e.pauses, paused)
+	e.mu.Unlock()
+
+	return nil
+}
 
 func (e *fakeEngine) Events() <-chan player.Event { return e.events }
 

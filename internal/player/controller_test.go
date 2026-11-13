@@ -21,6 +21,7 @@ type fakeEngine struct {
 	stops      int
 	volumes    []int
 	mutes      []bool
+	pauses     []bool
 	closeCalls int
 	loadErr    error
 	blockLoad  chan struct{}
@@ -79,6 +80,14 @@ func (f *fakeEngine) SetVolume(_ context.Context, volume int) error {
 func (f *fakeEngine) SetMuted(_ context.Context, muted bool) error {
 	f.mu.Lock()
 	f.mutes = append(f.mutes, muted)
+	f.mu.Unlock()
+
+	return nil
+}
+
+func (f *fakeEngine) SetPaused(_ context.Context, paused bool) error {
+	f.mu.Lock()
+	f.pauses = append(f.pauses, paused)
 	f.mu.Unlock()
 
 	return nil
@@ -241,7 +250,7 @@ func TestBuffering(t *testing.T) {
 }
 
 func TestEndErrorSanitizesURL(t *testing.T) {
-	controller, engine := newTestController(t)
+	controller, engine := newTestController(t, WithMaxAttempts(1))
 	if err := controller.Play(Source{URL: "https://stream.example/live.m3u8"}); err != nil {
 		t.Fatalf("Play: %v", err)
 	}
@@ -336,14 +345,14 @@ func TestStopDuringLoading(t *testing.T) {
 }
 
 func TestLoadingTimeout(t *testing.T) {
-	controller, _ := newTestController(t, WithLoadingTimeout(20*time.Millisecond))
+	controller, _ := newTestController(t, WithStallTimeout(20*time.Millisecond), WithMaxAttempts(1))
 	if err := controller.Play(Source{URL: "https://stream.example/live.m3u8"}); err != nil {
 		t.Fatalf("Play: %v", err)
 	}
 
 	snapshot := waitState(t, controller, StateError)
-	if !strings.Contains(snapshot.Error, "did not start") {
-		t.Fatalf("error %q, want timeout", snapshot.Error)
+	if !strings.Contains(snapshot.Error, "progress") {
+		t.Fatalf("error %q, want a no-progress timeout", snapshot.Error)
 	}
 }
 
@@ -631,13 +640,18 @@ func TestSnapshotEqualityWithHeaders(t *testing.T) {
 }
 
 func TestStateHelpers(t *testing.T) {
-	if !StateIdle.CanPlay() || !StateError.CanPlay() || !StateStopped.CanPlay() {
-		t.Fatal("idle, error and stopped should allow Play")
+	for _, state := range []State{StateIdle, StateLoading, StatePlaying, StateBuffering, StatePaused, StateError, StateStopped} {
+		if !state.CanPlay() {
+			t.Fatalf("%s should allow a new Play", state)
+		}
 	}
-	if StateLoading.CanPlay() || StatePlaying.CanPlay() {
-		t.Fatal("loading and playing should not start a new Play without switching")
+	if StateStopping.CanPlay() || StateUnknown.CanPlay() {
+		t.Fatal("stopping and unknown must not start a new Play")
 	}
-	if StateUnknown.String() != "unknown" {
-		t.Fatalf("unknown string %q", StateUnknown.String())
+	if !StatePaused.Active() {
+		t.Fatal("paused is still an active viewing session")
+	}
+	if StateUnknown.String() != "unknown" || StatePaused.String() != "paused" {
+		t.Fatalf("state strings %q, %q", StateUnknown, StatePaused)
 	}
 }

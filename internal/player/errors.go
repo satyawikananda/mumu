@@ -18,4 +18,6 @@ var (
 	// media runtime, so a caller can show an actionable message instead of
 	// retrying. It never carries a URL, a header or a user path.
 	ErrRuntimeUnavailable = errors.New("native playback runtime is unavailable")
+	// ErrNoSession reports a control that needs a current playback episode.
+	ErrNoSession = errors.New("no active playback session")
 )

@@ -1,8 +1,10 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo"
 
@@ -111,7 +113,11 @@ func (p *fakePip) ContentBounds() mygo.Rectangle { return p.bounds }
 func (p *fakePip) SetContentBounds(bounds mygo.Rectangle) {
 	p.bounds = bounds
 }
-func (p *fakePip) OnResize(func()) {}
+func (p *fakePip) Bounds() mygo.Rectangle          { return p.bounds }
+func (p *fakePip) SetBounds(bounds mygo.Rectangle) { p.bounds = bounds }
+func (p *fakePip) SetMinimumSize(int, int)         {}
+func (p *fakePip) OnResize(func())                 {}
+func (p *fakePip) OnMove(func())                   {}
 
 func (p *fakePip) OnClose(fn func(*mygo.CloseEvent)) func() {
 	p.onClose = fn
@@ -616,9 +622,9 @@ func TestStopReleasesPiPCloseListener(t *testing.T) {
 }
 
 // Closing PiP with a main window returns to it instead of quitting.
-func TestClosePiPWithMainWindowReturns(t *testing.T) {
+func TestClosePiPStopsWithMainWindow(t *testing.T) {
 	surface := &fakeSurface{}
-	pip := &fakePip{native: 42, bounds: mygo.Rectangle{Width: 480, Height: 318}}
+	pip := &fakePip{native: 42, bounds: mygo.Rectangle{Width: 640, Height: 360}}
 	a := pipTestApp(t, surface, pip)
 	a.presentation = video.PresentationPiP
 	a.media.pipAttached = true
@@ -632,16 +638,111 @@ func TestClosePiPWithMainWindowReturns(t *testing.T) {
 	a.closePiP()
 
 	if quits != 0 {
-		t.Fatalf("quit calls = %d, want a return instead", quits)
+		t.Fatalf("quit calls = %d, want the main window to stay open", quits)
 	}
-	if pip.closedCount != 0 || !pip.hidden {
-		t.Fatalf("closed windows = %d hidden = %t, want the window kept and hidden", pip.closedCount, pip.hidden)
+	if pip.closedCount != 1 {
+		t.Fatalf("closed windows = %d, want the floating window closed", pip.closedCount)
 	}
 	if a.presentation != video.PresentationMain {
 		t.Fatalf("presentation %s, want main", a.presentation)
 	}
-	if !a.media.attached {
-		t.Fatal("the main window was not marked attached")
+	if a.media.snapshot.State != player.StateStopped {
+		t.Fatalf("state %s, want stopped", a.media.snapshot.State)
+	}
+	if !surface.closed {
+		t.Fatal("the session surface was not closed")
+	}
+}
+
+// PiP mute is a temporary override on the same controller; Return restores the
+// main audio intent and a later session starts from that intent.
+func TestPiPMuteIsTemporary(t *testing.T) {
+	a, _ := newTestApp()
+	engine := newFakeEngine(t)
+	controller := player.New(engine)
+	a.controller = controller
+	a.presentation = video.PresentationPiP
+	a.pipMainMuted = false
+	a.pipMuted = false
+	a.media.snapshot.Muted = false
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_ = controller.Close(ctx)
+	})
+
+	a.togglePiPMute()
+	waitSnapshot(t, a, "local mute", func() bool { return a.media.snapshot.Muted })
+	if !a.pipMuted || a.pipMainMuted {
+		t.Fatalf("override %t main %t, want only the local override", a.pipMuted, a.pipMainMuted)
+	}
+
+	a.restoreMainMute()
+	waitSnapshot(t, a, "main mute restored", func() bool { return !a.media.snapshot.Muted })
+	if a.pipMuted {
+		t.Fatal("PiP override survived Return")
+	}
+
+	// A muted main intent opens PiP muted, but the local control can unmute the
+	// floating panel without rewriting that intent.
+	a.pipMainMuted = true
+	a.pipMuted = true
+	a.media.snapshot.Muted = true
+	a.togglePiPMute()
+	waitSnapshot(t, a, "local unmute over main mute", func() bool { return !a.media.snapshot.Muted })
+	a.restoreMainMute()
+	waitSnapshot(t, a, "main mute restored again", func() bool { return a.media.snapshot.Muted })
+}
+
+func waitSnapshot(t *testing.T, a *App, label string, done func() bool) {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		a.mu.Lock()
+		ok := done()
+		a.mu.Unlock()
+		if ok {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	t.Fatalf("timed out waiting for %s; snapshot %+v", label, a.media.snapshot)
+}
+
+// A later session must not inherit a temporary mute from the previous PiP.
+func TestPiPCloseClearsTemporaryMute(t *testing.T) {
+	surface := &fakeSurface{}
+	pip := &fakePip{native: 42, bounds: mygo.Rectangle{Width: 640, Height: 360}}
+	a := pipTestApp(t, surface, pip)
+	a.pipMuted = true
+
+	registerPiPClose(a, pip)
+	a.closePiP()
+
+	if a.pipMuted {
+		t.Fatal("closed PiP kept its temporary mute")
+	}
+}
+
+// A saved frame is clamped into the display work area and kept at 16:9.
+func TestClampPiPToArea(t *testing.T) {
+	area := mygo.Rectangle{X: 100, Y: 50, Width: 1200, Height: 700}
+
+	got := clampPiPToArea(mygo.Rectangle{X: -400, Y: 900, Width: 900, Height: 300}, area)
+	if got.X != area.X || got.Y != area.Y+area.Height-got.Height {
+		t.Fatalf("bounds %+v, want the top-left work-area corner", got)
+	}
+	if got.Width != 900 || got.Height != 506 {
+		t.Fatalf("size %dx%d, want 900x506 16:9", got.Width, got.Height)
+	}
+
+	small := clampPiPToArea(mygo.Rectangle{X: 200, Y: 100, Width: 100, Height: 40}, area)
+	if small.Width != pipMinWidth || small.Height != pipMinHeight {
+		t.Fatalf("small size %dx%d, want the minimum %dx%d", small.Width, small.Height, pipMinWidth, pipMinHeight)
 	}
 }
 

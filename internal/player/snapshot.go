@@ -16,6 +16,56 @@ type Source struct {
 	Headers map[string]string
 }
 
+// Variant is one playable stream of a channel.
+//
+// Quality is the label the playlist declared, never a measured resolution. An
+// empty label is unknown and must not be filled with a guessed value.
+type Variant struct {
+	Source  Source
+	Quality string
+}
+
+// Request is one playback episode: the variants of a single channel, in
+// preference order, and the quality the viewer selected.
+//
+// Quality is "auto", "Auto", or an exact Variant.Quality label. Auto keeps the
+// supplied order, which is the supported-stream choice the app already made. An
+// unavailable label falls back to Auto so the snapshot never claims a variant
+// the channel does not offer.
+type Request struct {
+	Variants []Variant
+	Quality  string
+}
+
+// Quality reports the selected and actual stream variant.
+type Quality struct {
+	// Selected is "auto" or the exact label of the chosen variant.
+	Selected string
+	// Current is the label of the variant actually being attempted, empty
+	// when the playlist declared none.
+	Current string
+	// Known reports that Current carries a real playlist label.
+	Known bool
+	// Fallback reports that the current unplanned variant is not the selected
+	// one, as after a recoverable failure.
+	Fallback bool
+}
+
+// Recovery reports the bounded reconnect episode.
+type Recovery struct {
+	// Attempt is the attempt being made, or the next one while Pending, from
+	// one through MaxAttempts.
+	Attempt int
+	// MaxAttempts is three for every episode.
+	MaxAttempts int
+	// Pending reports that the next attempt waits for its retry floor.
+	Pending bool
+	// RetryIn is the remaining wait while Pending, for a countdown.
+	RetryIn time.Duration
+	// Terminal reports exhaustion: no further attempt is scheduled.
+	Terminal bool
+}
+
 // Metadata describes the media and the decoder selected by the engine.
 type Metadata struct {
 	Title           string
@@ -49,13 +99,18 @@ type Metrics struct {
 // Snapshot is the complete observable controller state. It is safe to copy;
 // compare two snapshots with equal because Source carries a header map.
 type Snapshot struct {
-	State        State
-	Generation   uint64
+	State      State
+	Generation uint64
+	// Episode identifies one viewing request. Recovery attempts keep it, so
+	// the app records history once per episode rather than per attempt.
+	Episode      uint64
 	Source       Source
 	Detail       string
 	Error        string
 	Volume       int
 	Muted        bool
+	Quality      Quality
+	Recovery     Recovery
 	Metadata     Metadata
 	Metrics      Metrics
 	Capabilities Capabilities
@@ -66,10 +121,13 @@ type Snapshot struct {
 func (s Snapshot) equal(other Snapshot) bool {
 	return s.State == other.State &&
 		s.Generation == other.Generation &&
+		s.Episode == other.Episode &&
 		s.Detail == other.Detail &&
 		s.Error == other.Error &&
 		s.Volume == other.Volume &&
 		s.Muted == other.Muted &&
+		s.Quality == other.Quality &&
+		s.Recovery == other.Recovery &&
 		s.Metadata == other.Metadata &&
 		s.Metrics == other.Metrics &&
 		s.Capabilities == other.Capabilities &&

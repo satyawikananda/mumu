@@ -8,7 +8,9 @@ import (
 type config struct {
 	initialVolume  int
 	initialMuted   bool
-	loadingTimeout time.Duration
+	stallTimeout   time.Duration
+	retryFloor     time.Duration
+	maxAttempts    int
 	commandTimeout time.Duration
 	closeTimeout   time.Duration
 	logger         *slog.Logger
@@ -19,11 +21,19 @@ type config struct {
 // The app shows it before any controller exists.
 const DefaultVolume = 30
 
+// Recovery limits. MaxAttempts counts the initial attempt, as the product
+// contract requires.
+const (
+	MaxAttempts = 3
+)
+
 func defaultConfig() config {
 	return config{
 		initialVolume:  DefaultVolume,
 		initialMuted:   false,
-		loadingTimeout: 20 * time.Second,
+		stallTimeout:   8 * time.Second,
+		retryFloor:     8 * time.Second,
+		maxAttempts:    MaxAttempts,
 		commandTimeout: 2 * time.Second,
 		closeTimeout:   3 * time.Second,
 		logger:         slog.Default(),
@@ -47,11 +57,32 @@ func WithInitialMuted(muted bool) Option {
 	}
 }
 
-// WithLoadingTimeout bounds how long a source may stay in loading.
-func WithLoadingTimeout(timeout time.Duration) Option {
+// WithStallTimeout bounds how long an attempt may go without progress before
+// the next variant is tried. A zero value keeps the default.
+func WithStallTimeout(timeout time.Duration) Option {
 	return func(c *config) {
 		if timeout > 0 {
-			c.loadingTimeout = timeout
+			c.stallTimeout = timeout
+		}
+	}
+}
+
+// WithRetryFloor sets the minimum time between two attempt starts. A zero
+// value retries immediately, for tests; a negative value keeps the default.
+func WithRetryFloor(wait time.Duration) Option {
+	return func(c *config) {
+		if wait >= 0 {
+			c.retryFloor = wait
+		}
+	}
+}
+
+// WithMaxAttempts bounds one recovery episode, including the initial attempt.
+// Values below one are ignored.
+func WithMaxAttempts(attempts int) Option {
+	return func(c *config) {
+		if attempts > 0 {
+			c.maxAttempts = attempts
 		}
 	}
 }

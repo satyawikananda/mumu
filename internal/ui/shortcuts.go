@@ -50,6 +50,10 @@ const (
 	ShortcutBack
 	// ShortcutClose closes the Control Center.
 	ShortcutClose
+	// ShortcutRetry repeats the active attempt while loading or failed.
+	ShortcutRetry
+	// ShortcutSettings opens Settings from any screen.
+	ShortcutSettings
 )
 
 // ShortcutBinding is one key combination.
@@ -84,7 +88,16 @@ var shortcutRegistry = []Shortcut{
 	{
 		ID: ShortcutPlayPause, Context: ShortcutPlayer,
 		Bindings: []ShortcutBinding{{Key: ui.KeySpace}}, Keys: []string{"Space"},
-		Label: "Play or pause", Available: false,
+		Label: "Play or pause", Available: true,
+		HintLabel: func(s *Shell) string {
+			if s.watch.Paused() {
+				return "Resume"
+			}
+
+			return "Pause"
+		},
+		Enabled: func(s *Shell) bool { return s.watch.CanPause() },
+		Run:     func(s *Shell, _ ui.Key) { s.watch.TogglePause() },
 	},
 	{
 		ID: ShortcutMute, Context: ShortcutPlayer,
@@ -92,6 +105,28 @@ var shortcutRegistry = []Shortcut{
 		Label: "Mute", Available: true,
 		Enabled: func(s *Shell) bool { return s.watch.CanControl() },
 		Run:     func(s *Shell, _ ui.Key) { s.watch.ToggleMute() },
+	},
+	{
+		ID: ShortcutDrawer, Context: ShortcutPlayer,
+		Bindings: []ShortcutBinding{{Key: ui.KeyC}}, Keys: []string{"C"},
+		Label: "Channel drawer", Available: true,
+		HintLabel: func(*Shell) string { return "Channels" },
+		Enabled:   func(s *Shell) bool { return s.watch.HasChannels() },
+		Run:       func(s *Shell, _ ui.Key) { s.watch.ToggleDrawer() },
+	},
+	{
+		ID: ShortcutPiP, Context: ShortcutPlayer,
+		Bindings: []ShortcutBinding{{Key: ui.KeyP}}, Keys: []string{"P"},
+		Label: "Picture in picture", Available: true,
+		Enabled: func(s *Shell) bool { return s.watch.CanControl() },
+		Run:     func(s *Shell, _ ui.Key) { s.watch.TogglePiP() },
+	},
+	{
+		ID: ShortcutFullscreen, Context: ShortcutPlayer,
+		Bindings: []ShortcutBinding{{Key: ui.KeyF}}, Keys: []string{"F"},
+		Label: "Fullscreen", Available: true,
+		Enabled: func(s *Shell) bool { return s.watch.CanControl() },
+		Run:     func(s *Shell, _ ui.Key) { s.watch.ToggleFullscreen() },
 	},
 	{
 		ID: ShortcutVolume, Context: ShortcutPlayer,
@@ -107,30 +142,23 @@ var shortcutRegistry = []Shortcut{
 		},
 	},
 	{
-		ID: ShortcutFullscreen, Context: ShortcutPlayer,
-		Bindings: []ShortcutBinding{{Key: ui.KeyF}}, Keys: []string{"F"},
-		Label: "Fullscreen", Available: true,
-		Enabled: func(s *Shell) bool { return s.watch.CanControl() },
-		Run:     func(s *Shell, _ ui.Key) { s.watch.ToggleFullscreen() },
-	},
-	{
-		ID: ShortcutPiP, Context: ShortcutPlayer,
-		Bindings: []ShortcutBinding{{Key: ui.KeyP}}, Keys: []string{"P"},
-		Label: "Picture in picture", Available: true,
-		Enabled: func(s *Shell) bool { return s.watch.CanControl() },
-		Run:     func(s *Shell, _ ui.Key) { s.watch.TogglePiP() },
-	},
-	{
-		ID: ShortcutDrawer, Context: ShortcutPlayer,
-		Bindings: []ShortcutBinding{{Key: ui.KeyC}}, Keys: []string{"C"},
-		Label: "Channel drawer", Available: true,
-		Enabled: func(s *Shell) bool { return s.watch.HasChannels() },
-		Run:     func(s *Shell, _ ui.Key) { s.watch.ToggleDrawer() },
+		ID: ShortcutRetry, Context: ShortcutPlayer,
+		Bindings: []ShortcutBinding{{Key: ui.KeyR}}, Keys: []string{"R"},
+		Label: "Try again", Available: true,
+		Enabled: func(s *Shell) bool { return s.watch.CanRetry() },
+		Run:     func(s *Shell, _ ui.Key) { s.watch.Retry() },
 	},
 	{
 		ID: ShortcutControlCenterCommand, Context: ShortcutPlayer,
 		Bindings: []ShortcutBinding{{Key: ui.KeyEscape}}, Keys: []string{"Esc"},
 		Label: "Control Center", Available: true,
+		HintLabel: func(s *Shell) string {
+			if s.watch.IsInitialLoading() {
+				return "Cancel"
+			}
+
+			return "Control Center"
+		},
 		Run: func(s *Shell, _ ui.Key) { s.handleEscape() },
 	},
 	{
@@ -246,6 +274,24 @@ var shortcutRegistry = []Shortcut{
 		ID: ShortcutClose, Context: ShortcutControlCenter,
 		Bindings: []ShortcutBinding{{Key: ui.KeyEscape}}, Keys: []string{"Esc"},
 		Label: "Close", Available: true,
+	},
+	{
+		ID: ShortcutSettings, Context: ShortcutPlayer,
+		Bindings: []ShortcutBinding{{Mods: ui.Cmd, Key: ui.KeyComma}}, Keys: []string{"⌘,"},
+		Label: "Settings", Available: true,
+		Run: func(s *Shell, _ ui.Key) { s.ShowSettings() },
+	},
+	{
+		ID: ShortcutSettings, Context: ShortcutBrowse,
+		Bindings: []ShortcutBinding{{Mods: ui.Cmd, Key: ui.KeyComma}}, Keys: []string{"⌘,"},
+		Label: "Settings", Available: true,
+		Run: func(s *Shell, _ ui.Key) { s.ShowSettings() },
+	},
+	{
+		ID: ShortcutSettings, Context: ShortcutHome,
+		Bindings: []ShortcutBinding{{Mods: ui.Cmd, Key: ui.KeyComma}}, Keys: []string{"⌘,"},
+		Label: "Settings", Available: true,
+		Run: func(s *Shell, _ ui.Key) { s.ShowSettings() },
 	},
 }
 

@@ -58,13 +58,27 @@ type App struct {
 	pipDispatcher pipWindow
 	// pipOffClose removes the floating window's close listener. A close the app
 	// asks for must not be prevented by its own handler.
-	pipOffClose  func()
-	engine       player.Engine
-	controller   *player.Controller
-	surface      video.Surface
-	presentation video.Presentation
-	mainFrame    video.Rect
-	media        mediaState
+	pipOffClose func()
+	// pipOffDisplays removes the display-change listener while PiP is closed.
+	pipOffDisplays func()
+	// mainActivityOff and pipActivityOff remove the native input monitors that
+	// reveal chrome after the pointer rests.
+	mainActivityOff func()
+	pipActivityOff  func()
+	// pipMainMuted is the main audio intent captured on entry. pipMuted is the
+	// temporary floating-window override; the controller receives their OR,
+	// and Return hands the main intent back.
+	pipMainMuted bool
+	pipMuted     bool
+	pipSaveTimer *time.Timer
+	// pipGeometries remembers the floating frame per display ID.
+	pipGeometries map[int64]pipGeometry
+	engine        player.Engine
+	controller    *player.Controller
+	surface       video.Surface
+	presentation  video.Presentation
+	mainFrame     video.Rect
+	media         mediaState
 
 	// openMu serializes engine, controller and surface creation, which happen
 	// on the first Play rather than at launch.
@@ -105,7 +119,8 @@ func New() *App {
 		discoverIndex:  newDiscoverIndex(),
 		libraryData:    newLibraryCache(),
 		settingsData:   newSettingsCache(),
-		media:          mediaState{snapshot: player.Snapshot{Volume: player.DefaultVolume}},
+		pipGeometries:  map[int64]pipGeometry{},
+		media:          mediaState{snapshot: player.Snapshot{Volume: player.DefaultVolume, Quality: player.Quality{Selected: qualityAuto}}},
 	}
 	a.newMainWindow = a.createMainWindow
 
@@ -191,6 +206,19 @@ func (a *App) Stop() {
 	// floating player's close listener lets that close run normally instead of
 	// being prevented by the handler that would ask to close PiP again.
 	a.detachPiPClose()
+
+	a.mu.Lock()
+	mainActivityOff := a.mainActivityOff
+	pipActivityOff := a.pipActivityOff
+	a.mainActivityOff = nil
+	a.pipActivityOff = nil
+	a.mu.Unlock()
+	if mainActivityOff != nil {
+		mainActivityOff()
+	}
+	if pipActivityOff != nil {
+		pipActivityOff()
+	}
 
 	a.cancel()
 

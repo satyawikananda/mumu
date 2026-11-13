@@ -108,7 +108,7 @@ the source still exists, is enabled and has a supported stream.
   channel selection.
 - A missing, removed or unplayable recent entry produces no card; Discover stays
   the current destination.
-- `Recent.MarkPlayed` runs once per playback generation, after the controller
+- `Recent.MarkPlayed` runs once per playback episode, after the controller
   reports `playing`. A click alone is not recent activity.
 
 ## Threading and lifetime
