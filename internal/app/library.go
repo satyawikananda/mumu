@@ -386,7 +386,7 @@ func (a *App) reloadLibrary() {
 func (a *App) loadLibrary(ctx context.Context) {
 	service, err := a.Catalog()
 	if err != nil {
-		a.libraryData.setLoadError("mumu could not open its local library. Retry, or add a playlist.")
+		a.libraryData.setLoadError(ui.ProductName + " could not open its local library. Retry, or add a playlist.")
 		a.publishLibrary()
 
 		return
@@ -397,7 +397,7 @@ func (a *App) loadLibrary(ctx context.Context) {
 	cancel()
 
 	if err != nil {
-		a.libraryData.setLoadError("mumu could not read the saved playlists. Retry, or add a playlist.")
+		a.libraryData.setLoadError(ui.ProductName + " could not read the saved playlists. Retry, or add a playlist.")
 		a.publishLibrary()
 
 		return
@@ -406,7 +406,7 @@ func (a *App) loadLibrary(ctx context.Context) {
 	a.libraryData.setSources(list)
 	if err := a.loadLibraryEntries(ctx); err != nil {
 		if ctx.Err() == nil {
-			a.libraryData.setMessage("mumu could not read favorites and recent channels.")
+			a.libraryData.setMessage(ui.ProductName + " could not read favorites and recent channels.")
 		}
 	} else {
 		a.libraryData.setMessage("")
@@ -459,7 +459,7 @@ func (a *App) loadLibraryRows(ctx context.Context, service *sources.Service) {
 
 	a.libraryData.setSources(list)
 	if err := a.loadLibraryEntries(ctx); err != nil && ctx.Err() == nil {
-		a.libraryData.setMessage("mumu could not read favorites and recent channels.")
+		a.libraryData.setMessage(ui.ProductName + " could not read favorites and recent channels.")
 	}
 }
 
@@ -535,7 +535,7 @@ func (a *App) toggleLibrarySource(id string, enabled bool) {
 
 		if err != nil {
 			a.libraryData.setEnabled(id, !enabled)
-			a.libraryData.setMessage("mumu could not update that source. Try again.")
+			a.libraryData.setMessage(ui.ProductName + " could not update that source. Try again.")
 		} else {
 			a.libraryData.setMessage("")
 			a.loadLibraryRows(ctx, service)
@@ -569,14 +569,14 @@ func (a *App) removeLibrarySource(id string) {
 
 		if err != nil {
 			if ctx.Err() == nil {
-				a.libraryData.setMessage("mumu could not remove that source. Try again.")
+				a.libraryData.setMessage(ui.ProductName + " could not remove that source. Try again.")
 			}
 		} else {
 			a.libraryData.drop(id)
 			// Removing a source cascades to its channels, so the favorite and
 			// recent rows must be re-read instead of left stale.
 			if entriesErr := a.loadLibraryEntries(ctx); entriesErr != nil && ctx.Err() == nil {
-				a.libraryData.setMessage("mumu could not re-read favorites after removing that source.")
+				a.libraryData.setMessage(ui.ProductName + " could not re-read favorites after removing that source.")
 			} else {
 				a.libraryData.setMessage("")
 			}
@@ -630,7 +630,7 @@ func (a *App) previewLibrarySource(req ui.LibraryRequest) {
 	a.GoQuiet(func(context.Context) {
 		service, err := a.Catalog()
 		if err != nil {
-			a.publishPreview(gen, nil, "mumu could not open its local library. Try again.")
+			a.publishPreview(gen, nil, ui.ProductName+" could not open its local library. Try again.")
 
 			return
 		}
@@ -671,7 +671,7 @@ func (a *App) importLibrarySource(req ui.LibraryRequest) {
 	a.GoQuiet(func(context.Context) {
 		service, err := a.Catalog()
 		if err != nil {
-			a.publishImport(gen, "mumu could not open its local library. Try again.")
+			a.publishImport(gen, ui.ProductName+" could not open its local library. Try again.")
 
 			return
 		}
@@ -1145,7 +1145,7 @@ func (a *App) toggleFavorite(entry library.Entry) {
 		}
 
 		if err := a.loadLibraryEntries(ctx); err != nil && ctx.Err() == nil {
-			a.libraryData.setMessage("mumu could not re-read favorites. Try again.")
+			a.libraryData.setMessage(ui.ProductName + " could not re-read favorites. Try again.")
 			a.publishLibrary()
 
 			return
@@ -1166,7 +1166,7 @@ func (a *App) missingFavorite(key string) {
 // revertFavorite restores one key after a failed write.
 func (a *App) revertFavorite(key string, favorite bool) {
 	a.libraryData.setFavorite(key, !favorite)
-	a.libraryData.setMessage("mumu could not update that favorite. Try again.")
+	a.libraryData.setMessage(ui.ProductName + " could not update that favorite. Try again.")
 	a.publishFavorites()
 	a.publishLibrary()
 }

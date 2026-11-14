@@ -244,15 +244,15 @@ func (f FocusHint) View(c *ui.Context) ui.Element {
 	return row
 }
 
-// BrandLockup draws the tomato mark and lowercase wordmark.
+// BrandLockup draws the tomato mark and product wordmark.
 func BrandLockup(c *ui.Context, mark *ui.Bitmap) ui.Element {
 	t := c.Theme()
 
 	return ui.Row(c).AlignItems(ui.Center).Gap(10).Children(func() {
 		if mark != nil {
-			ui.Image(c, mark).Size(24, 24).AccessHidden(true)
+			ui.Image(c, mark).Size(44, 44).AccessHidden(true)
 		}
-		ui.Text(c, "mumu").Font(displayFont()).FontSize(textSize(t, 22)).
+		ui.Text(c, ProductName).Font(displayFont()).FontSize(textSize(t, 24)).
 			FontWeight(700).TextColor(t.Text).SingleLine()
 	})
 }

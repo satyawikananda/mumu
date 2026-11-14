@@ -232,7 +232,7 @@ func (s *Settings) rail(c *ui.Context, theme *ui.Theme, width float32) {
 		ui.Spacer(c)
 
 		if version := s.versionLabel(false); version != "" {
-			ui.Text(c, "mumu "+version).Font(bodyFont()).FontSize(textSize(theme, 12)).
+			ui.Text(c, ProductName+" "+version).Font(bodyFont()).FontSize(textSize(theme, 12)).
 				TextColor(theme.TextMuted).Padding(0, 10).SingleLine()
 		}
 	})
@@ -268,7 +268,7 @@ func (s *Settings) railItem(
 // appearance draws the theme and playback preference groups.
 func (s *Settings) appearance(c *ui.Context, theme *ui.Theme, panelWidth float32) {
 	s.panelHead(c, theme, "Appearance",
-		"How mumu looks on this display. Changes apply immediately, no restart.")
+		"How "+ProductName+" looks on this display. Changes apply immediately, no restart.")
 
 	s.themeGroup(c, theme, panelWidth)
 	s.playbackGroup(c, theme)

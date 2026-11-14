@@ -238,8 +238,8 @@ func TestDiscoverInfiniteScroll(t *testing.T) {
 	}
 }
 
-// A query switches to the virtualized row list and reports a list view.
-func TestDiscoverSearchUsesRows(t *testing.T) {
+// A query keeps the card grid and reports a grid view.
+func TestDiscoverSearchUsesGrid(t *testing.T) {
 	d := NewDiscover()
 	d.query = "chan"
 	d.SetState(DiscoverState{
@@ -250,11 +250,22 @@ func TestDiscoverSearchUsesRows(t *testing.T) {
 	})
 
 	tt := discoverPage(d, 1470, 956)
-	if !tt.HasText("Search results") || !tt.HasText("list view") {
-		t.Fatalf("texts %q, want the search results heading", tt.Texts())
+	if !tt.HasText("Search results") || !tt.HasText("3 results · grid view") {
+		t.Fatalf("texts %q, want the search results grid heading", tt.Texts())
 	}
-	if !tt.HasText("Add to Favorites") {
-		t.Fatalf("texts %q, want the shared row action", tt.Texts())
+	first, ok := tt.Find("Channel 0")
+	if !ok {
+		t.Fatalf("texts %q, want the first card", tt.Texts())
+	}
+	second, ok := tt.Find("Channel 1")
+	if !ok {
+		t.Fatalf("texts %q, want the second card", tt.Texts())
+	}
+	if first.Y != second.Y {
+		t.Errorf("cards Y = %v and %v, want one grid row", first.Y, second.Y)
+	}
+	if tt.HasText("Add to Favorites") || tt.HasText("Remove from Favorites") {
+		t.Fatalf("texts %q, want no row-only favorite action", tt.Texts())
 	}
 	if tt.HasText("Next") {
 		t.Fatalf("texts %q, paged a search result", tt.Texts())
@@ -457,30 +468,29 @@ func TestDiscoverShellFavorite(t *testing.T) {
 	}
 }
 
-// A search row's own action uses its stable key.
-func TestDiscoverSearchFavorite(t *testing.T) {
-	d := NewDiscover()
+// The arrow keys move the search grid and F toggles its chosen card.
+func TestDiscoverSearchKeyboardFavorite(t *testing.T) {
+	shell := NewShell()
+	d := shell.Discover()
 	d.query = "chan"
 	d.SetState(DiscoverState{
 		Kind:     DiscoverReady,
 		Region:   "ID",
-		Channels: discoverTestChannels(2),
-		Total:    2,
+		Channels: discoverTestChannels(12),
+		Total:    12,
 	})
-	d.SetFavorites(map[string]bool{"key-0": true})
 
-	var toggled []string
-	d.OnToggleFavorite = func(key string) { toggled = append(toggled, key) }
+	var toggled string
+	d.OnToggleFavorite = func(key string) { toggled = key }
 
-	tt := discoverPage(d, 1470, 956)
-	if !tt.HasText("Remove from Favorites") || !tt.HasText("Add to Favorites") {
-		t.Fatalf("texts %q, want both favorite actions", tt.Texts())
-	}
-	if err := tt.Click("Add to Favorites"); err != nil {
-		t.Fatal(err)
-	}
-	if len(toggled) != 1 || toggled[0] != "key-1" {
-		t.Fatalf("toggled %v, want [key-1]", toggled)
+	tt := ui.NewTester(shell.View, 1280, 720)
+	tt.Frame()
+	tt.Key(0, ui.KeyDown)
+	tt.Frame()
+	tt.Key(0, ui.KeyF)
+
+	if toggled != "key-4" {
+		t.Fatalf("favorite key %q, want key-4", toggled)
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 	"github.com/egoist/mygo"
 
 	"mumu/internal/storage"
+	"mumu/internal/ui"
 )
 
 const (
@@ -87,14 +88,14 @@ func storeMessage(err error) string {
 	case err == nil:
 		return ""
 	case errors.Is(err, storage.ErrCorrupt):
-		return "The local library file is damaged. mumu left it untouched. Move it aside to start a new library."
+		return "The local library file is damaged. " + ui.ProductName + " left it untouched. Move it aside to start a new library."
 	case errors.Is(err, storage.ErrSchemaNewer):
-		return "The local library was created by a newer version of mumu. Update mumu or move the library aside."
+		return "The local library was created by a newer version of " + ui.ProductName + ". Update " + ui.ProductName + " or move the library aside."
 	case errors.Is(err, storage.ErrUnknownSchema):
-		return "mumu does not recognize the local library format. The file was left untouched."
+		return ui.ProductName + " does not recognize the local library format. The file was left untouched."
 	case errors.Is(err, storage.ErrPermission):
-		return "mumu cannot read or write its local library. Check permissions for the Mumu application support folder."
+		return ui.ProductName + " cannot read or write its local library. Check permissions for the Mumu application support folder."
 	default:
-		return "mumu could not open its local library. Existing data was left untouched."
+		return ui.ProductName + " could not open its local library. Existing data was left untouched."
 	}
 }

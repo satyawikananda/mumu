@@ -150,7 +150,7 @@ func (a *App) setThemeMode(mode ui.ThemeMode) {
 	a.GoQuiet(func(context.Context) {
 		store, err := a.Store()
 		if err != nil || store == nil {
-			a.revertTheme(gen, previous, "mumu could not open its local library.")
+			a.revertTheme(gen, previous, ui.ProductName+" could not open its local library.")
 
 			return
 		}
@@ -163,7 +163,7 @@ func (a *App) setThemeMode(mode ui.ThemeMode) {
 			return
 		}
 		if err != nil {
-			a.revertTheme(gen, previous, "mumu could not save the appearance. Try again.")
+			a.revertTheme(gen, previous, ui.ProductName+" could not save the appearance. Try again.")
 
 			return
 		}
@@ -200,7 +200,7 @@ func (a *App) setStartMuted(muted bool) {
 	a.GoQuiet(func(context.Context) {
 		store, err := a.Store()
 		if err != nil || store == nil {
-			a.revertStartMuted(gen, previous, "mumu could not open its local library.")
+			a.revertStartMuted(gen, previous, ui.ProductName+" could not open its local library.")
 
 			return
 		}
@@ -214,7 +214,7 @@ func (a *App) setStartMuted(muted bool) {
 			return
 		}
 		if err != nil {
-			a.revertStartMuted(gen, previous, "mumu could not save the playback setting. Try again.")
+			a.revertStartMuted(gen, previous, ui.ProductName+" could not save the playback setting. Try again.")
 
 			return
 		}

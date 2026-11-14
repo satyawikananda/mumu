@@ -588,6 +588,49 @@ func TestLibraryFavoriteActions(t *testing.T) {
 	}
 }
 
+// Clicking one favorite selects only it; a press outside clears the choice.
+func TestLibraryFavoriteSelectionClearsOutside(t *testing.T) {
+	l := NewLibrary()
+	l.SetState(libraryChannelState())
+
+	tt := libraryPage(l)
+	if err := tt.Click("TVRI Nasional"); err != nil {
+		t.Fatal(err)
+	}
+	if l.favs.selected != 0 {
+		t.Fatalf("selected %d, want the clicked favorite", l.favs.selected)
+	}
+
+	if err := tt.Click("Library"); err != nil {
+		t.Fatal(err)
+	}
+	if l.favs.selected != -1 {
+		t.Fatalf("selected %d after an outside press, want none", l.favs.selected)
+	}
+}
+
+// Playlist rows follow the same rule: active on click, clear on outside press.
+func TestLibraryPlaylistSelectionClearsOutside(t *testing.T) {
+	l := NewLibrary()
+	l.ShowPlaylists()
+	l.SetState(libraryTestState())
+
+	tt := libraryPage(l)
+	if err := tt.Click("Indonesia IPTV"); err != nil {
+		t.Fatal(err)
+	}
+	if l.sources.selected != 0 {
+		t.Fatalf("selected %d, want the clicked playlist", l.sources.selected)
+	}
+
+	if err := tt.Click("Library"); err != nil {
+		t.Fatal(err)
+	}
+	if l.sources.selected != -1 {
+		t.Fatalf("selected %d after an outside press, want none", l.sources.selected)
+	}
+}
+
 // The recent tab shows playback time and offers the same actions.
 func TestLibraryRecentSection(t *testing.T) {
 	l := NewLibrary()

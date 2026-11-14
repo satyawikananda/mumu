@@ -83,7 +83,7 @@ func TestControlCenterRestoresKeyboardFocus(t *testing.T) {
 	shell := NewShell()
 	tt := ui.NewTester(shell.View, 1100, 720)
 
-	labels := []string{"Open Control Center", "Control Center", "Settings"}
+	labels := []string{"Control Center"}
 	for i := 0; i < 4; i++ {
 		tt.Key(0, ui.KeyTab)
 		for _, label := range labels {

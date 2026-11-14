@@ -65,11 +65,11 @@ func updateState(current string, result update.Result, err error) ui.UpdateState
 		case errors.Is(err, update.ErrAccess):
 			state.Message = "GitHub refused the release request. Try again later."
 		case errors.Is(err, update.ErrNetwork):
-			state.Message = "mumu could not reach GitHub. Check your connection and try again."
+			state.Message = ui.ProductName + " could not reach GitHub. Check your connection and try again."
 		case errors.Is(err, update.ErrUnversioned):
 			state.Message = "This build has no release version, so update checks are unavailable."
 		default:
-			state.Message = "mumu could not check for updates. Try again."
+			state.Message = ui.ProductName + " could not check for updates. Try again."
 		}
 
 		return state

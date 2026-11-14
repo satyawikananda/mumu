@@ -149,7 +149,7 @@ func TestSettingsAbout(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		"mumu", "0.2.0 · 8eea19e", "1,284 channels · 1 source",
+		"Mumu TV", "0.2.0 · 8eea19e", "1,284 channels · 1 source",
 		"MIT", "github.com/satyawikananda/mumu",
 		"iptv-org (CC0)", "Lucide (ISC)", "Lexend · Inter Tight (OFL 1.1)",
 		"MyGo 0.9.0", "Go 1.27.3 · darwin/arm64",
@@ -201,7 +201,7 @@ func TestSettingsCopySystemInfo(t *testing.T) {
 
 	info := tt.Clipboard()
 	for _, want := range []string{
-		"mumu 0.2.0 · 8eea19e", "Runtime Go 1.27.3 · darwin/arm64",
+		"Mumu TV 0.2.0 · 8eea19e", "Runtime Go 1.27.3 · darwin/arm64",
 		"Catalog 8 channels · 2 sources", "Display 1100 × 720",
 	} {
 		if !strings.Contains(info, want) {
@@ -251,7 +251,7 @@ func TestSettingsUpdateStates(t *testing.T) {
 		ReleaseURL: "https://github.com/satyawikananda/mumu/releases/tag/v0.3.0",
 	})
 	tt.Frame()
-	if !tt.HasText("mumu 0.3.0 is available.") {
+	if !tt.HasText("Mumu TV 0.3.0 is available.") {
 		t.Fatalf("texts %q, want the available state", tt.Texts())
 	}
 	if err := tt.Click("Open release page"); err != nil {

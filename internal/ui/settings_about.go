@@ -10,7 +10,7 @@ import (
 // shortcuts draws the read-only command reference from the one registry.
 func (s *Settings) shortcuts(c *ui.Context, theme *ui.Theme, panelWidth float32) {
 	s.panelHead(c, theme, "Shortcuts",
-		"Every key mumu listens to. Fixed in this build, and they follow your layout when the system remaps keys.")
+		"Every key "+ProductName+" listens to. Fixed in this build, and they follow your layout when the system remaps keys.")
 
 	shortcutReference(c, theme, panelWidth)
 
@@ -68,7 +68,7 @@ func (s *Settings) aboutHero(c *ui.Context, theme *ui.Theme) {
 			ui.Image(c, s.mark).Size(64, 64).Fit(ui.Contain).AccessHidden(true)
 		}
 		ui.Column(c).Grow(1).Gap(3).Children(func() {
-			ui.Text(c, "mumu").Font(displayFont()).FontSize(textSize(theme, 41)).
+			ui.Text(c, ProductName).Font(displayFont()).FontSize(textSize(theme, 41)).
 				FontWeight(700).TextColor(theme.Text).Role(ui.RoleHeading).Level(1)
 			ui.Text(c, "A native desktop TV player for live channels you choose.").
 				Font(bodyFont()).FontSize(textSize(theme, 13)).TextColor(theme.TextMuted)
@@ -216,7 +216,7 @@ func (s *Settings) valueRow(
 // credential, local path, favorite or watch history.
 func (s *Settings) SystemInfo(display string) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "mumu %s\n", s.versionLabel(true))
+	fmt.Fprintf(&b, ProductName+" %s\n", s.versionLabel(true))
 	fmt.Fprintf(&b, "Runtime %s\n", runtimeLabel(s.about))
 	fmt.Fprintf(&b, "Display %s\n", display)
 	fmt.Fprintf(&b, "Catalog %s\n", s.catalogLabel())
@@ -241,7 +241,7 @@ func (s *Settings) updateStatus() string {
 			return "A newer release is available."
 		}
 
-		return "mumu " + s.update.Latest + " is available."
+		return ProductName + " " + s.update.Latest + " is available."
 	case UpdateNoRelease:
 		if s.update.Message != "" {
 			return s.update.Message
@@ -253,7 +253,7 @@ func (s *Settings) updateStatus() string {
 			return s.update.Message
 		}
 
-		return "mumu could not check for updates. Try again."
+		return ProductName + " could not check for updates. Try again."
 	default:
 		return ""
 	}

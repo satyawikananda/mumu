@@ -35,7 +35,7 @@ func (m nativeMain) ContentBounds() mygo.Rectangle {
 // createMainWindow builds the single application window and its callbacks.
 func (a *App) createMainWindow() (mainWindow, *mygo.Window) {
 	win := mygo.NewWindow(mygo.WindowOptions{
-		Title:     "mumu",
+		Title:     ui.ProductName,
 		Width:     960,
 		Height:    640,
 		MinWidth:  640,

@@ -379,7 +379,7 @@ func (a *App) pipCloseRequest(e *mygo.CloseEvent) {
 // video fills the whole window and the view draws its own chrome.
 func (a *App) newPiPWindow() pipWindow {
 	pip := mygo.NewWindow(mygo.WindowOptions{
-		Title:           "mumu · Picture-in-Picture",
+		Title:           ui.ProductName + " · Picture-in-Picture",
 		Width:           pipInitialWidth,
 		Height:          pipInitialHeight,
 		UseContentSize:  true,

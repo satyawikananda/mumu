@@ -5,14 +5,18 @@ import "github.com/egoist/mygo/ui"
 
 // chromeHeight is the top bar's height. The bar overlays the content so a
 // page's artwork can pass behind it; every page reserves the same inset.
-const chromeHeight float32 = 48
+const chromeHeight float32 = 56
+
+// navigationHistoryLimit bounds the Back stack. It is a convenience, not a
+// durable navigation log.
+const navigationHistoryLimit = 32
 
 // Shell is the native application shell. It owns the current destination,
 // the Control Center overlay and the page objects the app publishes into.
 type Shell struct {
-	nav      string
-	previous string
-	err      string
+	nav     string
+	history []string
+	err     string
 
 	themeMode ThemeMode
 	mark      *ui.Bitmap
@@ -24,6 +28,10 @@ type Shell struct {
 	pip       *PiP
 
 	controlCenterOpen bool
+	// ccButton keeps the Control Center opener's identity so closing the
+	// overlay can hand the keyboard focus back to it.
+	ccButton          ui.Handle
+	focusAfterOverlay bool
 
 	onDestinationChanged func(watch bool)
 }
@@ -149,19 +157,37 @@ func (s *Shell) OpenControlCenter() {
 	s.controlCenterOpen = true
 }
 
-// CloseControlCenter hides the overlay and lets MyGo restore focus.
-func (s *Shell) CloseControlCenter() { s.controlCenterOpen = false }
+// CloseControlCenter hides the overlay and lets MyGo restore focus. The
+// shell also returns the keyboard focus to the Control Center opener when the
+// overlay was dismissed rather than used to navigate.
+func (s *Shell) CloseControlCenter() {
+	if !s.controlCenterOpen {
+		return
+	}
+	s.controlCenterOpen = false
+	s.focusAfterOverlay = !s.IsWatch()
+}
 
-// navigate switches destinations and reports the change once.
+// navigate switches destinations and reports the change once. The page left
+// behind joins the bounded Back history.
 func (s *Shell) navigate(id string) {
 	if id == s.nav {
 		s.CloseControlCenter()
 		return
 	}
 
-	s.previous = s.nav
+	s.history = append(s.history, s.nav)
+	if len(s.history) > navigationHistoryLimit {
+		s.history = s.history[len(s.history)-navigationHistoryLimit:]
+	}
+	s.setDestination(id)
+}
+
+// setDestination switches the visible page without touching history.
+func (s *Shell) setDestination(id string) {
 	s.nav = id
 	s.CloseControlCenter()
+	s.focusAfterOverlay = false
 	if id != destWatch {
 		s.watch.CloseDrawer()
 	}
@@ -170,23 +196,32 @@ func (s *Shell) navigate(id string) {
 	}
 }
 
-// goBack returns to the previous destination once, then clears the link so a
-// repeated Escape cannot toggle between two screens.
-func (s *Shell) goBack() {
-	id := s.previous
-	if id == "" || id == s.nav {
-		return
+// goBack returns to the most recent different destination in history. It
+// reports whether it moved.
+func (s *Shell) goBack() bool {
+	for len(s.history) > 0 {
+		id := s.history[len(s.history)-1]
+		s.history = s.history[:len(s.history)-1]
+		if id == "" || id == s.nav {
+			continue
+		}
+		s.setDestination(id)
+
+		return true
 	}
 
-	s.previous = ""
-	s.nav = id
-	s.CloseControlCenter()
-	if id != destWatch {
-		s.watch.CloseDrawer()
+	return false
+}
+
+// CanGoBack reports whether Back has a destination in history.
+func (s *Shell) CanGoBack() bool {
+	for i := len(s.history) - 1; i >= 0; i-- {
+		if s.history[i] != "" && s.history[i] != s.nav {
+			return true
+		}
 	}
-	if s.onDestinationChanged != nil {
-		s.onDestinationChanged(id == destWatch)
-	}
+
+	return false
 }
 
 // PiPView draws the floating player with the app's theme.
@@ -225,6 +260,11 @@ func (s *Shell) View(c *ui.Context) {
 			s.controlCenter().View(c)
 		}
 	})
+
+	if !s.IsWatch() && !s.controlCenterOpen && s.focusAfterOverlay {
+		s.focusAfterOverlay = false
+		s.ccButton.Focus(c)
+	}
 }
 
 // chrome draws the top bar above the page. It stays transparent while the page
@@ -236,19 +276,26 @@ func (s *Shell) chrome(c *ui.Context, theme *ui.Theme) {
 	scrolled := s.pageScrolled()
 
 	bar := ui.Row(c).FillWidth().Height(chromeHeight).ZIndex(1).
-		Padding(8, layout.Padding).AlignItems(ui.Center).Gap(12)
+		Padding(4, layout.Padding).AlignItems(ui.Center).Gap(12)
 	if scrolled {
 		bar = bar.Background(p.canvas.Alpha(0.86)).
 			Border(1, p.border).BorderWidth(0, 0, 1, 0)
 	}
 	bar.Transition(ui.ElementTransition{Colors: true, Duration: hoverMotion.Duration})
 	bar.Children(func() {
-		brand := ui.ButtonBase(c.Key("open-control-center")).Padding(4, 6).Radius(8).
+		// The slot stays reserved so the brand never shifts when Back appears.
+		if s.CanGoBack() {
+			s.topIcon(c, nil, icons().arrowLeft, "Back", func() { s.goBack() })
+		} else {
+			ui.Box(c).Size(32, 32).AccessHidden(true)
+		}
+
+		brand := ui.ButtonBase(c.Key("brand-home")).Padding(2, 6).Radius(8).
 			FocusRingOffset(-2)
-		brand = brand.Label("Open Control Center").Tooltip("Control Center")
+		brand = brand.Label("Go to Home").Tooltip("Home")
 		brand.Children(func() { BrandLockup(c, s.mark) })
 		if brand.Clicked() {
-			s.OpenControlCenter()
+			s.ShowHome()
 		}
 
 		ui.Text(c, destinationLabel(s.nav)).Font(bodyFont()).FontSize(textSize(theme, 11)).
@@ -256,35 +303,20 @@ func (s *Shell) chrome(c *ui.Context, theme *ui.Theme) {
 
 		ui.Spacer(c)
 
-		s.topAction(c, icons().panelLeft, "Control Center", s.OpenControlCenter)
-		s.topIcon(c, icons().settings, "Settings", s.ShowSettings)
+		s.topIcon(c, &s.ccButton, icons().panelLeft, "Control Center", s.OpenControlCenter)
+		s.topIcon(c, nil, icons().settings, "Settings", s.ShowSettings)
 	})
 }
 
-// topAction draws a labelled top-bar action. The label stays visible so
-// Control Center is never keyboard-only.
-func (s *Shell) topAction(c *ui.Context, icon *ui.SVG, label string, action func()) {
+// topIcon draws a labelled icon action in the top bar. A non-nil handle keeps
+// the control's identity for focus restoration.
+func (s *Shell) topIcon(c *ui.Context, handle *ui.Handle, icon *ui.SVG, label string, action func()) {
 	t := c.Theme()
-	button := ui.ButtonBase(c).Height(30).Padding(6, 10).Radius(8).
-		Border(1, t.Border).FocusRingOffset(-2)
-	if button.Hovered() {
-		button = button.Background(t.SurfaceHover)
+	button := ui.ButtonBase(c)
+	if handle != nil {
+		button = button.Bind(handle)
 	}
-	button = button.Label(label).Tooltip(label)
-	button.Children(func() {
-		ui.Icon(c, icon).Size(16, 16).TextColor(t.Text)
-		ui.Text(c, label).Font(bodyFont()).FontSize(textSize(t, 12)).
-			FontWeight(600).TextColor(t.Text).SingleLine()
-	})
-	if button.Clicked() && action != nil {
-		action()
-	}
-}
-
-// topIcon draws a labelled icon action in the top bar.
-func (s *Shell) topIcon(c *ui.Context, icon *ui.SVG, label string, action func()) {
-	t := c.Theme()
-	button := ui.ButtonBase(c).Size(32, 32).Radius(8).FocusRingOffset(-2)
+	button = button.Size(32, 32).Radius(8).FocusRingOffset(-2)
 	if button.Hovered() {
 		button = button.Background(t.SurfaceHover)
 	}
@@ -426,11 +458,10 @@ func (s *Shell) handleEscape() {
 // leaveWatch returns to the previous destination, or Home when Watch was
 // opened directly.
 func (s *Shell) leaveWatch() {
-	if s.previous != "" {
-		s.goBack()
+	if s.goBack() {
 		return
 	}
-	s.ShowHome()
+	s.setDestination(destHome)
 }
 
 // focusSearch sends the viewer to Discover and focuses its search field.

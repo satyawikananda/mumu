@@ -337,10 +337,24 @@ func (l *Library) ImportFinished() {
 
 // View draws the page on the MyGo main thread.
 func (l *Library) View(c *ui.Context, theme *ui.Theme) {
-	l.header(c, theme)
-	l.body(c, theme)
+	// A press anywhere on the page clears the row chosen before it. The list
+	// then chooses the clicked row again, so only that row stays active.
+	ui.Column(c).Grow(1).FillWidth().Gap(16).
+		ObserveInput(l.pointerInput).
+		Children(func() {
+			l.header(c, theme)
+			l.body(c, theme)
+		})
 	l.sheet(c, theme)
 	l.confirm(c, theme)
+}
+
+// pointerInput drops the persistent row choice before a press is delivered.
+func (l *Library) pointerInput(ev ui.InputEvent) {
+	if ev.Kind != ui.InputPointerDown {
+		return
+	}
+	l.favs.selected, l.recent.selected, l.sources.selected = -1, -1, -1
 }
 
 // body draws the state, the tabs and the visible section.
@@ -357,7 +371,7 @@ func (l *Library) body(c *ui.Context, theme *ui.Theme) {
 	case LibraryFailed:
 		message := l.state.Message
 		if message == "" {
-			message = "mumu could not read the saved library. Retry, or add a playlist."
+			message = ProductName + " could not read the saved library. Retry, or add a playlist."
 		}
 		pageStatus(c, Status{
 			Kind:     StatusError,
@@ -933,7 +947,7 @@ func (l *Library) privateConsent(c *ui.Context, theme *ui.Theme) {
 	ui.Column(c).Gap(4).Padding(8, 10).Background(theme.Surface).Radius(6).
 		Border(1, theme.Border).Children(func() {
 		ui.Checkbox(c, &l.allowPrivate, "Allow private and LAN addresses for this source")
-		ui.Text(c, "Enable this only for a source you trust. mumu keeps the choice on this Mac.").
+		ui.Text(c, "Enable this only for a source you trust. "+ProductName+" keeps the choice on this Mac.").
 			FontSize(theme.Rem(0.85)).TextColor(theme.TextMuted)
 		if schemes := strings.Join(l.preview.Schemes, ", "); schemes != "" {
 			ui.Textf(c, "Stream schemes found · %s", schemes).

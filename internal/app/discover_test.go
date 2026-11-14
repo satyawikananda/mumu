@@ -357,7 +357,7 @@ func TestDiscoverFilterCancelsStaleQuery(t *testing.T) {
 	}
 }
 
-// The publish cap keeps one result set bounded while Total counts every match.
+// Search publishes one batch at a time and keeps Total counting every match.
 func TestDiscoverResultCap(t *testing.T) {
 	index := newDiscoverIndex()
 	channels := make([]catalog.Channel, discoverResultLimit+25)
@@ -373,15 +373,24 @@ func TestDiscoverResultCap(t *testing.T) {
 		region: "ID",
 	})
 
-	rows, total, truncated := index.view(ui.DiscoverFilters{Query: "channel"})
+	filters := ui.DiscoverFilters{Query: "channel"}
+	rows, total, truncated := index.view(filters)
+	if len(rows) != discoverBatch {
+		t.Fatalf("rows %d, want the first batch of %d", len(rows), discoverBatch)
+	}
+	if total != len(channels) || !truncated {
+		t.Fatalf("total %d truncated %v, want %d and true", total, truncated, len(channels))
+	}
+
+	for len(rows) < discoverResultLimit {
+		index.growLimit()
+		rows, total, truncated = index.view(filters)
+	}
 	if len(rows) != discoverResultLimit {
-		t.Fatalf("rows %d, want %d", len(rows), discoverResultLimit)
+		t.Fatalf("rows %d, want the %d row cap", len(rows), discoverResultLimit)
 	}
-	if total != len(channels) {
-		t.Fatalf("total %d, want %d", total, len(channels))
-	}
-	if !truncated {
-		t.Fatal("cap did not report a truncated result")
+	if total != len(channels) || !truncated {
+		t.Fatalf("total %d truncated %v, want %d and true", total, truncated, len(channels))
 	}
 }
 

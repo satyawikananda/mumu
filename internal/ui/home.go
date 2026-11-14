@@ -247,7 +247,7 @@ func (h *Home) View(c *ui.Context, theme *ui.Theme) {
 				case HomeFailed:
 					message := strings.TrimSpace(h.state.Message)
 					if message == "" {
-						message = "mumu could not read your saved channels. Retry, or browse Discover."
+						message = ProductName + " could not read your saved channels. Retry, or browse Discover."
 					}
 					pageStatus(c, Status{
 						Kind:     StatusError,

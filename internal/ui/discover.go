@@ -105,11 +105,9 @@ type Discover struct {
 	logos      map[string]*ui.Bitmap
 	logoColors map[string]ui.Color
 	favorites  map[string]bool
-	list       ui.ListState
 	scroll     ui.ScrollState
 
-	// focus is the desired grid keyboard target; it stays empty in search
-	// mode, where the list owns focus.
+	// focus is the desired grid keyboard target.
 	focus   string
 	columns int
 	// moreRequested keeps one scroll from asking for several batches.
@@ -134,7 +132,7 @@ type Discover struct {
 
 	query       string
 	category    string
-	selected    int
+	lastQuery   string
 	selectedKey string
 	notice      string
 
@@ -162,11 +160,8 @@ type Discover struct {
 func NewDiscover() *Discover {
 	d := &Discover{
 		state:          DiscoverState{Kind: DiscoverNoCountry},
-		selected:       -1,
 		pickerSelected: -1,
 	}
-	d.list.Selected = &d.selected
-	d.list.Label = d.rowLabel
 	d.pickerList.Selected = &d.pickerSelected
 
 	return d
@@ -179,7 +174,6 @@ func (d *Discover) SetState(state DiscoverState) {
 		state.Total = len(state.Channels)
 	}
 	d.state = state
-	d.selected = d.indexForKey(d.selectedKey)
 	d.moreRequested = false
 	d.settleFocus()
 }
@@ -403,7 +397,7 @@ func (d *Discover) body(c *ui.Context, theme *ui.Theme, layout Layout) {
 func (d *Discover) results(c *ui.Context, theme *ui.Theme, layout Layout) {
 	showCategories := layout.CategoryColumn && d.showCategories()
 
-	body := ui.Grid(c).Grow(1).FillWidth().Gap(20)
+	body := ui.Grid(c).Grow(1).FillWidth().Gap(20).RowTracks(ui.Fr(1))
 	if showCategories {
 		body = body.ColumnTracks(discoverBodyTracks(layout)...)
 	} else {
@@ -429,11 +423,6 @@ func (d *Discover) results(c *ui.Context, theme *ui.Theme, layout Layout) {
 					TextColor(theme.TextMuted).SingleLine()
 			}
 
-			if d.searchMode() {
-				d.searchList(c)
-
-				return
-			}
 			if len(d.state.Channels) == 0 {
 				d.empty(c)
 
@@ -636,7 +625,7 @@ func (d *Discover) skeletonRow(c *ui.Context, layout Layout) {
 
 // requestMore asks for the next batch when the grid is near its end.
 func (d *Discover) requestMore() {
-	if d.searchMode() || !d.state.HasMore || d.moreRequested || d.OnLoadMore == nil {
+	if !d.state.HasMore || d.moreRequested || d.OnLoadMore == nil {
 		return
 	}
 	if d.scroll.MaxY <= 0 || d.scroll.Y < d.scroll.MaxY-400 {
@@ -645,47 +634,6 @@ func (d *Discover) requestMore() {
 
 	d.moreRequested = true
 	d.OnLoadMore()
-}
-
-// searchList draws the virtualized results for a query.
-func (d *Discover) searchList(c *ui.Context) {
-	if len(d.state.Channels) == 0 {
-		d.empty(c)
-
-		return
-	}
-
-	list := ui.List(c, &d.list, len(d.state.Channels)).
-		Grow(1).FillWidth().
-		Label("Channels").
-		ItemKey(func(i int) any { return d.state.Channels[i].Key }).
-		TrackScroll(&d.scroll).
-		Rows(func(row ui.ListRow) {
-			d.searchRow(row)
-		})
-	if list.Submitted() {
-		d.submit()
-	}
-}
-
-// searchRow draws one channel with the shared dense row.
-func (d *Discover) searchRow(row ui.ListRow) {
-	channel := d.state.Channels[row.Index]
-	favorite := d.favorites[channel.Key]
-	label := "Add to Favorites"
-	if favorite {
-		label = "Remove from Favorites"
-	}
-
-	ChannelRow{
-		Name:           channel.Name,
-		Meta:           d.channelMeta(channel),
-		Live:           channel.Live,
-		Art:            d.art(channel),
-		Action:         label,
-		ActionSelected: favorite,
-		OnAction:       func() { d.toggleFavorite(channel.Key) },
-	}.ListView(row.Context, row)
 }
 
 // noCountry draws the approved first-launch state with explicit actions.
@@ -938,7 +886,7 @@ func (d *Discover) pickCountry(matches []DiscoverCountry) {
 
 	d.state.Region = code
 	d.selectedKey = ""
-	d.selected = -1
+	d.focus = ""
 	if d.OnRegion != nil {
 		d.OnRegion(code)
 	}
@@ -963,14 +911,6 @@ func (d *Discover) reloadCountries() {
 	if d.OnReloadCountries != nil {
 		d.OnReloadCountries()
 	}
-}
-
-// submit opens the selected search row.
-func (d *Discover) submit() {
-	if d.selected < 0 || d.selected >= len(d.state.Channels) {
-		return
-	}
-	d.selectKey(d.state.Channels[d.selected].Key)
 }
 
 // selectKey opens one channel and remembers it as the target.
@@ -1025,8 +965,16 @@ func (d *Discover) setCategory(category string) {
 	d.emitFilter()
 }
 
-// emitFilter reports the current narrowing.
+// emitFilter reports the current narrowing. A new query starts the grid at
+// its top with no stale keyboard target.
 func (d *Discover) emitFilter() {
+	query := strings.TrimSpace(d.query)
+	if query != d.lastQuery {
+		d.lastQuery = query
+		d.scroll = ui.ScrollState{}
+		d.moreRequested = false
+		d.focus = ""
+	}
 	if d.OnFilter != nil {
 		d.OnFilter(d.Filters())
 	}
@@ -1039,7 +987,7 @@ func (d *Discover) clearFilters() {
 	d.emitFilter()
 }
 
-// searchMode reports whether the page uses the virtualized row list.
+// searchMode reports whether the page narrows the catalog by a query.
 func (d *Discover) searchMode() bool {
 	return strings.TrimSpace(d.query) != ""
 }
@@ -1048,7 +996,7 @@ func (d *Discover) searchMode() bool {
 // thread from the shortcut registry, after the page recorded its columns.
 func (d *Discover) MoveTile(dx, dy int) {
 	total := len(d.state.Channels)
-	if d.searchMode() || total == 0 {
+	if total == 0 {
 		return
 	}
 
@@ -1063,20 +1011,12 @@ func (d *Discover) MoveTile(dx, dy int) {
 	row = min(max(row+dy, 0), (total-1)/columns)
 	next := min(row*columns+column, total-1)
 
-	d.selected = next
 	d.selectedKey = d.state.Channels[next].Key
 	d.focus = discoverGridFocus + d.selectedKey
 }
 
 // currentKey returns the channel the keyboard targets, empty for none.
 func (d *Discover) currentKey() string {
-	if d.searchMode() {
-		if d.selected >= 0 && d.selected < len(d.state.Channels) {
-			return d.state.Channels[d.selected].Key
-		}
-
-		return ""
-	}
 	if key := d.gridKey(); key != "" && d.indexForKey(key) >= 0 {
 		return key
 	}
@@ -1101,7 +1041,7 @@ func (d *Discover) gridKey() string {
 // claims the keyboard on its own: the search field or a click owns the first
 // focus, and the arrow keys move the grid cursor after that.
 func (d *Discover) settleFocus() {
-	if d.searchMode() || len(d.state.Channels) == 0 {
+	if len(d.state.Channels) == 0 {
 		d.focus = ""
 
 		return
@@ -1112,15 +1052,6 @@ func (d *Discover) settleFocus() {
 		return
 	}
 	d.focus = ""
-}
-
-// rowLabel names a search row for assistive technology and type-select.
-func (d *Discover) rowLabel(i int) string {
-	if i < 0 || i >= len(d.state.Channels) {
-		return ""
-	}
-
-	return channelLabel(d.state.Channels[i].Name, d.channelMeta(d.state.Channels[i]), d.state.Channels[i].Live)
 }
 
 // channelMeta builds "Country · Category · Source" from a row.
@@ -1170,12 +1101,7 @@ func (d *Discover) resultsSubtitle() string {
 		total = len(d.state.Channels)
 	}
 
-	view := "grid view"
-	if d.searchMode() {
-		view = "list view"
-	}
-
-	parts := []string{resultCount(total), view}
+	parts := []string{resultCount(total), "grid view"}
 	if d.state.Truncated {
 		parts = append(parts, "first "+strconv.Itoa(len(d.state.Channels))+" shown")
 	}
@@ -1269,7 +1195,7 @@ func (d *Discover) defaultMessage() string {
 
 		return "Fetching the community catalog."
 	case DiscoverError:
-		return "mumu could not load the community catalog. Check your connection and retry, or add your own playlist."
+		return ProductName + " could not load the community catalog. Check your connection and retry, or add your own playlist."
 	case DiscoverOffline:
 		return "Showing saved channels. The catalog could not be refreshed."
 	case DiscoverNoCountry:

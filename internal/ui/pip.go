@@ -240,7 +240,7 @@ func (p *PiP) chromeLayer(c *ui.Context, vt *ui.Theme, metrics pipMetrics) {
 	width, _ := c.Size()
 	name := strings.TrimSpace(p.state.Channel)
 	if name == "" {
-		name = "mumu"
+		name = ProductName
 	}
 
 	ui.Themed(c, vt).Absolute().Fill().Background(ui.Transparent).

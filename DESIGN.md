@@ -1,6 +1,6 @@
-# DESIGN.md — mumu
+# DESIGN.md — Mumu TV
 
-> Design contract for **mumu**, a native, macOS-first live TV player.  
+> Design contract for **Mumu TV**, a native, macOS-first live TV player.
 > Version: **M5 revamp v1 (12 November 2026)** — reconciled with the Pencil
 > handoff and tracker #30. Component/token source of truth is
 > `internal/ui/tokens.go`; the portable handoff is
@@ -9,11 +9,11 @@
 
 ## 1. Product experience
 
-**Name:** mumu  
-**Brand:** Tomato-red mumu with a distinctive, original tomato icon  
+**Name:** Mumu TV
+**Brand:** Tomato-red tomato mark with a distinctive, original icon for Mumu TV
 **Promise:** **Just TV. Nothing in the way.**
 
-mumu should feel like turning on a well-designed television, not operating an IPTV configuration dashboard.
+Mumu TV should feel like turning on a well-designed television, not operating an IPTV configuration dashboard.
 
 ### Experience pillars
 
@@ -41,7 +41,7 @@ Design an original tomato mark:
 - **Silhouette:** friendly rounded tomato body, subtle organic asymmetry, not a perfect circle.
 - **Crown:** simplified 3–5 leaf forms, legible at small sizes.
 - **Media association:** a tiny negative-space play triangle or screen cue is optional, but never at the expense of recognizable tomato shape.
-- **Wordmark:** **mumu**, approachable rounded letterforms, moderate tracking, substantial enough to read beside a 20–24 pt mark.
+- **Wordmark:** **Mumu TV**, approachable rounded letterforms, moderate tracking, substantial enough to read beside a 44 pt header mark.
 - **App icon:** the current mascot in `resources/icon.png`; keep simple shapes, no detailed gradients or miniature labels, and export separately for 16, 32, 64 and 1024 px.
 
 Do not copy an existing TV brand or tomato-logo asset. The first implementations may use a native-drawn placeholder; final vector artwork requires its own asset review.
@@ -154,7 +154,7 @@ Target navigation is **Home**, **Discover** and **Library**, with **Settings**
 as a secondary destination. There is no permanent application sidebar.
 
 ```text
-mumu
+Mumu TV
 ├── Home        Valid recent channel, Resume, other channels, recent and favorite rails
 ├── Discover    Country selection, search, categories, sources, channel grid
 ├── Library     Favorites, Recently Watched, Playlists, Custom Streams

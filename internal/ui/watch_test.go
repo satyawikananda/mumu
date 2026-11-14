@@ -538,7 +538,7 @@ func TestWatchConnecting(t *testing.T) {
 	tt := watchPage(w, 1470, 956)
 	clock := tt.Now().Format("15:04")
 	for _, want := range []string{
-		"mumu", clock, "TVRI Bali", "Community · 480p",
+		"Mumu TV", clock, "TVRI Bali", "Community · 480p",
 		"Connecting to stream…", "Cancel", "Other channels", "Try again",
 	} {
 		if !tt.HasText(want) {

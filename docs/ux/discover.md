@@ -13,7 +13,7 @@ Design references, all in `mumu-design.pen`:
 
 Implementation source of truth:
 
-- `internal/ui/discover.go` — page state, layout, infinite-scroll grid, search list,
+- `internal/ui/discover.go` — page state, layout, infinite-scroll card grid, search grid,
   country picker, prompts and keyboard cursor.
 - `internal/app/discover.go` — catalog index, country persistence, paging and
   generation guards.
@@ -44,7 +44,7 @@ an Indonesia or other country playlist until the viewer picks one:
 | `DiscoverOffline` | cached rows with a refresh banner, or "You are offline" when nothing is cached | Retry |
 | `DiscoverEmpty` | "No channels yet" | Retry |
 | `DiscoverError` | "Channels unavailable" | Retry |
-| `DiscoverReady` | grid or virtualized list | Read a channel |
+| `DiscoverReady` | card grid | Read a channel |
 
 A zero-match narrowing is not an empty catalog: it shows "No channels match"
 with **Clear filters**.
@@ -85,9 +85,10 @@ match reachable by scrolling, and caps one publish at 2000 rows for safety.
   MyGo has no skeleton widget, so it follows the documented `ui.Box` and
   `Loop` pulse pattern; the same shape is drawn below loaded rows while the
   next batch arrives.
-- Search (`Query != ""`) uses the existing virtualized `ui.List` path with the
-  shared 48 pt `ChannelRow`. The list stays capped at 2000 rows and reports the
-  real total; `Truncated` adds "first N shown".
+- Search (`Query != ""`) uses the same card grid and the same 40-row batches.
+  A click opens the channel; keyboard arrows move the grid cursor. The grid is
+  capped at 2000 rows and reports the real total; `Truncated` adds "first N
+  shown".
 - Source, category and Live only filters narrow both paths. The page now offers
   the country filter and the category rail; the source menu and the Live only
   chip were removed as no longer relevant. Category counts are recomputed for
@@ -118,8 +119,8 @@ country chip keeps offering the catalog.
 | Key | Action |
 | --- | --- |
 | `/` | Focus search |
-| arrows | Move the grid cursor; the search list keeps its own selection |
-| Enter | Watch the focused tile or the selected search row |
+| arrows | Move the grid cursor in browse and search |
+| Enter | Watch the focused tile |
 | `F` | Toggle the focused channel's favorite |
 | Esc | Shell behaviour (back or Control Center) |
 

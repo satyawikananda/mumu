@@ -208,7 +208,6 @@ type RowState struct {
 	Hovered  bool
 	Pressed  bool
 	Selected bool
-	Focused  bool
 }
 
 // ChannelRow is the dense channel row for virtualized search and playlist
@@ -233,7 +232,6 @@ func (ch ChannelRow) ListView(c *ui.Context, row ui.ListRow) ui.Element {
 		Hovered:  row.Hovered(),
 		Pressed:  row.Pressed(),
 		Selected: row.Selected(),
-		Focused:  row.ListFocused(),
 	})
 }
 
@@ -259,12 +257,6 @@ func (ch ChannelRow) View(c *ui.Context, state RowState) ui.Element {
 		} else {
 			background = ui.RGBA(0, 0, 0, 0.08)
 		}
-	case state.Focused:
-		if t.Dark {
-			background = ui.RGBA(255, 255, 255, 0.08)
-		} else {
-			background = ui.RGBA(0, 0, 0, 0.06)
-		}
 	case state.Hovered:
 		if t.Dark {
 			background = ui.RGBA(255, 255, 255, 0.06)
@@ -276,7 +268,7 @@ func (ch ChannelRow) View(c *ui.Context, state RowState) ui.Element {
 		background = p.brand.Alpha(0.12)
 	}
 	border := ui.Transparent
-	if state.Focused {
+	if state.Selected {
 		border = p.focus
 	}
 

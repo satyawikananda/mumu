@@ -57,9 +57,16 @@ type mediaState struct {
 	request     player.Request
 	snapshot    player.Snapshot
 	playbackErr string
-	drawer      []ui.WatchChannel
-	resume      *watchResume
-	previous    *previousChannel
+	// drawer is the active channel's drawer. It is replaced only for that
+	// channel's source; drawerSource and drawerGen guard the async load.
+	drawer       []ui.WatchChannel
+	drawerByKey  map[string]drawerEntry
+	drawerSource string
+	drawerGen    uint64
+	// browseDrawer is the Discover catalog offered while no channel is active.
+	browseDrawer []ui.WatchChannel
+	resume       *watchResume
+	previous     *previousChannel
 	// markedEpisode is the playback episode whose real frame was already
 	// recorded, so retries do not add history and a paused resume updates once.
 	markedEpisode uint64
@@ -76,7 +83,8 @@ type mediaState struct {
 // its runtime, so the usual cause is a damaged or incomplete install; the
 // environment override stays available for a custom runtime. Watch shows it
 // only after a Play request, never at launch.
-const playbackUnavailableMessage = "Playback needs the libmpv runtime bundled with mumu. Reinstall mumu, or set MUMU_MPV_LIBRARY, then retry."
+const playbackUnavailableMessage = "Playback needs the libmpv runtime bundled with " + ui.ProductName +
+	". Reinstall " + ui.ProductName + ", or set MUMU_MPV_LIBRARY, then retry."
 
 // startWatch wires the Watch page and offers a resume.
 //
@@ -412,6 +420,12 @@ func (a *App) playRequest(
 	a.media.resume = nil
 	a.mu.Unlock()
 
+	// A new channel can belong to a different source than the last one, so its
+	// drawer is prepared before the first Watch state is published.
+	if newLoad {
+		a.prepareChannelDrawer(channel, sourceName)
+	}
+
 	a.shell.ShowWatch()
 	a.publishWatch()
 
@@ -471,6 +485,17 @@ func (a *App) backToPrevious() {
 
 // selectWatchChannel switches to a drawer row. It runs on the UI thread.
 func (a *App) selectWatchChannel(key string) {
+	a.mu.Lock()
+	entry, ok := a.media.drawerByKey[key]
+	a.mu.Unlock()
+	if ok {
+		a.playChannel(entry.channel, entry.sourceName)
+
+		return
+	}
+
+	// The browse drawer while no channel is active comes from the Discover
+	// index, which is the fallback identity for those rows.
 	channel, ok := a.discoverIndex.channel(key)
 	if !ok {
 		return
@@ -633,8 +658,20 @@ func (a *App) watchState() ui.WatchState {
 		state.Previous = media.previous.channel.Name
 	}
 
-	state.Channels = make([]ui.WatchChannel, 0, len(media.drawer))
-	for _, row := range media.drawer {
+	// The drawer follows the active channel's source. The Discover catalog is
+	// only a fallback while Watch has no channel, and an active source whose
+	// rows have not arrived yet shows an empty drawer instead of another
+	// source's channels.
+	drawer := media.browseDrawer
+	if media.channel.ProviderID != "" {
+		drawer = nil
+		if media.drawerSource == media.channel.SourceID {
+			drawer = media.drawer
+		}
+	}
+
+	state.Channels = make([]ui.WatchChannel, 0, len(drawer))
+	for _, row := range drawer {
 		row.Current = row.Key == channelKey(media.channel)
 		if row.LogoURL != "" {
 			bitmap, tint := a.logos.lookup(row.LogoURL)

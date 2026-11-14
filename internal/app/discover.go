@@ -144,7 +144,8 @@ func (i *discoverIndex) base() discoverBase {
 	return discoverBase{kind: i.baseKind, region: i.baseRegion, message: i.baseMsg}
 }
 
-// drawerChannels maps the indexed catalog to Watch drawer rows.
+// drawerChannels maps the indexed catalog to the fallback Watch drawer rows
+// offered while no channel is active.
 func (i *discoverIndex) drawerChannels(limit int) []ui.WatchChannel {
 	i.mu.Lock()
 	channels := i.channels
@@ -155,23 +156,42 @@ func (i *discoverIndex) drawerChannels(limit int) []ui.WatchChannel {
 	rows := make([]ui.WatchChannel, 0, count)
 	for position := 0; position < count; position++ {
 		channel := channels[position]
-		meta := strings.TrimSpace(channel.Group)
-		if name := names[channel.SourceID]; name != "" {
-			if meta != "" {
-				meta += " · "
-			}
-			meta += name
-		}
-		rows = append(rows, ui.WatchChannel{
-			Key:     discoverKey(channel, position),
-			Name:    channel.Name,
-			Meta:    meta,
-			LogoURL: channel.LogoURL,
-			Live:    catalog.HasLiveStream(channel),
-		})
+		row, _ := drawerRow(channel, position, names[channel.SourceID])
+		rows = append(rows, row)
 	}
 
 	return rows
+}
+
+// drawerForSource maps the indexed channels of one source to drawer rows and
+// their row lookup. It reports whether the index holds any channel of that
+// source, so the caller can fall back to storage when it does not.
+func (i *discoverIndex) drawerForSource(
+	sourceID string,
+	limit int,
+) ([]ui.WatchChannel, map[string]drawerEntry, bool) {
+	i.mu.Lock()
+	channels := i.channels
+	names := i.names
+	i.mu.Unlock()
+
+	sourceName := names[sourceID]
+	rows := make([]ui.WatchChannel, 0, min(len(channels), limit))
+	entries := make(map[string]drawerEntry)
+	for position, channel := range channels {
+		if channel.SourceID != sourceID {
+			continue
+		}
+
+		row, entry := drawerRow(channel, position, sourceName)
+		rows = append(rows, row)
+		entries[row.Key] = entry
+		if len(rows) >= limit {
+			break
+		}
+	}
+
+	return rows, entries, len(rows) > 0
 }
 
 // sourceName returns a source's display name, or an empty string.
@@ -202,12 +222,6 @@ func (i *discoverIndex) view(filters ui.DiscoverFilters) ([]ui.DiscoverChannel, 
 	i.mu.Unlock()
 
 	match := catalogFilter(filters)
-	if strings.TrimSpace(filters.Query) != "" {
-		rows, total := searchChannels(channels, names, match, discoverResultLimit)
-
-		return rows, total, total > len(rows)
-	}
-
 	limit = min(max(limit, discoverBatch), discoverResultLimit)
 	rows, total := browseChannels(channels, names, match, limit)
 
@@ -259,30 +273,6 @@ func (i *discoverIndex) categoryCounts(filters ui.DiscoverFilters) []ui.Discover
 	}
 
 	return categories
-}
-
-// searchChannels narrows the catalog for the virtualized search list, capped
-// at limit rows while total counts every match.
-func searchChannels(
-	channels []catalog.Channel,
-	names map[string]string,
-	match catalog.Filter,
-	limit int,
-) ([]ui.DiscoverChannel, int) {
-	rows := make([]ui.DiscoverChannel, 0, min(len(channels), limit))
-	total := 0
-	for position, channel := range channels {
-		if !match.Match(channel) {
-			continue
-		}
-		total++
-		if len(rows) == limit {
-			continue
-		}
-		rows = append(rows, discoverRow(channel, position, names))
-	}
-
-	return rows, total
 }
 
 // browseChannels collects the first limit matches in one pass and counts all.
@@ -465,7 +455,7 @@ func (a *App) loadDiscover(ctx context.Context, gen uint64) {
 	if err != nil {
 		a.publishDiscover(gen, ui.DiscoverState{
 			Kind:    ui.DiscoverError,
-			Message: "mumu could not open its local library. Retry, or add your own playlist.",
+			Message: ui.ProductName + " could not open its local library. Retry, or add your own playlist.",
 		})
 
 		return
@@ -475,7 +465,7 @@ func (a *App) loadDiscover(ctx context.Context, gen uint64) {
 	if err != nil {
 		a.publishDiscover(gen, ui.DiscoverState{
 			Kind:    ui.DiscoverError,
-			Message: "mumu could not read its saved settings. Retry, or add your own playlist.",
+			Message: ui.ProductName + " could not read its saved settings. Retry, or add your own playlist.",
 		})
 
 		return
@@ -489,7 +479,7 @@ func (a *App) loadDiscover(ctx context.Context, gen uint64) {
 		a.publishDiscover(gen, ui.DiscoverState{
 			Kind:    ui.DiscoverError,
 			Region:  region,
-			Message: "mumu could not read the catalog settings. Retry, or add your own playlist.",
+			Message: ui.ProductName + " could not read the catalog settings. Retry, or add your own playlist.",
 		})
 
 		return
@@ -656,7 +646,7 @@ func (a *App) loadDiscoverCountries(ctx context.Context, gen uint64) {
 			a.publish(func() {
 				if a.discoverCountries.current(gen) {
 					a.shell.Discover().SetCountriesError(
-						"mumu could not load the country list. Check your connection and retry.",
+						ui.ProductName + " could not load the country list. Check your connection and retry.",
 					)
 				}
 			})
@@ -744,7 +734,7 @@ func (a *App) setDiscoverRegion(code string) {
 			a.publishDiscover(gen, ui.DiscoverState{
 				Kind:    ui.DiscoverError,
 				Region:  region,
-				Message: "mumu could not open its local library. Retry, or add your own playlist.",
+				Message: ui.ProductName + " could not open its local library. Retry, or add your own playlist.",
 			})
 
 			return
@@ -758,7 +748,7 @@ func (a *App) setDiscoverRegion(code string) {
 			a.publishDiscover(gen, ui.DiscoverState{
 				Kind:    ui.DiscoverError,
 				Region:  region,
-				Message: "mumu could not change the catalog region. Retry, or add your own playlist.",
+				Message: ui.ProductName + " could not change the catalog region. Retry, or add your own playlist.",
 			})
 
 			return
@@ -962,7 +952,7 @@ func (a *App) publishView(
 	rows, total, truncated := a.discoverIndex.view(filters)
 
 	categories := a.discoverIndex.categoryCounts(filters)
-	drawer := a.discoverIndex.drawerChannels(discoverResultLimit)
+	browseDrawer := a.discoverIndex.drawerChannels(discoverResultLimit)
 
 	a.publish(func() {
 		if guard != nil && !guard() {
@@ -985,7 +975,7 @@ func (a *App) publishView(
 		discoverPage.SetLogoColors(a.logos.snapshotColors())
 
 		a.mu.Lock()
-		a.media.drawer = drawer
+		a.media.browseDrawer = browseDrawer
 		a.mu.Unlock()
 		a.shell.Watch().SetState(a.watchState())
 	})

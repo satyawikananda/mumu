@@ -21,11 +21,66 @@ func TestShellDefaultsToDiscover(t *testing.T) {
 	if !tt.HasText("Discover") || !tt.HasText("Choose a country to get started") {
 		t.Errorf("texts %q, want Discover and its no-country state", tt.Texts())
 	}
+	if !tt.HasText(ProductName) {
+		t.Errorf("texts %q, want the product wordmark", tt.Texts())
+	}
 	if tt.HasText("HOME") || tt.HasText("LIBRARY") {
 		t.Errorf("texts %q, still contain sidebar destinations", tt.Texts())
 	}
-	if !tt.HasText("Control Center") {
-		t.Errorf("texts %q, want the visible Control Center action", tt.Texts())
+	if err := tt.Click("Control Center"); err != nil {
+		t.Fatalf("Control Center icon is not clickable: %v", err)
+	}
+}
+
+// The header brand returns to Home instead of opening Control Center.
+func TestShellBrandGoesHome(t *testing.T) {
+	shell := NewShell()
+	tt := ui.NewTester(shell.View, 1100, 720)
+
+	shell.ShowLibrary()
+	tt.Frame()
+	if err := tt.Click("Go to Home"); err != nil {
+		t.Fatal(err)
+	}
+	if got := shell.Destination(); got != destHome {
+		t.Fatalf("destination %q, want Home after the brand click", got)
+	}
+}
+
+// The header Back walks the visit history and disappears at its start.
+func TestShellHeaderBack(t *testing.T) {
+	shell := NewShell()
+	tt := ui.NewTester(shell.View, 1100, 720)
+
+	if shell.CanGoBack() {
+		t.Fatal("fresh shell reports a Back destination")
+	}
+
+	shell.ShowLibrary()
+	shell.ShowSettings()
+	tt.Frame()
+	if !shell.CanGoBack() {
+		t.Fatal("two visits did not fill the Back history")
+	}
+
+	if err := tt.Click("Back"); err != nil {
+		t.Fatal(err)
+	}
+	if got := shell.Destination(); got != destLibrary {
+		t.Fatalf("destination %q, want Library after one Back", got)
+	}
+	if !shell.CanGoBack() {
+		t.Fatal("Back history lost the first visit")
+	}
+
+	if err := tt.Click("Back"); err != nil {
+		t.Fatal(err)
+	}
+	if got := shell.Destination(); got != destDiscover {
+		t.Fatalf("destination %q, want Discover after the second Back", got)
+	}
+	if shell.CanGoBack() {
+		t.Fatal("Back remains after walking the whole history")
 	}
 }
 

@@ -254,8 +254,7 @@ func TestChannelRowStates(t *testing.T) {
 	states := []RowState{
 		{},
 		{Hovered: true},
-		{Focused: true},
-		{Selected: true, Focused: true},
+		{Selected: true},
 	}
 
 	for _, state := range states {

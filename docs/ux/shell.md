@@ -10,7 +10,7 @@ The permanent sidebar and 72 pt rail are removed. Every page uses one top bar:
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────┐
-│ tomato mumu  HOME/DISCOVER/...          [Control Center]  [Settings]     │
+│ [←] tomato Mumu TV  HOME/DISCOVER/...       [Control Center]  [Settings] │
 ├──────────────────────────────────────────────────────────────────────────┤
 │ page content                                                             │
 │                                                                          │
@@ -27,8 +27,12 @@ The permanent sidebar and 72 pt rail are removed. Every page uses one top bar:
   would be false. The translucency is a canvas color at 86% opacity.
 - Scroll position comes from the page's own `ui.ScrollState`
   (`TrackScroll`): Home, Discover, Library sections and Settings each keep one.
-- The brand lockup and the labelled **Control Center** action both open the
-  overlay. Control Center is never keyboard-only.
+- The 56 pt bar uses a 44 pt tomato mark and the `Mumu TV` wordmark.
+- A Back action appears left of the brand once the shell has a previous page.
+  It walks a bounded visit history; the slot stays reserved so the brand does
+  not shift.
+- The brand opens **Home**. The icon-only Control Center action on the right
+  opens the overlay; it keeps an accessible label and tooltip.
 - **Home**, **Discover** and **Library** are primary destinations.
 - **Watch** is reached from Resume/active-session cards and the Control Center
   channel action. It is not a permanent sidebar item.
