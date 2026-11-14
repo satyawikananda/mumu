@@ -1,24 +1,16 @@
-# Discover — implementation notes (#36)
+# Discover
 
-Status: implemented on 12 November 2026 for the M5 revamp. This note records
-what Discover shows, which state owns which copy, and what stays unverified.
-
-Design references, all in `mumu-design.pen`:
-
-| Frame | Screen |
-| --- | --- |
-| `m79WoJ` | Discover — no country selected |
-| `NYvSY` | Discover — wide 1470x956 |
-| `xztVf` | Discover — compact 1024x640 |
+Discover is where viewers choose a country, browse the community catalog and
+search channels. It is a native MyGo page; no WebView is involved.
 
 Implementation source of truth:
 
-- `internal/ui/discover.go` — page state, layout, infinite-scroll card grid, search grid,
-  country picker, prompts and keyboard cursor.
-- `internal/app/discover.go` — catalog index, country persistence, paging and
+- `internal/ui/discover.go`: page state, layout, card grid, country picker,
+  prompts and keyboard cursor.
+- `internal/app/discover.go`: catalog index, country persistence, paging and
   generation guards.
-- `internal/sources` — region preference and the no-region contract.
-- `internal/catalog` — `Filter.LiveOnly` over real stream data.
+- `internal/sources`: region preference and the no-region contract.
+- `internal/catalog`: filters over real stream data.
 
 ## First launch
 
@@ -54,10 +46,9 @@ with **Clear filters**.
 - Header: page heading and Add Playlist, which keeps the existing
   `OpenAddPlaylist` path (preview, native file picker, validation).
 - Filter row: the native search field, a Country label, and the country chip
-  (`Choose a country` or the saved country). The glass search pane was
-  reverted: it made the field read as disabled in the window. The source and Live only chips were removed on maintainer request;
-  `catalog.Filter.LiveOnly` stays available in the domain layer but the page no
-  longer exposes it.
+  (`Choose a country` or the saved country). The search field is a normal native
+  field, not a glass pane. The page exposes the country filter and the category
+  rail; source and Live-only chips are not shown.
 - Discover tiles draw LIVE as a brand tag attached to the tile's top-right
   corner. Home rails keep the bottom-left badge, so the shared `ChannelTile`
   only changes where `LiveCorner` is set.
@@ -69,11 +60,8 @@ with **Clear filters**.
 - Results show a title, a truthful subtitle (`348 results · grid view`) and the
   community attribution line above the grid.
 - The grid scrolls; more rows load as it nears the end, so every match stays
-  reachable without pagination.
-
-Deviation from the frames: neither frame shows infinite scroll or a loading
-skeleton. The approved behaviour now loads 40 rows per batch, returns every
-match reachable by scrolling, and caps one publish at 2000 rows for safety.
+  reachable without pagination. A page loads 40 rows per batch and caps one
+  publish at 2000 rows for safety.
 
 ## Browsing and search
 
@@ -85,15 +73,9 @@ match reachable by scrolling, and caps one publish at 2000 rows for safety.
   MyGo has no skeleton widget, so it follows the documented `ui.Box` and
   `Loop` pulse pattern; the same shape is drawn below loaded rows while the
   next batch arrives.
-- Search (`Query != ""`) uses the same card grid and the same 40-row batches.
-  A click opens the channel; keyboard arrows move the grid cursor. The grid is
-  capped at 2000 rows and reports the real total; `Truncated` adds "first N
-  shown".
-- Source, category and Live only filters narrow both paths. The page now offers
-  the country filter and the category rail; the source menu and the Live only
-  chip were removed as no longer relevant. Category counts are recomputed for
-  the current query narrowing, and ignore the selected category so its own
-  count stays honest.
+- Browse and search share the same card grid and 40-row batches. A click opens
+  the channel; keyboard arrows move the grid cursor. The grid is capped at 2000
+  rows and reports the real total; `Truncated` adds "first N shown".
 - Duplicate display names stay separate: identity remains the source-scoped
   provider key, not the name.
 

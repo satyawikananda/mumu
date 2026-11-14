@@ -1,8 +1,8 @@
 # Application shell and Control Center
 
-Native MyGo implementation notes for the M5 revamp. The visual contract is
-[`DESIGN.md`](../../DESIGN.md); tokens, components and frame IDs are in the
-[M5 handoff](revamp/README.md).
+Native MyGo implementation notes. The visual contract is
+[`DESIGN.md`](../../DESIGN.md); tokens and components live in
+`internal/ui`.
 
 ## Navigation
 
@@ -74,15 +74,17 @@ attached and playback running.
 - The base page hint bar is hidden while the overlay is open; Control Center
   renders its own hint strip.
 
-## Home shell (#34)
+## Home summary
 
-Home is deliberately minimal until #35:
+Home is the feed for the viewer's own channels:
 
 - `LAST WATCHED` with the real recent channel and source.
 - Explicit **Resume** and **Other channels**.
 - `NOW PLAYING` with **Open Watch** when a session is active.
-- `Nothing to resume` with **Browse Discover** when there is no recent channel.
-- No hero rails, recent/favorite rails or curated collection cards yet.
+- Recent and Favorites rails with real counts and `See all` actions.
+- Empty Home offers Discover and the playlist import sheet, never autoplay.
+
+See [Home](home.md) for the full layout and data contract.
 
 ## Shortcuts
 
@@ -127,7 +129,7 @@ Settings.
 - Source of truth: `internal/ui/tokens.go`.
 - Dark is the default. Settings offers Dark, Light and System.
 - `themeForContext` follows desktop text scale and contrast, then restores the
-  mumu brand accent and focus ring.
+  Mumu TV brand accent and focus ring.
 - Display: Lexend. Body and controls: Inter Tight. Both OFL families are
   embedded; no runtime font download.
 
@@ -142,4 +144,4 @@ Settings.
 - Still required on macOS: overlay above actual libmpv video, Reduce Motion,
   Light/System, focus ring visibility with keyboard, outside click, and the
   three reference sizes.
-- Screenshots stay out of git. Frame IDs remain in the handoff.
+- Reference screenshots stay out of git.

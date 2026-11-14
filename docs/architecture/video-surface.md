@@ -1,14 +1,9 @@
 # Native video surface
 
-Issue: [#11](https://github.com/satyawikananda/mumu/issues/11). Evidence:
-[native playback](native-playback-feasibility.md) (CONDITIONAL GO) and
-[PiP feasibility](pip-feasibility.md). This document covers the render port in
-`internal/player` and the darwin adapter in `internal/video`; Watch screens stay
-in `internal/ui` and `internal/app`.
-
-The bridge is the M0 spike, promoted with production-shaped lifetime rules. It
-is still **conditional**: macOS OpenGL is deprecated, and no production-quality
-render run is claimed here. A native smoke run belongs to the Watch review.
+The native render port lives in `internal/player`; the darwin adapter lives in
+`internal/video`. Watch and PiP screens live in `internal/ui` and `internal/app`.
+The render bridge uses a retained `NSOpenGLView` under the MyGo surface. macOS
+OpenGL is deprecated, so the adapter stays isolated and replaceable.
 
 ## Ownership
 
@@ -40,7 +35,7 @@ The render callback may only signal. `render.h` forbids client calls or waits
 from the render thread, so drawing and control never share a goroutine.
 
 Two locks guard the drawable: a Go mutex and the native `CGLLockContext`.
-AppKit also touches the drawable, and M0 capture produced a native SIGSEGV
+AppKit also touches the drawable. An earlier capture produced a native SIGSEGV
 with the Go mutex alone. Lock order is always Go mutex, then CGL.
 
 The context is made current before each render, and after every drawable
@@ -90,9 +85,9 @@ Detach()               removeFromSuperview → clearDrawable → drawable size 0
 
 ### Hosted under MyGo's surface
 
-ADR 0009 adds the production presentation for the same retained view: it sits
-**under** MyGo's surface instead of over the content view. `Attach` moves it
-with `addSubview:positioned:relativeTo: NSWindowBelow`, relative to the
+The production presentation places the retained view **under** MyGo's surface
+instead of over the content view. `Attach` moves it with
+`addSubview:positioned:relativeTo: NSWindowBelow`, relative to the
 `MyGoSurfaceView` it finds among the content view's subviews. When that view is
 absent, as in a test window or a future MyGo rename, it falls back to the old
 above-content ordering and logs one debug line instead of failing playback.
@@ -106,8 +101,6 @@ bounds.
 
 Loading and terminal error remain detached: their full-window panels do not
 want a stale frame behind them. Buffering, paused and playing stay attached.
-See [ADR 0009](adr/0009-native-video-overlay.md) and the
-[evidence](evidence/overlay-2026-11-12/README.md) for the recorded behavior.
 
 ## Lifetime
 
@@ -201,7 +194,6 @@ the headless engine is unaffected.
 
 ## Scope
 
-Not in #11: a second surface, PiP presentation state or window lifecycle (#12),
-a software/CPU fallback, Metal interop, and any claim about sustained frame
-delivery. `Fit` is a helper only; mpv keeps its own aspect handling inside the
-returned frame.
+The surface does not create a second player, implement PiP window policy,
+provide a software or Metal fallback, or claim sustained frame delivery. `Fit`
+is a helper only; mpv keeps its own aspect handling inside the returned frame.

@@ -1,9 +1,6 @@
 # Local storage
 
-Issue: [#6](https://github.com/satyawikananda/mumu/issues/6). Decision:
-[ADR 0004](adr/0004-local-sqlite-storage.md).
-
-mumu stores user-owned data on-device in SQLite. There is no account, hosted
+Mumu TV stores user-owned data on-device in SQLite. There is no account, hosted
 backend or cloud sync. The app opens the library during MyGo's `WhenReady`
 callback and shows an actionable error banner if it cannot.
 
@@ -192,16 +189,16 @@ Policies:
   column.
 - Only `User-Agent` and `Referer` playback headers are stored, in
   `channel_streams.headers`, bounded to 4 KiB. `Cookie`, `Authorization` and
-  `Proxy-*` are rejected or ignored. A later issue may add a Keychain-backed
-  credential reference for authenticated sources.
+  `Proxy-*` are rejected or ignored. Authenticated sources are not part of the
+  current release.
 - `refresh_error` must be user-safe and credential-free; callers sanitize it.
 - Logs never include source URLs, tokens or header values.
 
 ## Cache
 
-Payload/catalog caching is intentionally **not implemented** in #6. There is
-no cache table, so there is no unbounded cache. #8/#10 own catalog fetching,
-freshness and offline fallback. If a bounded cache is added later, it gets a
+Payload and catalog caching stays with the source that owns it. There is no
+unbounded cache table. Catalog fetching, freshness and offline fallback are
+described in [Sources](sources.md). If a bounded cache is added later, it gets a
 new migration and remains disposable and separate from user-owned data.
 
 ## Verification

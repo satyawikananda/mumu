@@ -1,10 +1,7 @@
 # DESIGN.md — Mumu TV
 
 > Design contract for **Mumu TV**, a native, macOS-first live TV player.
-> Version: **M5 revamp v1 (12 November 2026)** — reconciled with the Pencil
-> handoff and tracker #30. Component/token source of truth is
-> `internal/ui/tokens.go`; the portable handoff is
-> [`docs/ux/revamp/README.md`](docs/ux/revamp/README.md).
+> Component and token source of truth is `internal/ui/tokens.go`.
 > Applies to: MyGo native views, dialogs, window surfaces and PiP.
 
 ## 1. Product experience
@@ -27,7 +24,7 @@ Mumu TV should feel like turning on a well-designed television, not operating an
 ### Non-goals for v0.1
 
 - Full EPG/program guide
-- Recording and time-shift/DVR timeline (future #15/#16)
+- Recording and time-shift/DVR timeline
 - Accounts, synced watch history or cloud-hosted data
 - Multi-view playback or a second simultaneous decoding session
 - WebView/video embedded in HTML
@@ -49,9 +46,8 @@ Do not copy an existing TV brand or tomato-logo asset. The first implementations
 ### Color tokens
 
 Token names are language-agnostic design values, not CSS instructions.
-Implement them through MyGo's theme/styling APIs. The M5 values and measured
-contrast live in the [revamp handoff](docs/ux/revamp/README.md); the Go source
-is `internal/ui/tokens.go`.
+Implement them through MyGo's theme/styling APIs. The values and measured
+contrast live in `internal/ui/tokens.go`.
 
 The app ships **Dark** (default), **Light** and **System** appearances. Video
 stays on `video` in both.
@@ -166,7 +162,7 @@ Mumu TV
 - **Discover** is the fresh-install destination. It starts with no country
   selected.
 - **Library** keeps favorites, recent history and source management.
-  Curated playlist collections are **v0.2.0** and are not part of M5.
+  Curated playlist collections are **v0.2.0** and are not part of this release.
 - **Control Center** is the primary navigation/action surface, opened by a
   visible labelled mouse action and by the keyboard. It is contextual over the
   current screen and does not restart playback.
@@ -330,11 +326,10 @@ Keep errors specific where possible but avoid exposing credentials in URLs or he
 
 ## 8. Picture-in-Picture — one player, two views
 
-M0 evidence remains **CONDITIONAL GO** on the tested Apple M3/macOS setup. The
-standalone spike moves one retained native OpenGL view between MyGo windows; it
-does not make production PiP complete. See
-[native playback](docs/architecture/native-playback-feasibility.md) and
-[PiP](docs/architecture/pip-feasibility.md).
+PiP is **implemented conditionally** on the tested Apple M3/macOS setup. The
+retained native OpenGL view moves between MyGo windows; it does not make
+production PiP complete. See [playback](docs/architecture/playback.md) and
+[PiP](docs/architecture/pip.md).
 
 PiP is mandatory for v0.1, but its native implementation must keep one logical
 session.
@@ -481,7 +476,7 @@ Do not bind global media keys or steal shortcuts from other applications without
 
 ## 12. Window responsiveness
 
-The revamp uses three reference sizes and a policy that reads both width and
+The layout uses three reference sizes and a policy that reads both width and
 height. Implementation: `layoutFor(width, height)` in `internal/ui/tokens.go`.
 
 | Window | Padding | Hero title | Rail cards | Discover columns | Tile height | Settings rail |
@@ -530,20 +525,11 @@ Implementation notes for the shell, theme modes and responsive states live in [`
 - [MyGo Native UI](https://mygo.egoist.dev/docs/ui)
 - [MyGo styling / rendering](https://mygo.egoist.dev/docs/ui/rendering)
 - [MyGo architecture](https://mygo.egoist.dev/docs/architecture)
-- [M0 playback feasibility](https://github.com/satyawikananda/mumu/issues/1)
-- [M0 PiP feasibility](https://github.com/satyawikananda/mumu/issues/2)
-- [M5 tracker](https://github.com/satyawikananda/mumu/issues/30)
-- [M5 design tokens and shared components](https://github.com/satyawikananda/mumu/issues/33)
-- [M5 Control Center](https://github.com/satyawikananda/mumu/issues/34)
-- [M5 Home](https://github.com/satyawikananda/mumu/issues/35)
-- [M5 Discover](https://github.com/satyawikananda/mumu/issues/36)
-- [M5 Watch](https://github.com/satyawikananda/mumu/issues/38)
-- [M5 PiP](https://github.com/satyawikananda/mumu/issues/39)
-- [M5 Settings](https://github.com/satyawikananda/mumu/issues/40)
-- [M5 accessibility/release QA](https://github.com/satyawikananda/mumu/issues/41)
-- [Design system + native shell](https://github.com/satyawikananda/mumu/issues/4)
-- [Discover UI](https://github.com/satyawikananda/mumu/issues/10)
-- [Watch UI](https://github.com/satyawikananda/mumu/issues/11)
-- [Production PiP](https://github.com/satyawikananda/mumu/issues/12)
+- [Architecture overview](docs/architecture/README.md)
+- [Playback](docs/architecture/playback.md)
+- [Picture-in-Picture](docs/architecture/pip.md)
+- [Validation](docs/architecture/validation.md)
+- [Shell](docs/ux/shell.md)
+- [Release](docs/release/macos.md)
 
-**The strongest design choice in mumu is what we do *not* show: fewer panels, fewer colors, no surprise audio, and no complexity between the user and their TV.**
+**The strongest design choice in Mumu TV is what we do *not* show: fewer panels, fewer colors, no surprise audio, and no complexity between the user and their TV.**

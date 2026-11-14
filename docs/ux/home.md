@@ -1,9 +1,8 @@
 # Home: resume hero and rails
 
-Covers [#35](https://github.com/satyawikananda/mumu/issues/35). The playback
-rules live in [`docs/architecture/watch.md`](../architecture/watch.md); the
-identity and history rules live in
-[`docs/architecture/library.md`](../architecture/library.md).
+Home is the feed for the viewer's own channels. Playback rules live in
+[`watch.md`](../architecture/watch.md); identity and history rules live in
+[`library.md`](../architecture/library.md).
 
 ## Layout
 
@@ -32,11 +31,10 @@ identity and history rules live in
 - The hero carries only real facts. Country, group, quality and relative time
   are joined when present; an absent value is omitted, never replaced by a
   placeholder.
-- Rails use the shared `ChannelTile` and `Rail` components from #33. Card count
-  follows `layoutFor`: 6 wide, 5 medium, 4 compact.
-- Compact keeps **both** rails and scrolls the page. This is a deliberate
-  deviation from the compact Pencil frame `R7ZZ2`, which shows Favorites only:
-  the maintainer preferred keeping Recent reachable without leaving Home.
+- Rails use the shared `ChannelTile` and `Rail` components. Card count follows
+  `layoutFor`: 6 wide, 5 medium, 4 compact.
+- Compact keeps **both** rails and scrolls the page, so Recent stays reachable
+  without leaving Home.
 - `See all` opens Library on the matching tab.
 - Empty Home offers Discover and the playlist import sheet. There is no welcome
   wizard and no automatic playback.
@@ -97,5 +95,5 @@ sync, real-playback history, disabled/removed resume targets and source
 provenance.
 
 Set `MUMU_CAPTURE_DIR` to write `home-wide.png`, `home-medium.png` and
-`home-compact.png` while `TestHomeReferenceSizes` runs. Captures are evidence
-only and stay out of git.
+`home-compact.png` while `TestHomeReferenceSizes` runs. Captures are local
+artifacts and stay out of git.

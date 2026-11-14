@@ -1,9 +1,12 @@
 # Picture-in-Picture presentation
 
-Issues: [#12](https://github.com/satyawikananda/mumu/issues/12) baseline,
-[#39](https://github.com/satyawikananda/mumu/issues/39) chrome and behavior.
-Evidence and constraints: [PiP feasibility](pip-feasibility.md). Rendering
-bridge: [video surface](video-surface.md). Watch states: [watch](watch.md).
+PiP is a presentation change of the existing playback session. It moves the
+retained video view into a floating native window; it does not create a second
+player, decoder or preview.
+
+Related code: `internal/video`, `internal/app/pip.go`, `internal/ui/pip.go`.
+Rendering bridge: [video surface](video-surface.md). Watch states:
+[watch](watch.md). Playback runtime: [playback](playback.md).
 
 ## One session, one surface
 
@@ -37,6 +40,15 @@ visible until the first frame arrives.
 back to the previous presentation; stopped and reentrant transfers are rejected;
 a duplicate transfer is a no-op. Unit tests cover rollback, duplicates, invalid
 targets, stopped state and 20 rapid toggles.
+
+## Design rationale
+
+A retained native view is used instead of a second player because it preserves
+stream position, audio and decoder state. The floating window is a native MyGo
+`Panel` without a parent window, so hiding or minimizing the main window does not
+hide PiP. If the platform can no longer migrate this drawable, PiP must be
+blocked on that configuration. Do not fall back to a WebView, an external mpv
+window or a silent stream reload.
 
 ## Window behavior
 
@@ -174,9 +186,7 @@ Automated:
 - `go test -race ./...`, `go vet ./...` and `go tool mygo vet .` pass locally;
   golangci-lint runs in CI; linux/amd64 and darwin/amd64 cross-builds stay green.
 
-Native macOS smoke test (manual, partially recorded on 12 November 2026 with
-MyGo 0.9.0; same gate as Watch, see
-[mygo-0.9.0-upgrade.md](evidence/mygo-0.9.0-upgrade.md)):
+Native macOS smoke test with the current build:
 
 1. Play a channel, enter and leave PiP five times quickly, then twenty times.
 2. Confirm one libmpv session, one retained view and one PiP window in the logs.
@@ -190,15 +200,9 @@ MyGo 0.9.0; same gate as Watch, see
    error text must be readable.
 6. Confirm audio continuity and that the main window never shows a second
    preview.
-7. Record OS, libmpv version, commands and observations under
-   `docs/architecture/evidence/`.
+7. Record OS, libmpv version, commands and observations in the release testing
+   notes.
 
-Recorded on 12 November 2026 with MyGo 0.9.0: entering PiP and pressing
-Return/P moved the same session back to the main window, a volume or mute change
-made in PiP did not overwrite the main audio intent after Return, closing PiP
-while playing left the session recoverable in the main window, and a relaunch
-kept favorites, recent history and settings. That run predates the M5 behavior
-change: Close now stops, the window is borderless, mute is a local override and
-geometry is remembered per display. The borderless drag/resize, Spaces,
-foreign-fullscreen, Cmd+Q and dead-stream steps still need a fresh native run,
-so production PiP remains **implemented and partially verified on device**.
+The borderless drag/resize, Spaces, foreign-fullscreen, Cmd+Q and dead-stream
+steps still need a fresh native run. Production PiP remains implemented and
+partially verified on device.

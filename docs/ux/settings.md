@@ -1,8 +1,7 @@
 # Settings, shortcuts and About
 
-Native MyGo implementation notes for #40. The visual contract is
-[`DESIGN.md`](../../DESIGN.md); frame IDs and tokens are in the
-[M5 handoff](revamp/README.md).
+Native MyGo implementation notes. The visual contract is
+[`DESIGN.md`](../../DESIGN.md); tokens and components live in `internal/ui`.
 
 ## Layout
 
@@ -18,7 +17,7 @@ The page owns a screen-local rail, not a permanent shell sidebar.
 │ Shortcuts             │ scrollable panel content                          │
 │ About                 │                                                  │
 │                       │                                                  │
-│ mumu <version>        │                                                  │
+│ Mumu TV <version>     │                                                  │
 ├───────────────────────┴──────────────────────────────────────────────────┤
 │ shared shortcut strip                                                    │
 └──────────────────────────────────────────────────────────────────────────┘
@@ -34,7 +33,7 @@ The page owns a screen-local rail, not a permanent shell sidebar.
 - `Settings.Scrolled()` feeds the shell's scrim state. There is no second scroll
   state in `Shell`.
 - The rail footer shows the actual build version. It does not show a mock
-  milestone such as `0.1.0 · M2`.
+  milestone label.
 - Escape uses the existing Browse back behavior.
 
 ## Appearance
@@ -107,7 +106,7 @@ value.
 `Copy system info` writes a redacted report through
 `ui.Context.Services().WriteClipboard`. It contains:
 
-- mumu version and commit;
+- Mumu TV version and commit;
 - Go/MyGo runtime and platform;
 - display size and text scale;
 - real catalog counts.
@@ -128,12 +127,8 @@ Construction, launch and page rendering never call the checker.
 - States: idle, checking, up to date, available, no release, and explicit
   access/network/rate-limit errors.
 - `Up to date` has no invented "checked 2 minutes ago" timestamp.
-- An available release shows its real GitHub release page. mumu only opens the
-  page; it never downloads, installs or replaces itself.
-
-Repository has no published release at the time of this change, so the live
-result is the explicit no-release state; new-release behavior is covered by
-injected checker tests.
+- An available release shows its real GitHub release page. Mumu TV only opens
+  the page; it never downloads, installs or replaces itself.
 
 ## Accessibility and state
 

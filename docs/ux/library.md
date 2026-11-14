@@ -1,8 +1,7 @@
 # Library: favorites, recent viewing and sources
 
-Covers [#9](https://github.com/satyawikananda/mumu/issues/9) and
-[#13](https://github.com/satyawikananda/mumu/issues/13). The playback and
-identity rules live in [`docs/architecture/library.md`](../architecture/library.md).
+Library keeps the viewer's own channels and playlists. The playback and identity
+rules live in [`docs/architecture/library.md`](../architecture/library.md).
 
 ## Layout
 
@@ -20,7 +19,8 @@ identity rules live in [`docs/architecture/library.md`](../architecture/library.
 ```
 
 - One tab at a time keeps a single virtualized list, so scroll, selection and
-  keyboard order stay predictable.
+  keyboard order stay predictable. A pointer press outside the selected row
+  clears the row's active state.
 - Every row uses the shared `ChannelRow`: a 36 pt logo chip (or monogram), the
   display name, its group and source name, a LIVE badge and the favorite action.
   The source name keeps two channels with the same name apart.

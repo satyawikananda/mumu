@@ -102,4 +102,4 @@ into the macOS app.
 mumu does not bundle channels, video, logos, or playlists. The built-in catalog
 is a community list from iptv-org (CC0) that points at third-party streams;
 those streams remain the property of their owners. See
-[ADR 0006](https://github.com/satyawikananda/mumu/blob/main/docs/architecture/adr/0006-iptv-org-discovery.md).
+[Sources](https://github.com/satyawikananda/mumu/blob/main/docs/architecture/sources.md).
