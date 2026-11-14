@@ -49,7 +49,7 @@ mkdir -p "$stage/build"
 cp -R "$root/packaging/macos" "$stage/build/"
 cp "$root/go.mod" "$root/go.sum" "$stage/"
 cp -R "$root/third_party/go-mpv" "$stage/"
-cp "$root/docs/architecture/adr/0008-bundled-libmpv-runtime.md" "$stage/"
+cp "$root/docs/architecture/playback.md" "$stage/"
 
 tar -czf "$outdir/mumu-libmpv-${version}-arm64-src.tar.gz" -C "$stage" .
 

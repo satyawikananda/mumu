@@ -1,12 +1,6 @@
 # IPTV sources, parsing and network policy
 
-Issue: [#7](https://github.com/satyawikananda/mumu/issues/7). Follow-ups:
-[#8](https://github.com/satyawikananda/mumu/issues/8) built-in catalog,
-[#9](https://github.com/satyawikananda/mumu/issues/9) source management,
-[#11](https://github.com/satyawikananda/mumu/issues/11) slice 11a per-source
-policy.
-
-This document defines how mumu turns M3U sources and direct streams into the
+This document defines how Mumu TV turns M3U sources and direct streams into the
 shared channel model, how it distinguishes a channel list from an HLS media
 manifest, and which network destinations it refuses.
 
@@ -104,7 +98,7 @@ Limits and failure behavior:
 | Limit | Default |
 |---|---|
 | Playlist size | 8 MiB |
-| Remote JSON (for #8) | 512 KiB |
+| Remote JSON | 512 KiB |
 | Channels | 20,000 |
 | Warnings | 100 |
 | Line length | 8,192 bytes |
@@ -155,12 +149,11 @@ in the file dialog. A catalog-provided source keeps it off. Without a stored
 consent, remote playlists that reference private or local stream addresses are
 skipped and counted in the preview warnings.
 
-## Per-source stream policy (slice 11a)
+## Per-source stream policy
 
 The document policy above is global; the stream policy is **per source** and
-stored, because a user playlist may legitimately point at a LAN origin while
-the community catalog never may. See
-[ADR 0007](adr/0007-per-source-stream-policy.md).
+stored, because a user playlist may legitimately point at a LAN origin while the
+community catalog never may.
 
 | Concern | Rule |
 |---|---|
@@ -181,8 +174,7 @@ always removes `file`, `udp`, `rtp`, `multicast`, `rtsp`, `rtmp` and `srt`.
 and a stored policy can never add it.
 
 Only `http` and `https` are enabled. `rtsp`, `rtmp` and `srt` stay rejected
-until a recorded macOS/libmpv smoke test proves them, and the evidence gap is
-tracked in the ADR.
+until a recorded macOS/libmpv smoke test proves them.
 
 ## Playback headers
 
@@ -204,8 +196,7 @@ list escaped with backslash. The option value is never logged.
 
 Whether those headers actually reach a server through libmpv is verified by
 `internal/player/libmpv/headers_integration_test.go`, gated by
-`MUMU_MPV_HEADER_TEST=1` on `darwin/arm64` with a libmpv runtime. It has not
-been run in this change; see the ADR evidence gap.
+`MUMU_MPV_HEADER_TEST=1` on `darwin/arm64` with a libmpv runtime.
 
 ## Storage mapping
 
@@ -225,7 +216,7 @@ untouched. Channels whose provider ID is unchanged keep their local ID, so
 favorites and recent entries survive. A channel that truly disappeared loses
 its favorite through the foreign-key cascade; there is no dead link.
 
-## Community catalog (#8)
+## Community catalog
 
 `internal/catalog/iptvorg` reads the public, per-country playlists:
 
@@ -240,8 +231,8 @@ loads cached rows synchronously, then refreshes asynchronously. Refresh uses
 `ETag`, a single-flight per source and a six-hour minimum interval.
 
 The community list is labelled **not verified**. It is not a rights clearance.
-See [ADR 0006](adr/0006-iptv-org-discovery.md) for the policy decision, the
-blocklist and the setting that hides it.
+It is filtered by the local blocklist and the upstream NSFW/DMCA blocklist, and
+the user can hide it in Settings.
 
 Two blocklists apply before channels are stored:
 
@@ -273,7 +264,7 @@ No full URL, query string or credential is kept in the preview. A channel list
 that skips entries still imports the usable channels; a list with none returns
 `ErrNoChannels`.
 
-## Source management (#9, slice 11a)
+## Source management
 
 `internal/sources.Service` owns the user flows:
 
@@ -357,15 +348,13 @@ case playlist.KindHLSManifest, playlist.KindDirectStream:
 }
 ```
 
-## Not implemented here
+## Out of scope
 
-- full Discover search, country/category/source filters and channel selection (#10);
-- Watch playback, channel drawer and resume (#11/#13);
-- `rtsp`, `rtmp` and `srt` playback: rejected, no recorded evidence yet;
-- a runtime UI for editing a stored policy after import (re-import asks again);
 - probing every stream to claim it is online;
 - DRM, authentication, proxying or re-hosting media;
-- EPG schedules and time-shift.
+- EPG schedules and time-shift;
+- a runtime UI for editing a stored policy after import (re-import asks again);
+- `rtsp`, `rtmp` and `srt` playback: rejected until a recorded native test.
 
 ## Verification
 

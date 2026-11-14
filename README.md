@@ -1,32 +1,24 @@
-# mumu
+# Mumu TV
 
 A lightweight, local-first TV player for macOS. Discover supported public
 channels or bring your own streams, watch them in a native window, and keep
 watching in a floating Picture-in-Picture window.
 
-mumu is written in Go and draws its entire interface with
+Mumu TV is written in Go and draws its entire interface with
 [MyGo](https://mygo.egoist.dev) native UI. It has no WebView, no HTML or
 JavaScript frontend, and no hosted backend.
 
-**Status:** M5 UI revamp implemented. MyGo 0.9.0, the overlay gate, the
-shared design foundation (#31–#33), the native Control Center (#34), Home,
-Discover, Watch, PiP and Settings (#35–#40) are in place: semantic
-Dark/Light/System tokens, bundled Lexend/Inter Tight fonts, shared native
-components, responsive layout policy, a permanent-sidebar-free shell, Home/Watch
-separation, one shortcut registry and persisted Settings preferences. The
-[portable handoff](docs/ux/revamp/README.md) records the design contract.
-Accessibility and release QA remain #41. The native shell, local SQLite stores,
-playback controller, M3U/catalog pipeline and per-source network policy are
-implemented. Discover, Watch and Picture-in-Picture use one shared player and
-native surface. The macOS app bundles a pinned LGPL libmpv runtime. Native
-playback and PiP remain conditional on the M0 findings in
-[`docs/architecture/`](docs/architecture/); full app playback, PiP and the
-60-minute soak still need the manual QA in
-[`docs/release/qa-matrix.md`](docs/release/qa-matrix.md).
+**Status:** native shell, local SQLite library, playback controller, M3U/catalog
+pipeline, per-source network policy, Discover, Watch, PiP and Settings are
+implemented. The macOS app bundles a pinned LGPL libmpv runtime. Playback and PiP
+remain conditional on the tested configuration; see
+[`docs/architecture/validation.md`](docs/architecture/validation.md) for verified
+behavior and known gaps. The documentation index is
+[`docs/README.md`](docs/README.md).
 
 ## Requirements
 
-- macOS 13 or later. M0 was verified on macOS 27.0.1, Apple Silicon.
+- macOS 13 or later. Development testing used macOS 27.0.1, Apple Silicon.
 - Go 1.27.3 or later, as pinned in `go.mod`. MyGo 0.9.0 requires it.
 - A libmpv runtime for playback. Release builds bundle an LGPL one inside the
   app, so nothing has to be installed to watch; running from source needs a
@@ -44,7 +36,7 @@ go tool mygo doctor
 Download the Apple Silicon (arm64) disk image from
 [GitHub Releases](https://github.com/satyawikananda/mumu/releases). The DMG
 already contains the libmpv runtime. v0.1 has no Developer ID and no
-notarization, so macOS asks for approval the first time you open mumu; that is
+notarization, so macOS asks for approval the first time you open Mumu TV; that is
 expected for an unsigned open-source app, not a sign of a damaged download.
 
 1. Download `mumu-<version>-arm64.dmg` and `SHA256SUMS` from the same release.
@@ -55,9 +47,9 @@ expected for an unsigned open-source app, not a sign of a damaged download.
    ```
 
 3. Open the disk image and drag `Mumu` into `Applications`.
-4. Try to open mumu once, then dismiss the warning.
+4. Try to open Mumu TV once, then dismiss the warning.
 5. Open System Settings > Privacy & Security, click **Open Anyway** next to
-   mumu, and confirm.
+   Mumu TV, and confirm.
 
 Right-click > Open no longer bypasses this reliably on macOS 15 and later. If
 you already verified the checksum, you can clear the quarantine flag instead
@@ -109,7 +101,7 @@ MUMU_MPV_LIBRARY=/private/tmp/mumu-runtime/lib MUMU_MPV_TEST=1 \
   go test -run TestIntegration -v ./internal/player/libmpv
 ```
 
-Without a runtime, mumu starts normally and Watch reports the missing runtime
+Without a runtime, Mumu TV starts normally and Watch reports the missing runtime
 when you press Play, with a Retry action after you install it.
 
 ## Build
@@ -137,20 +129,20 @@ internal/player/      playback controller, state machine and Engine port
 internal/player/libmpv/  libmpv adapter, the default darwin/arm64 build
 internal/player/libmpv/library/  libmpv runtime search order
 third_party/go-mpv/   pinned go-mpv, patched for an explicit runtime loader
-internal/video/       native video surface boundary; adapter with #11
-internal/catalog/     channel domain and provider boundary (#7, #8)
+internal/video/       retained native video surface
+internal/catalog/     channel domain and provider boundary
 internal/catalog/iptvorg/  per-country community catalog and blocklist
-internal/netguard/    bounded HTTP client and untrusted-URL policy (#7)
-internal/playlist/    M3U parsing, content detection and source loading (#7)
-internal/sources/     catalog/storage mapping, built-in catalog and source service (#8, #9)
-internal/logos/       bounded logo fetch, decode and cache (#8)
-internal/storage/     local SQLite repositories and migrations (#6)
-docs/architecture/    feasibility reports, evidence and ADRs
-docs/ux/              shell, library and M5 revamp handoff; screenshots stay out of git
-docs/release/         macOS packaging, QA matrix and release checklist
+internal/netguard/    bounded HTTP client and untrusted-URL policy
+internal/playlist/    M3U parsing, content detection and source loading
+internal/sources/     catalog/storage mapping, built-in catalog and source service
+internal/logos/       bounded logo fetch, decode and cache
+internal/storage/     local SQLite repositories and migrations
+docs/architecture/    system design and validation notes
+docs/ux/              shell and page behavior
+docs/release/         packaging, testing and release checklist
 packaging/macos/      LGPL runtime build, closure rewrite and bundle gate
 resources/            app icon, third-party notices and license texts
-experiments/          M0 playback/PiP spikes and the test stream fixture
+tools/hlsfixture/     synthetic HLS fixture for local playback tests
 ```
 
 Only `cmd/mumu` is packaged into the application. The local library lives at
@@ -158,7 +150,7 @@ Only `cmd/mumu` is packaged into the application. The local library lives at
 default `darwin/arm64` build and is opened on the first Play. A release ships
 its runtime in `Contents/Resources/libmpv`; a source build needs a local one and
 reports an actionable error when it is missing. See
-[playback controller](docs/architecture/player-controller.md).
+[playback](docs/architecture/playback.md).
 
 Native-only rules and the engineering workflow are in
 [`AGENTS.md`](AGENTS.md). The visual and interaction contract is in
@@ -170,10 +162,9 @@ Channels from iptv-org are presented as a **community list**, not a cleared or
 verified catalog. The data project is CC0; the streams belong to their owners.
 Discover labels the list, a local blocklist and the upstream iptv-org
 NSFW/DMCA exclusions remove entries, and a setting can hide the community
-catalog entirely. See
-[ADR 0006](docs/architecture/adr/0006-iptv-org-discovery.md).
+catalog entirely. See [Sources](docs/architecture/sources.md).
 
-User-supplied playlists are the user's responsibility. mumu does not bypass
+User-supplied playlists are the user's responsibility. Mumu TV does not bypass
 DRM, paywalls or geographic restrictions, and it does not re-host or proxy
-third-party video. The M0 spikes use only an original synthetic HLS fixture
+third-party video. Local playback tests use an original synthetic HLS fixture
 generated locally.

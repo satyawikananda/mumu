@@ -1,11 +1,9 @@
 # Watch experience and video presentation
 
-Issues: [#11](https://github.com/satyawikananda/mumu/issues/11) baseline,
-[#37](https://github.com/satyawikananda/mumu/issues/37) playback states and
-[#38](https://github.com/satyawikananda/mumu/issues/38) immersive Watch. Depends
-on the [playback controller](player-controller.md),
+Watch is the full-bleed playback page. It depends on the
+[playback controller](player-controller.md), the
 [native video surface](video-surface.md) and the
-[per-source policy](adr/0007-per-source-stream-policy.md).
+[per-source stream policy](sources.md#per-source-stream-policy).
 
 ## Layout
 
@@ -37,11 +35,11 @@ Watch (full window, video underneath MyGo's surface)
   reflows the timeline and controls, never the video or the session. Its grid
   loads the next 20 tiles when the scroll reaches the bottom: no "Show more"
   button. Search filters the same tile grid and pages it the same way; there is
-  no separate row-list mode.
+  no separate row-list mode. Rows follow the active channel's source, so the
+  drawer never shows a channel list from the last Discover country.
 - The quality control opens a popover of Auto plus the channel's real playlist
   labels. Unknown labels are not filled with a guessed resolution.
-- Favorite has both a control in the right cluster and the `F` shortcut. The
-  Pencil frame omits the icon; #38 acceptance requires the action.
+- Favorite has both a control in the right cluster and the `F` shortcut.
 - Settings is reachable from Watch with `Cmd+,`; Esc opens Control Center,
   except during the initial connecting attempt where it cancels.
 
@@ -123,8 +121,8 @@ There is no seek bar. Live streams are not assumed seekable in v0.1.
 - The snapshot reports the variant actually attempted, whether its label is
   known and whether it is a fallback. An unavailable selection falls back to
   Auto and is shown as such.
-- A choice applies to the current channel session only. The persisted Default
-  quality belongs to #40.
+- A choice applies to the current channel session only. There is no persisted
+  default quality in the current release.
 
 ## Recovery
 
@@ -217,7 +215,7 @@ Automated:
   `TestLoadPlaybackSettingsVolumeDefault`,
   `TestOpenPlayerUsesUnmutedEffectiveAudio` and `TestToggleMuteIsNotPersisted`.
 - Recovery, variant fallback, quality selection and pause are covered by the
-  controller fake-clock tests and ADR 0010.
+  controller fake-clock tests.
 - The previous-channel action is covered by
   `TestPreviousTracksOnlyPlayingChannel`, `TestBackToPreviousReplaysChannel`,
   `TestWatchStateOffersPreviousOnlyAfterFailure` and
@@ -227,9 +225,7 @@ Automated:
 - Cross-builds for linux/amd64 and darwin/amd64 stay green without the native
   adapter.
 
-Native macOS smoke test (manual, partially recorded on 12 November 2026 with
-MyGo 0.9.0; see
-[mygo-0.9.0-upgrade.md](evidence/mygo-0.9.0-upgrade.md)):
+Native macOS smoke test:
 
 1. Build with `go build ./cmd/mumu` and run with the pinned libmpv runtime on
    `DYLD_LIBRARY_PATH` (or `MUMU_MPV_LIBRARY`). The adapter is part of the
@@ -250,12 +246,9 @@ MyGo 0.9.0; see
 6. Open the drawer and quality menu over live video: both stay interactive, the
    stream is not reloaded, the live line is not draggable, and unknown metadata
    stays absent.
-7. Record OS, architecture, libmpv version, commands and observations under
-   `docs/architecture/evidence/`.
+7. Record OS, architecture, libmpv version, commands and observations in the
+   release testing notes.
 
-Recorded on 12 November 2026: video and audio start, a rapid channel switch
-shows only the newest selection, favorites and settings survive a restart, and
-the packaged 0.9.0 build opens the existing library. Resize/fullscreen
-alignment, the dead-URL glass panel, the buffering badge and quit cleanup were
-not re-run in that session, so Watch video presentation is **implemented and
-partially verified on device**.
+Watch video presentation is implemented and partially verified on device.
+Resize and fullscreen alignment, dead-stream handling, buffering badges and quit
+cleanup still need a fresh full run.

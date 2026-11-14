@@ -1,12 +1,8 @@
 # Playback controller
 
-Issue: [#5](https://github.com/satyawikananda/mumu/issues/5). Decision:
-[ADR 0005](adr/0005-playback-controller.md). Feasibility evidence:
-[native playback](native-playback-feasibility.md).
-
 `internal/player` owns playback state, intents and teardown. It does not own
-MyGo screens or the native video surface. `internal/video` remains the
-presentation boundary; its native adapter lands with #11.
+MyGo screens or the native video surface. `internal/video` is the presentation
+boundary; the libmpv adapter is documented in [Playback](playback.md).
 
 ## States
 
@@ -83,7 +79,7 @@ err = controller.Close(ctx)
 `SetVolume` and `SetMuted` enqueue intents and return promptly. The intent
 queue is bounded. Multiple `Play` intents in one drain keep only the newest, so
 rapid selection does not load every intermediate channel. Pause, reconnect and
-variant selection are described in [ADR 0010](adr/0010-live-pause-and-recovery.md).
+variant selection follow the rules in [Watch](watch.md).
 
 ## Stale events and generations
 
@@ -133,8 +129,7 @@ Retry works without restarting the app.
 1. `MUMU_MPV_LIBRARY`, a dylib file or `:`-separated directories;
 2. the dynamic loader's own path, which honours `DYLD_LIBRARY_PATH`;
 3. `/opt/homebrew/lib`, then `/usr/local/lib`;
-4. `Contents/Resources` next to the executable, only when it already exists
-   (packaging and redistribution stay #14).
+4. `Contents/Resources` next to the executable, only when it already exists.
 
 `MUMU_MPV_LIBRARY` exists because the `go` command strips `DYLD_LIBRARY_PATH`
 from the binaries it runs, so `go test` cannot rely on the loader path. Errors
@@ -150,7 +145,7 @@ go build ./cmd/mumu
 DYLD_LIBRARY_PATH=/private/tmp/mumu-runtime/lib ./mumu
 ```
 
-Default options follow M0: `config=no`, `load-scripts=no`, `ytdl=no`, no
+Default engine options: `config=no`, `load-scripts=no`, `ytdl=no`, no
 terminal/input bindings, `idle=yes`, `keep-open=no`, `network-timeout=10`,
 `demuxer-max-bytes=32MiB`, `hwdec=auto-safe`, and `vo=null` for headless
 control. `hwdec-current`, `current-vo` and `current-ao` are reported, not
@@ -158,12 +153,12 @@ assumed.
 
 ## Smoke test
 
-The fixture and runtime from `experiments/nativeplayback/README.md` are
-required. Both tests need `MUMU_MPV_LIBRARY` (or an installed runtime) because
-`go test` drops `DYLD_LIBRARY_PATH`; a skip is not a passing result.
+The fixture and the runtime are required. Both tests need `MUMU_MPV_LIBRARY`
+(or an installed runtime) because `go test` drops `DYLD_LIBRARY_PATH`; a skip is
+not a passing result.
 
 ```sh
-/private/tmp/mumu-hlsfixture -seconds 30
+go run ./tools/hlsfixture -seconds 30
 
 MUMU_MPV_LIBRARY=/private/tmp/mumu-runtime/lib \
 MUMU_HLS_TEST_URL=http://127.0.0.1:18765/index.m3u8 \
@@ -181,8 +176,7 @@ MUMU_MPV_LIBRARY=/private/tmp/mumu-runtime/lib MUMU_MPV_TEST=1 \
 The HLS test verifies load, playing, pause, live-edge resume, volume, mute, stop
 and close over a synthetic H.264/AAC HLS stream. It does not render video and
 does not claim universal codec support, a zero network pause or hardware
-decoding. The recorded run is `player-controller-smoke.log` (local run artifact,
-not committed).
+decoding.
 
 ## Limitations
 
@@ -190,7 +184,7 @@ not committed).
   and app layers. The adapter is described in [native video surface](video-surface.md).
 - No seek/reverse API in v0.1. Live streams are not assumed seekable.
 - Pause bounds read-ahead but does not close the live demuxer; a small residual
-  network read remains (ADR 0010).
+  network read remains.
 - Native teardown can outlive `Close` when a context deadline expires.
 - Event ordering is tested against the pinned libmpv runtime, not every
   version.

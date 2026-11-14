@@ -1,12 +1,9 @@
 # macOS packaging and release
 
-Issue: [#14](https://github.com/satyawikananda/mumu/issues/14). Decision:
-[ADR 0008](adr/0008-bundled-libmpv-runtime.md). QA matrix:
-[qa-matrix](../release/qa-matrix.md).
-
 Status: the app bundles its own LGPL libmpv runtime, builds reproducibly on
-Apple Silicon, and is distributed unsigned through GitHub Releases. Signing
-and notarization are out of scope for v0.1.
+Apple Silicon, and is distributed unsigned through GitHub Releases. Signing and
+notarization are out of scope for v0.1. Testing and the release checklist are in
+[testing](testing.md).
 
 ## Requirements
 
@@ -78,10 +75,10 @@ context and only uses libmpv's render API.
 This build has no VideoToolbox interop: `videotoolbox-gl` needs mpv's Cocoa
 backend and its Swift/Metal layer, and that backend makes
 `mpv_terminate_destroy` hang from a libmpv render client. `hwdec=auto-safe`
-therefore settles on software decoding. The M0 spike used a Homebrew runtime
-with hardware decoding; that property is **not** inherited by this bundled
-runtime. QA records the decoder actually reported by
-`hwdec-current` instead of claiming hardware decoding.
+therefore settles on software decoding. An earlier development runtime decoded
+in hardware; that property is **not** inherited by this bundled runtime. QA
+records the decoder actually reported by `hwdec-current` instead of claiming
+hardware decoding.
 
 ## Package and verify
 
@@ -195,5 +192,5 @@ corresponding source, build script and flags ship with every release as
 `mumu-libmpv-<version>-arm64-src.tar.gz`; the same material is in this
 repository.
 
-mumu's MIT license does not cover the runtime. See
+Mumu TV's MIT license does not cover the runtime. See
 [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md).

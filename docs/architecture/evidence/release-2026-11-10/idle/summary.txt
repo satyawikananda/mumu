@@ -1,3 +1,0 @@
-samples=4 duration_s=15
-rss_mib_mean=80.7 rss_mib_max=106.0
-cpu_percent_mean=3.1 cpu_percent_max=12.3

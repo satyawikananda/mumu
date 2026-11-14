@@ -6,7 +6,7 @@ import (
 )
 
 // Playback schemes mumu has enabled. Only HTTP and HTTPS may reach libmpv in
-// this release; see docs/architecture/adr/0007-per-source-stream-policy.md.
+// this release; see docs/architecture/sources.md.
 const (
 	SchemeHTTP  = "http"
 	SchemeHTTPS = "https"

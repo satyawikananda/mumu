@@ -1,7 +1,11 @@
 # Library, favorites, recent viewing and resume
 
-Issue: [#13](https://github.com/satyawikananda/mumu/issues/13). Depends on
-[storage](storage.md), [sources](sources.md) and [Watch](watch.md).
+The Library is the user's own shelf: favorite channels, recently watched
+channels and the playlists or custom streams they added. It is not a second
+catalog. The community list stays in Discover.
+
+Related code: `internal/library`, `internal/storage` and
+`internal/ui/library.go`.
 
 ## Purpose
 
@@ -136,7 +140,7 @@ Automated:
   `go tool mygo vet .`, `gofmt -l ./cmd ./internal` pass locally; golangci-lint
   runs in CI.
 
-Native macOS smoke test (manual, pending with the Watch/PiP run): favorite a
-channel from Discover, check Watch and Library, restart and confirm the resume
-card appears without audio, disable the source and confirm the row explains
-itself, then remove the source and confirm no row or dead link remains.
+Native macOS smoke test: favorite a channel from Discover, check Watch and
+Library, restart and confirm the resume card appears without audio, disable the
+source and confirm the row explains itself, then remove the source and confirm no
+row or dead link remains.

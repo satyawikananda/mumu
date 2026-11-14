@@ -26,7 +26,7 @@ const (
 //
 // It needs a machine with libmpv, which the adapter discovers, and
 // MUMU_MPV_HEADER_TEST=1. The environment recorded in
-// docs/architecture/adr/0007-per-source-stream-policy.md is the only evidence
+// docs/architecture/sources.md is the only evidence
 // this test provides; a skip is not a passing result.
 func TestIntegrationPlaybackHeaders(t *testing.T) {
 	if os.Getenv("MUMU_MPV_HEADER_TEST") == "" {
