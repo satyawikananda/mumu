@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Contributor rules
+    url: https://github.com/satyawikananda/mumu/blob/main/CONTRIBUTING.MD
+    about: Read the setup, contribution workflow, and verification requirements before contributing.
+  - name: Project documentation
+    url: https://github.com/satyawikananda/mumu/blob/main/docs/README.md
+    about: Find architecture, UX, setup, and release documentation.

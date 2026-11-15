@@ -1,0 +1,105 @@
+name: Bug report
+description: Report a reproducible problem with Mumu, including native playback and PiP.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search [existing issues](https://github.com/satyawikananda/mumu/issues?q=is%3Aissue) before opening a report. Review [known validation gaps](https://github.com/satyawikananda/mumu/blob/main/docs/architecture/validation.md) when reporting playback or PiP behavior.
+
+        Remove credentials, tokens, private playlist URLs, authentication headers, and personal data from logs and attachments. Use a synthetic fixture or a stream you are authorized to test. A public playlist listing does not prove permission or availability.
+  - type: checkboxes
+    id: preparation
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues, including closed issues, for this problem.
+          required: true
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: What happened?
+      description: Describe the problem, its impact, and how often it occurs. Include the exact error message if available.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Provide the smallest reproducible sequence. For a source build, include the command used. If intermittent, explain what you tried.
+      placeholder: |
+        1. Start Mumu using ...
+        2. Open ...
+        3. Perform ...
+        4. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected behavior
+      description: Describe what should happen for the same steps.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Mumu version or commit
+      description: Enter the release version or the commit SHA for a source build.
+      placeholder: Release tag or git rev-parse --short HEAD
+    validations:
+      required: true
+  - type: dropdown
+    id: installation
+    attributes:
+      label: Installation method
+      options:
+        - GitHub release DMG
+        - Built from source
+        - Other (describe below)
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: System and runtime details
+      description: Include macOS version and Mac chip or architecture. For source builds, include Go and MyGo versions. For playback, include libmpv version and origin if known. Unknown is acceptable; do not paste environment variables.
+      placeholder: |
+        macOS version:
+        Mac chip / architecture:
+        Go / MyGo versions (source builds):
+        libmpv version / origin (bundled, Homebrew, custom, or unknown):
+        Other installation details:
+    validations:
+      required: true
+  - type: textarea
+    id: playback-context
+    attributes:
+      label: Playback or PiP context (if applicable)
+      description: Describe the source type without sharing private URLs. Include stream type, player state, Watch or PiP presentation, and actions such as pause, return, close, resize, or rapid channel switching.
+      placeholder: |
+        Source: community catalog / imported playlist / direct URL / synthetic fixture
+        Stream type: HLS live / other / unknown
+        Player state and Watch or PiP presentation:
+        Relevant window or display changes:
+        Reproduces with the local synthetic HLS fixture: yes / no / not tested
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs or other evidence (optional)
+      description: Paste short, redacted logs. Include commands and observed output for tests you ran. Mark anything not tested explicitly.
+  - type: upload
+    id: attachments
+    attributes:
+      label: Screenshots or videos (optional)
+      description: Drag and drop screenshots or a short screen recording, or click to select files. Hide credentials, private playlist URLs, and personal data before uploading.
+    validations:
+      required: false
+      accept: ".png,.jpg,.jpeg,.gif,.svg,.webp,.mp4,.mov,.webm"
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution interest (optional)
+      options:
+        - label: I would like to investigate or submit a fix.
+        - label: I can test a proposed fix on the affected Mac.

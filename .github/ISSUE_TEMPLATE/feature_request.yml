@@ -1,0 +1,88 @@
+name: Feature request
+description: Propose a focused improvement or turn a specification into an actionable contribution.
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe one complete feature or specification per issue. Search [existing issues](https://github.com/satyawikananda/mumu/issues?q=is%3Aissue) first and add context there when the proposal already exists.
+
+        Read [AGENTS.md](https://github.com/satyawikananda/mumu/blob/main/AGENTS.md) and the relevant [architecture docs](https://github.com/satyawikananda/mumu/tree/main/docs/architecture). For interface changes, also read [DESIGN.md](https://github.com/satyawikananda/mumu/blob/main/DESIGN.md).
+
+        Mumu uses Go, MyGo native UI, and libmpv. Watch and PiP share one playback session. Preserve local-first storage and no autoplay on launch. Flag any conflict with these constraints for maintainer review before implementation.
+  - type: checkboxes
+    id: preparation
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues, including closed issues, for this proposal.
+          required: true
+        - label: I read the project contribution rules in AGENTS.md.
+          required: true
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal and problem
+      description: Who needs this change? Describe the current limitation and the outcome it should enable.
+      placeholder: Describe a concrete use case and why the current behavior is insufficient.
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description and proposed solution
+      description: Explain the intended behavior, relevant context, and alternatives considered. Implementation details are optional.
+      placeholder: Describe the user flow or developer workflow before and after this change.
+    validations:
+      required: true
+  - type: textarea
+    id: specification
+    attributes:
+      label: Specification and related work
+      description: Link the specification, relevant docs, related issues, or dependencies. For a repository file, include its path and revision. Write None if there is no specification.
+      placeholder: Link or summarize the requirements so contributors can understand the complete scope.
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope and constraints
+      description: List required changes, explicit exclusions, dependencies, and unresolved decisions. Flag any change to project constraints or release scope.
+      placeholder: |
+        In scope:
+        Out of scope:
+        Dependencies or decisions needed:
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance criteria
+      description: List observable outcomes as Markdown checkboxes. Include relevant failure, empty, offline, and cancellation behavior.
+      placeholder: |
+        - [ ] Given ..., when ..., then ...
+        - [ ] When the operation fails, ...
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification plan
+      description: Describe how to prove the criteria. Separate automated checks from manual macOS checks. Compilation alone does not verify native video or PiP.
+      placeholder: |
+        Automated checks:
+        Manual macOS checks, if applicable:
+        Documentation updates:
+        Unknowns or help needed:
+    validations:
+      required: true
+  - type: textarea
+    id: implementation-notes
+    attributes:
+      label: Implementation notes or agent prompt (optional)
+      description: Add affected modules, verified API references, or a bounded implementation prompt. Do not assume unverified MyGo or libmpv APIs exist.
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution interest (optional)
+      options:
+        - label: I would like to implement this after the scope is agreed.
+        - label: I can help test this on macOS with Apple Silicon.

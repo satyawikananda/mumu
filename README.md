@@ -1,170 +1,205 @@
+<div align="center">
+
+<img src="resources/icon.png" alt="Mumu TV tomato mascot" width="96" height="96">
+
 # Mumu TV
 
-A lightweight, local-first TV player for macOS. Discover supported public
-channels or bring your own streams, watch them in a native window, and keep
-watching in a floating Picture-in-Picture window.
+**A little TV for your Mac. (Linux & Windows soon)**
 
-Mumu TV is written in Go and draws its entire interface with
-[MyGo](https://mygo.egoist.dev) native UI. It has no WebView, no HTML or
-JavaScript frontend, and no hosted backend.
+A native, local-first TV player for macOS. Discover channels, bring your own
+playlists, and keep watching in Picture-in-Picture.
 
-**Status:** native shell, local SQLite library, playback controller, M3U/catalog
-pipeline, per-source network policy, Discover, Watch, PiP and Settings are
-implemented. The macOS app bundles a pinned LGPL libmpv runtime. Playback and PiP
-remain conditional on the tested configuration; see
-[`docs/architecture/validation.md`](docs/architecture/validation.md) for verified
-behavior and known gaps. The documentation index is
-[`docs/README.md`](docs/README.md).
+[![CI workflow](https://img.shields.io/badge/CI-workflow-18181B)](https://github.com/satyawikananda/mumu/actions/workflows/ci.yml)
+[![macOS 13+ · Apple Silicon](https://img.shields.io/badge/macOS-13%2B%20%C2%B7%20Apple%20Silicon-18181B)](#getting-started)
+[![MIT license](https://img.shields.io/badge/license-MIT-18181B)](LICENSE)
 
-## Requirements
+[Features](#features) · [Screenshots](#screenshots) · [Getting started](#getting-started) · [Development](#development)
 
-- macOS 13 or later. Development testing used macOS 27.0.1, Apple Silicon.
-- Go 1.27.3 or later, as pinned in `go.mod`. MyGo 0.9.0 requires it.
-- A libmpv runtime for playback. Release builds bundle an LGPL one inside the
-  app, so nothing has to be installed to watch; running from source needs a
-  local runtime (`brew install mpv`, or `MUMU_MPV_LIBRARY=<dir>`). The app and
-  every non-playback screen start without it.
+</div>
 
-Check the toolchain with:
+> [!IMPORTANT]
+> **Not every listed channel will play.** Mumu plays third-party streams; it
+> does not host or control the broadcasts. Streams may be offline, have outdated
+> links, or be restricted in your region. Playback also depends on your network
+> connection and stream compatibility. A channel appearing in Discover does not
+> guarantee availability. If playback fails, try another available stream variant
+> or channel.
+> Or if you have a link m3u8 or a file of m3u8, you can add it in the playlist page
 
-```sh
-go tool mygo doctor
-```
+[![Mumu TV Home showing Resume, recently watched channels, and favorites](docs/screenshots/homepage.webp)](docs/screenshots/homepage.webp)
 
-## Install
+*Your recent channels and favorites, with Resume when you choose to watch.
+Mumu never autoplays on launch.*
 
-Download the Apple Silicon (arm64) disk image from
-[GitHub Releases](https://github.com/satyawikananda/mumu/releases). The DMG
-already contains the libmpv runtime. v0.1 has no Developer ID and no
-notarization, so macOS asks for approval the first time you open Mumu TV; that is
-expected for an unsigned open-source app, not a sign of a damaged download.
+## Features
 
-1. Download `mumu-<version>-arm64.dmg` and `SHA256SUMS` from the same release.
-2. Verify the disk image:
+- **Discover channels.** Choose a country, browse categories, and search the
+  labelled community catalog.
+- **Watch in a native player.** Pause live playback, resume at the live edge,
+  and choose among the channel's available stream variants.
+- **Keep watching in PiP.** Move the same playback session into a floating
+  window and return to Watch without starting a second player.
+- **Bring your own sources.** Import an M3U playlist from a URL or local file,
+  or add a direct stream.
+- **Keep your library local.** Save favorites, recent channels, playlists, and
+  preferences on your Mac. No account or cloud sync required.
+- **Stay in control.** Use keyboard shortcuts, the Control Center overlay,
+  and Dark, Light, or System appearance.
+
+Built with Go, [MyGo native UI](https://mygo.egoist.dev), and libmpv, with no
+WebView or hosted backend.
+
+## Screenshots
+
+Click a screenshot to view it at full size. These captures show the development
+build; channel listings and availability can change.
+
+| Discover | Watch |
+| --- | --- |
+| [![Discover with country selection, categories, and a channel grid](docs/screenshots/discover.webp)](docs/screenshots/discover.webp) | [![Watch with live video, playback controls, and PiP access](docs/screenshots/watch.webp)](docs/screenshots/watch.webp) |
+| Browse channels by country and category. | Watch with native playback controls. |
+
+| Picture-in-Picture | Add Playlist |
+| --- | --- |
+| [![Floating Mumu TV PiP window with pause, audio, close, and return controls](docs/screenshots/pip.webp)](docs/screenshots/pip.webp) | [![Add Playlist dialog with M3U URL and file options](docs/screenshots/add-playlist.webp)](docs/screenshots/add-playlist.webp) |
+| Keep the current stream in a floating window. | Preview and import your own M3U playlist. |
+
+## Getting started
+
+Mumu targets **macOS 13 or later on Apple Silicon**. Intel Macs, Windows, and
+Linux are not supported releases.
+
+Check [GitHub Releases](https://github.com/satyawikananda/mumu/releases) for a
+published Apple Silicon DMG. If no published build is available, use the
+[source setup](#development) below. Tags and draft releases are not public
+downloads.
+
+### Install a published build
+
+1. Download the DMG and `SHA256SUMS` from the same release into one folder.
+2. Open Terminal in that folder and verify the download:
 
    ```sh
    shasum -a 256 -c SHA256SUMS --ignore-missing
    ```
 
-3. Open the disk image and drag `Mumu` into `Applications`.
-4. Try to open Mumu TV once, then dismiss the warning.
-5. Open System Settings > Privacy & Security, click **Open Anyway** next to
-   Mumu TV, and confirm.
+   Confirm the DMG is reported as `OK` before opening it.
+3. Open the DMG and drag **Mumu** into **Applications**.
+4. Launch Mumu. The packaged app includes libmpv; Homebrew is only needed for
+   the source setup below.
 
-Right-click > Open no longer bypasses this reliably on macOS 15 and later. If
-you already verified the checksum, you can clear the quarantine flag instead
-and open the app normally:
+> [!IMPORTANT]
+> The current packaging uses ad-hoc signing, without Developer ID signing or
+> notarization. After verifying the download, try opening the app once. If
+> macOS blocks it, open **System Settings > Privacy & Security > Open Anyway**
+> and confirm. See the [installation details](docs/release/macos.md#unsigned-distribution)
+> for troubleshooting.
+
+### Start watching
+
+1. On first launch, choose a country in **Discover**, or use **Add Playlist**
+   to import your own source. No country is selected automatically.
+2. Select a channel to open **Watch**. Add it to favorites for easy access later.
+3. Press **P** or use the PiP control to keep watching in a floating window.
+   Return moves the same session back to Watch; closing PiP stops playback.
+
+In Watch, **Space** pauses or resumes, **M** toggles mute, and **C** opens the
+channel drawer. Live resume reconnects at the live edge; it is not DVR or
+time-shift playback.
+
+The iptv-org catalog is a **community list**, not a rights-cleared catalog or a
+guarantee that every channel works. Use sources you are authorized to watch.
+Mumu does not bypass DRM, paywalls, or geographic restrictions and does not
+re-host third-party video. See the [source policy](docs/architecture/sources.md).
+
+> [!NOTE]
+> Native playback and PiP have been exercised on a specific Mac configuration.
+> Broader compatibility checks remain open, and the bundled runtime currently
+> decodes in software. See [verified behavior and known gaps](docs/architecture/validation.md).
+
+## Development
+
+Use macOS on Apple Silicon and the Go version pinned in [go.mod](go.mod),
+currently **Go 1.27.3**. MyGo is pinned by the project; no separate global MyGo
+installation is needed.
 
 ```sh
-xattr -dr com.apple.quarantine /Applications/Mumu.app
+git clone https://github.com/satyawikananda/mumu.git
+cd mumu
+brew install mpv
+go tool mygo doctor
+go tool mygo dev
 ```
 
-Do not disable Gatekeeper globally. Releases are arm64 only; Intel Macs are not
-supported in v0.1.
-
-## Develop
-
-```sh
-go tool mygo dev            # build, run and live-reload the native app
-go test ./...               # unit tests, no window needed
-go vet ./...
-go tool mygo vet .          # MyGo native UI lifetime checks
-```
-
-`mygo dev` creates a development bundle named `Mumu Dev` with the
-identifier `dev.satyawikananda.mumu.dev`, separate from an installed app.
+The development app is named **Mumu Dev**, separate from an installed Mumu app.
+MyGo's SQLite native module may download on first use; offline setup requires a
+pre-staged module as described in the [packaging guide](docs/release/macos.md).
 
 ### libmpv for source builds (developer-only)
 
-A release bundles its own LGPL libmpv runtime in `Contents/Resources/libmpv`,
-so an installed app needs nothing from Homebrew. Only a build made from source
-needs a local runtime; the rest of this section does not apply to an installed
-app.
-
-The default build includes the libmpv adapter. Playback opens the runtime on the
-first Play, in this order: `MUMU_MPV_LIBRARY`, the loader's own search path
-(`DYLD_LIBRARY_PATH`), `/opt/homebrew/lib`, `/usr/local/lib`, then
-`Contents/Resources/libmpv` and `Contents/Resources` next to the executable.
+Source playback needs a local libmpv runtime. The Homebrew install above uses
+the usual location. For a runtime elsewhere, provide its directory:
 
 ```sh
-brew install mpv                                        # the usual install
-go build -o /tmp/mumu ./cmd/mumu                        # go run drops DYLD_*
-DYLD_LIBRARY_PATH=/path/to/lib /tmp/mumu                # a runtime elsewhere
-MUMU_MPV_LIBRARY=/path/to/lib go run ./cmd/mumu         # same, survives go run
+MUMU_MPV_LIBRARY=/path/to/libmpv go run ./cmd/mumu
 ```
 
-The `go` command removes `DYLD_LIBRARY_PATH` from the binaries it runs, so use
-`MUMU_MPV_LIBRARY` for `go test`:
+Use `MUMU_MPV_LIBRARY` for `go run` and `go test`: the Go command removes
+`DYLD_LIBRARY_PATH` from the binaries it runs. Without libmpv, Mumu still starts
+and reports the missing runtime when you press Play.
 
-```sh
-MUMU_MPV_LIBRARY=/private/tmp/mumu-runtime/lib MUMU_MPV_TEST=1 \
-  go test -run TestIntegration -v ./internal/player/libmpv
-```
+See the [contribution guide](CONTRIBUTING.MD) for development checks and PR
+workflow, [testing](docs/release/testing.md) for native QA, and
+[macOS packaging](docs/release/macos.md) to build the app and DMG with
+`make package`. Module boundaries are documented in the
+[architecture overview](docs/architecture/README.md).
 
-Without a runtime, Mumu TV starts normally and Watch reports the missing runtime
-when you press Play, with a Retry action after you install it.
+## Further reading
 
-## Build
+Explore the [documentation](docs/README.md) for architecture, UX, testing, and
+release guides.
 
-A release build bundles the LGPL runtime. The first run builds it from pinned
-sources; later runs reuse `build/runtime`.
+## Contributing
 
-```sh
-brew install meson pkg-config cmake ninja   # maintainer tools, once
-make package                          # runtime + app + DMG + verification
-```
+Code, documentation, bug reports, feature proposals, and macOS testing are
+welcome. Read the [contribution guide](CONTRIBUTING.MD) for setup, project
+boundaries, verification requirements, and the issue and pull request workflow.
 
-`go tool mygo build` alone still works, but it only includes the runtime after
-`make runtime` has staged it in `resources/darwin-arm64/libmpv`. The macOS
-application and disk image are written to `build/`. See
-[macOS packaging](docs/release/macos.md) for the gate and the pinned versions.
+## Code of Conduct
 
-## Structure
+Help keep the Mumu community welcoming and respectful. Read the
+[Code of Conduct](CODE_OF_CONDUCT.MD) for expected behavior, enforcement, and
+the private reporting contact.
 
-```text
-cmd/mumu/             application entry point
-internal/app/         composition root: window, cancellation, background jobs, local library
-internal/ui/          native MyGo shell, theme and shared views
-internal/player/      playback controller, state machine and Engine port
-internal/player/libmpv/  libmpv adapter, the default darwin/arm64 build
-internal/player/libmpv/library/  libmpv runtime search order
-third_party/go-mpv/   pinned go-mpv, patched for an explicit runtime loader
-internal/video/       retained native video surface
-internal/catalog/     channel domain and provider boundary
-internal/catalog/iptvorg/  per-country community catalog and blocklist
-internal/netguard/    bounded HTTP client and untrusted-URL policy
-internal/playlist/    M3U parsing, content detection and source loading
-internal/sources/     catalog/storage mapping, built-in catalog and source service
-internal/logos/       bounded logo fetch, decode and cache
-internal/storage/     local SQLite repositories and migrations
-docs/architecture/    system design and validation notes
-docs/ux/              shell and page behavior
-docs/release/         packaging, testing and release checklist
-packaging/macos/      LGPL runtime build, closure rewrite and bundle gate
-resources/            app icon, third-party notices and license texts
-tools/hlsfixture/     synthetic HLS fixture for local playback tests
-```
+## Changelog
 
-Only `cmd/mumu` is packaged into the application. The local library lives at
-`~/Library/Application Support/Mumu/mumu.db`. The libmpv adapter is part of the
-default `darwin/arm64` build and is opened on the first Play. A release ships
-its runtime in `Contents/Resources/libmpv`; a source build needs a local one and
-reports an actionable error when it is missing. See
-[playback](docs/architecture/playback.md).
+See [CHANGELOG.MD](CHANGELOG.MD) for notable changes. The current **Unreleased**
+section describes the development baseline, not a published release.
 
-Native-only rules and the engineering workflow are in
-[`AGENTS.md`](AGENTS.md). The visual and interaction contract is in
-[`DESIGN.md`](DESIGN.md).
+## Credits
 
-## Content rights
+Created by [Satya Wikananda](https://github.com/satyawikananda), with thanks to
+the projects that make Mumu possible:
 
-Channels from iptv-org are presented as a **community list**, not a cleared or
-verified catalog. The data project is CC0; the streams belong to their owners.
-Discover labels the list, a local blocklist and the upstream iptv-org
-NSFW/DMCA exclusions remove entries, and a setting can hide the community
-catalog entirely. See [Sources](docs/architecture/sources.md).
+- [MyGo](https://github.com/egoist/mygo) for native UI and application tooling.
+- [mpv](https://github.com/mpv-player/mpv), [FFmpeg](https://ffmpeg.org), and
+  [go-mpv](https://github.com/gen2brain/go-mpv) for media playback and Go bindings.
+- [SQLite](https://sqlite.org) for local storage.
+- [iptv-org](https://github.com/iptv-org/iptv) for the community channel dataset.
+  Stream rights remain with their respective owners.
+- [Lexend](https://github.com/googlefonts/lexend),
+  [Inter Tight](https://github.com/rsms/inter), and
+  [Lucide](https://github.com/lucide-icons/lucide) for typography and icons.
 
-User-supplied playlists are the user's responsibility. Mumu TV does not bypass
-DRM, paywalls or geographic restrictions, and it does not re-host or proxy
-third-party video. Local playback tests use an original synthetic HLS fixture
-generated locally.
+See [third-party notices](THIRD_PARTY_NOTICES.md) for dependency credits,
+license details, and bundled runtime sources.
+
+## License
+
+Mumu's application code is licensed under the [MIT License](LICENSE).
+Copyright © 2026 Satya Wikananda.
+
+Bundled dependencies retain their own licenses, as listed in
+[third-party notices](THIRD_PARTY_NOTICES.md). The
+[Code of Conduct](CODE_OF_CONDUCT.MD#attribution) carries a separate CC BY-SA 4.0
+license.
