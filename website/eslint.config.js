@@ -18,4 +18,9 @@ export default antfu({
     '**/.env*',
     '**/.dev.vars*',
   ],
+}, {
+  files: ['tests/**/*.test.ts'],
+  rules: {
+    'test/no-import-node-test': 'off',
+  },
 })

@@ -1,0 +1,58 @@
+---
+import type { Copy, Locale } from '../../i18n'
+import { Check, ChevronDown, Globe, Monitor, Moon, Sun } from '@lucide/astro'
+import { languages } from '../../i18n'
+
+interface Props {
+  copy: Copy
+  locale: Locale
+  id: string
+}
+const { copy, locale, id } = Astro.props
+const current = languages.find((language) => language.locale === locale)!
+const themes = [
+  { value: 'light', label: copy.nav.light, icon: Sun },
+  { value: 'dark', label: copy.nav.dark, icon: Moon },
+  { value: 'system', label: copy.nav.system, icon: Monitor },
+]
+---
+
+<div class="header-preferences">
+  <details class="language-picker">
+    <summary aria-label={`${copy.nav.language}: ${current.name}`}>
+      <Globe size={15} stroke-width={1.8} aria-hidden="true" />
+      <span class="language-current">{current.name}</span>
+      <ChevronDown class="language-chevron" size={12} stroke-width={2.2} aria-hidden="true" />
+    </summary>
+    <div class="language-options">
+      {languages.map((language) => (
+        <a
+          href={language.path}
+          lang={language.locale}
+          hreflang={language.locale}
+          aria-current={locale === language.locale ? 'page' : undefined}
+          data-language={language.locale}
+        >
+          <span>{language.name}</span>
+          <Check class="language-check" size={14} stroke-width={2.4} aria-hidden="true" />
+        </a>
+      ))}
+    </div>
+  </details>
+  <div class="theme-picker enhanced" role="radiogroup" aria-label={copy.nav.theme}>
+    {themes.map(({ value, label, icon: Icon }) => (
+      <label class="theme-option" title={label}>
+        <input
+          class="sr-only"
+          type="radio"
+          name={`${id}-theme`}
+          value={value}
+          checked={value === 'system'}
+          data-theme-option
+          aria-label={label}
+        />
+        <Icon size={14} stroke-width={1.8} aria-hidden="true" />
+      </label>
+    ))}
+  </div>
+</div>

@@ -1,0 +1,40 @@
+---
+import type { Copy } from '../../i18n'
+import { Download, Monitor, Terminal } from '@lucide/astro'
+import { isDownloadReady, release } from '../../data/site'
+
+interface Props {
+  copy: Copy
+  final?: boolean
+}
+const { copy, final = false } = Astro.props
+const ready = isDownloadReady(release.macDownloadUrl)
+---
+
+<div class:list={['platform-actions', { 'final-actions': final }]}>
+  {final && !ready ? (
+    <button class="button button-primary" disabled aria-describedby="release-notice">
+      <Download size={19} aria-hidden="true" />
+      {copy.download.pending}
+    </button>
+  ) : (
+    <a class="button button-primary" href={final ? release.macDownloadUrl : '#download'}>
+      <Download size={19} aria-hidden="true" />
+      {copy.hero.download}
+    </a>
+  )}
+  <div class="soon-platforms">
+    <button class="button button-quiet" disabled>
+      <Monitor size={16} aria-hidden="true" />
+      <span>
+        Windows <small>{copy.hero.soon}</small>
+      </span>
+    </button>
+    <button class="button button-quiet" disabled>
+      <Terminal size={16} aria-hidden="true" />
+      <span>
+        Linux <small>{copy.hero.soon}</small>
+      </span>
+    </button>
+  </div>
+</div>

@@ -21,12 +21,19 @@ function setupMotion() {
 
     lenis.on('scroll', ScrollTrigger.update)
     gsap.ticker.add(tick)
-    gsap.ticker.lagSmoothing(0)
+
+    gsap.from('.hero h1 span', {
+      y: 18,
+      opacity: 0.4,
+      duration: 0.75,
+      stagger: 0.1,
+      ease: 'power3.out',
+    })
 
     gsap.utils.toArray<HTMLElement>('[data-reveal]').forEach((element) => {
       gsap.from(element, {
-        opacity: 0,
-        y: 20,
+        opacity: 0.3,
+        y: 18,
         duration: 0.6,
         ease: 'power2.out',
         scrollTrigger: { trigger: element, start: 'top 90%', once: true },
@@ -38,6 +45,57 @@ function setupMotion() {
       lenis.off('scroll', ScrollTrigger.update)
       lenis.destroy()
     }
+  })
+
+  media.add('(min-width: 1001px) and (prefers-reduced-motion: no-preference)', () => {
+    gsap.from('.hero-image-frame', {
+      rotateX: 10,
+      scale: 0.94,
+      ease: 'none',
+      scrollTrigger: {
+        trigger: '.hero-figure',
+        start: 'top 95%',
+        end: 'top 25%',
+        scrub: 0.7,
+      },
+    })
+
+    gsap.from('.discover-section .screenshot-wrap', {
+      y: 32,
+      scale: 0.97,
+      ease: 'none',
+      scrollTrigger: {
+        trigger: '.discover-section',
+        start: 'top 85%',
+        end: 'top 25%',
+        scrub: 0.6,
+      },
+    })
+
+    ScrollTrigger.create({
+      trigger: '#pip-stage',
+      start: 'center 65%',
+      once: true,
+      onEnter: () => document.dispatchEvent(new Event('mumu:show-pip')),
+    })
+
+    gsap.fromTo('.download-mascot', { rotation: -9, y: 12 }, {
+      rotation: 5,
+      y: 0,
+      ease: 'none',
+      scrollTrigger: {
+        trigger: '.download-section',
+        start: 'top bottom',
+        end: 'top 30%',
+        scrub: 0.7,
+      },
+    })
+  })
+
+  const currentMedia = media
+  void document.fonts.ready.then(() => {
+    if (media === currentMedia)
+      ScrollTrigger.refresh()
   })
 }
 

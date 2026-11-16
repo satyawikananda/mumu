@@ -1,0 +1,78 @@
+---
+import type { Copy } from '../../i18n'
+import { Maximize2, X } from '@lucide/astro'
+import { Image } from 'astro:assets'
+import discover from '../../assets/screenshots/discover.webp'
+import favorites from '../../assets/screenshots/favorites.webp'
+import playlist from '../../assets/screenshots/add-playlist.webp'
+
+interface Props {
+  copy: Copy
+}
+const { copy } = Astro.props
+const screens = [
+  { image: discover, alt: copy.alt.discover, id: 'discover' },
+  { image: playlist, alt: copy.alt.playlist, id: 'playlist' },
+  { image: favorites, alt: copy.alt.favorites, id: 'favorites' },
+]
+---
+
+<section class="section container discover-section" id="features" aria-labelledby="features-title">
+  <div class="section-intro" data-reveal>
+    <h2 id="features-title">{copy.features.title}</h2>
+    <p>{copy.features.body}</p>
+  </div>
+  <div class="screen-tabs" role="tablist" aria-label={copy.features.gallery}>
+    {screens.map((screen, index) => (
+      <button
+        class="screen-tab"
+        id={`tab-${screen.id}`}
+        role="tab"
+        aria-selected={index === 0 ? 'true' : 'false'}
+        aria-controls={`panel-${screen.id}`}
+        tabindex={index === 0 ? 0 : -1}
+        data-screen={screen.id}
+      >
+        {copy.features.tabs[index]}
+      </button>
+    ))}
+  </div>
+  <div class="screen-gallery">
+    {screens.map((screen, index) => (
+      <div
+        class="screen-panel"
+        id={`panel-${screen.id}`}
+        role="tabpanel"
+        aria-labelledby={`tab-${screen.id}`}
+        hidden={index !== 0}
+        tabindex="0"
+      >
+        <div class="screenshot-wrap">
+          <Image
+            src={screen.image}
+            alt={screen.alt}
+            widths={[600, 1000, 1600, 2000]}
+            sizes="(max-width: 700px) 92vw, 86vw"
+            class="app-screenshot"
+            loading="lazy"
+          />
+          <button
+            class="screenshot-expand icon-button enhanced"
+            data-expand={screen.id}
+            aria-label={copy.features.screenshot}
+          >
+            <Maximize2 size={20} aria-hidden="true" />
+          </button>
+        </div>
+        <p class="screen-caption">{copy.features.captions[index]}</p>
+      </div>
+    ))}
+  </div>
+  <p class="caption community-note">{copy.features.community}</p>
+  <dialog class="screenshot-dialog" aria-label={copy.features.screenshot} data-lenis-prevent>
+    <button class="dialog-close icon-button" aria-label={copy.features.close}>
+      <X size={24} aria-hidden="true" />
+    </button>
+    <img class="dialog-image" width="2940" height="1840" alt="" />
+  </dialog>
+</section>
