@@ -1,0 +1,31 @@
+---
+import type { Copy, Locale } from '../../i18n'
+import { Image } from 'astro:assets'
+import mascot from '../../assets/mumu.png'
+import { languages } from '../../i18n'
+import HeaderPreferences from './HeaderPreferences.astro'
+
+interface Props {
+  copy: Copy
+  locale: Locale
+}
+const { copy, locale } = Astro.props
+---
+
+<div class="navigation-space" aria-hidden="true">
+  <span class="navigation-sentinel"></span>
+</div>
+<header class="site-header">
+  <div class="header-inner">
+    <a class="brand" href={languages.find((language) => language.locale === locale)?.path} aria-label="Mumu TV">
+      <Image src={mascot} alt="" width={40} height={40} loading="eager" />
+      <span>mumu</span>
+    </a>
+    <nav class="site-navigation" id="site-navigation" aria-label={copy.nav.menu}>
+      <HeaderPreferences copy={copy} locale={locale} id="desktop" />
+      <a href="#download" class="button button-ink button-small">
+        {copy.nav.download}
+      </a>
+    </nav>
+  </div>
+</header>

@@ -1,0 +1,148 @@
+---
+import type { Locale } from '../../i18n'
+import { ArrowDown, ArrowUp, Heart } from '@lucide/astro'
+import { Image } from 'astro:assets'
+import mascot from '../../assets/mumu.png'
+import home from '../../assets/screenshots/homepage.webp'
+import { isDownloadReady, release, repository } from '../../data/site'
+import { dictionaries } from '../../i18n'
+import Layout from '../../layouts/Layout.astro'
+import Header from './Header.astro'
+import PipDemo from './PipDemo.astro'
+import PlatformActions from './PlatformActions.astro'
+import Screens from './Screens.astro'
+
+interface Props {
+  locale: Locale
+}
+const { locale } = Astro.props
+const copy = dictionaries[locale]
+const ready = isDownloadReady(release.macDownloadUrl)
+---
+
+<Layout locale={locale} copy={copy}>
+  <Header copy={copy} locale={locale} />
+  <main id="main">
+    <section class="hero container" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <h1 id="hero-title">
+          <span>{`${copy.hero.first} `}</span>
+          <span>{copy.hero.second}</span>
+        </h1>
+        <p class="hero-description">{copy.hero.body}</p>
+        <PlatformActions copy={copy} />
+        <p class="caption hero-meta">
+          {`${copy.hero.free} `}
+          <span aria-hidden="true"> · </span>
+          {copy.hero.requirements}
+        </p>
+      </div>
+      <figure class="hero-figure">
+        <div class="hero-image-frame">
+          <Image
+            src={home}
+            alt={copy.alt.home}
+            widths={[600, 1000, 1600, 2000]}
+            sizes="(max-width: 700px) 92vw, 86vw"
+            loading="eager"
+            fetchpriority="high"
+            class="app-screenshot"
+          />
+        </div>
+        <figcaption>
+          <span>{copy.hero.caption}</span>
+          <a href="#features">
+            {copy.hero.scroll}
+            <ArrowDown size={16} aria-hidden="true" />
+          </a>
+        </figcaption>
+      </figure>
+    </section>
+    <Screens copy={copy} />
+    <PipDemo copy={copy} />
+    <section class="section container benefits-section" aria-labelledby="benefits-title">
+      <div class="benefits-heading" data-reveal>
+        <h2 id="benefits-title">{copy.benefits.title}</h2>
+        <Image class="companion-mascot" src={mascot} alt="" width={100} height={100} loading="lazy" />
+      </div>
+      <div class="benefits-grid">
+        {copy.benefits.items.map((item, index) => (
+          <article class="benefit" data-reveal>
+            <h3>{item.title}</h3>
+            <p>{item.body}</p>
+            {index === 1 && (
+              <div class="favorite-demo enhanced">
+                <span class="sr-only">{copy.benefits.demo}</span>
+                <button
+                  id="favorite-toggle"
+                  class="favorite-button"
+                  aria-pressed="false"
+                  aria-label={copy.benefits.add}
+                  data-add={copy.benefits.add}
+                  data-remove={copy.benefits.remove}
+                >
+                  <span>Cartoonito Asia</span>
+                  <Heart size={20} aria-hidden="true" />
+                </button>
+                <span
+                  class="caption favorite-status"
+                  role="status"
+                  data-saved={copy.benefits.saved}
+                  data-empty={copy.benefits.empty}
+                >
+                  {copy.benefits.empty}
+                </span>
+                <small>{copy.benefits.note}</small>
+              </div>
+            )}
+          </article>
+        ))}
+      </div>
+    </section>
+    <section class="download-section" id="download" aria-labelledby="download-title">
+      <div class="container download-content" data-reveal>
+        <Image class="download-mascot" src={mascot} alt="" width={88} height={88} loading="lazy" />
+        <h2 id="download-title">{copy.download.title}</h2>
+        <p class="download-description">{copy.download.body}</p>
+        <PlatformActions copy={copy} final />
+        {!ready && (
+          <p class="release-notice caption" id="release-notice">
+            {copy.download.notice}
+          </p>
+        )}
+        <p class="download-requirements caption">
+          {copy.hero.requirements}
+          {ready && release.version && ` · ${release.version}`}
+        </p>
+        <div class="download-links">
+          <a href={`${repository}/blob/main/docs/release/macos.md#unsigned-distribution`}>{copy.download.install}</a>
+          <a href={`${repository}/releases`}>{copy.download.releases}</a>
+        </div>
+        <p class="caption unsigned-note">{copy.download.unsigned}</p>
+        <p class="caption source-note">{copy.download.rights}</p>
+      </div>
+    </section>
+  </main>
+  <footer class="site-footer container">
+    <div class="footer-main">
+      <a class="brand" href="#top" aria-label={copy.footer.top}>
+        <Image src={mascot} alt="" width={32} height={32} loading="lazy" />
+        <span>mumu</span>
+      </a>
+      <p>{copy.footer.tagline}</p>
+      <nav aria-label={copy.nav.source}>
+        <a href={repository}>GitHub</a>
+        <a href={`${repository}/releases`}>{copy.download.releases}</a>
+        <a href={`${repository}/issues`}>{copy.footer.issues}</a>
+        <a href={`${repository}/blob/main/LICENSE`}>{copy.footer.license}</a>
+      </nav>
+    </div>
+    <div class="footer-bottom">
+      <span>{copy.footer.made}</span>
+      <a class="back-top" href="#top">
+        {copy.footer.top}
+        <ArrowUp size={15} aria-hidden="true" />
+      </a>
+    </div>
+  </footer>
+</Layout>

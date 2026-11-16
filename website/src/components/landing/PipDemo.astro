@@ -1,0 +1,96 @@
+---
+import type { Copy } from '../../i18n'
+import { ArrowDownLeft, ArrowDownRight, ArrowUpLeft, ArrowUpRight, PictureInPicture2 } from '@lucide/astro'
+import { Image } from 'astro:assets'
+import watch from '../../assets/screenshots/watch.webp'
+import { demoVideo } from '../../data/site'
+
+interface Props {
+  copy: Copy
+}
+const { copy } = Astro.props
+const corners = [ArrowUpLeft, ArrowUpRight, ArrowDownLeft, ArrowDownRight]
+---
+
+<section class="pip-section" id="picture-in-picture" aria-labelledby="pip-title">
+  <div class="container pip-layout">
+    <div class="pip-copy" data-reveal>
+      <h2 id="pip-title">
+        <span>{copy.pip.first}</span> {copy.pip.second}
+      </h2>
+      <p>{copy.pip.body}</p>
+      <button
+        class="text-action enhanced"
+        id="pip-toggle"
+        aria-pressed="false"
+        aria-controls="pip-stage"
+        data-enter={copy.pip.enter}
+        data-exit={copy.pip.exit}
+      >
+        <PictureInPicture2 size={21} aria-hidden="true" />
+        <span>{copy.pip.enter}</span>
+      </button>
+    </div>
+    <div class="pip-demo">
+      <div class="pip-stage" id="pip-stage" data-corner="3">
+        <div class="desktop-illustration" aria-hidden="true">
+          <span>{copy.pip.desktop}</span>
+          <p>{copy.pip.desktopBody}</p>
+          <div class="paper-lines">
+            <i></i>
+            <i></i>
+            <i></i>
+          </div>
+        </div>
+        <div class="mini-player" tabindex="-1" role="group" aria-label={copy.pip.player} aria-describedby="pip-hint">
+          <Image
+            src={watch}
+            alt={copy.alt.watch}
+            widths={[480, 960, 1440]}
+            sizes="(max-width: 700px) 90vw, 52vw"
+            loading="lazy"
+            draggable="false"
+          />
+        </div>
+      </div>
+      <div class="pip-tools enhanced">
+        <span class="caption" id="pip-hint">
+          {copy.pip.hint}
+        </span>
+        <div class="corner-controls" role="group" aria-label={copy.pip.position}>
+          {corners.map((Icon, index) => (
+            <button
+              class="icon-button corner-button"
+              data-corner-button={index}
+              aria-label={copy.pip.corners[index]}
+              aria-pressed={index === 3 ? 'true' : 'false'}
+            >
+              <Icon size={18} aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+      </div>
+      <p class="caption demo-disclosure">{copy.pip.illustration}</p>
+      {demoVideo.src && (
+        <div class="recording">
+          <h3>{copy.pip.recording}</h3>
+          <video
+            controls
+            playsinline
+            preload="none"
+            poster={watch.src}
+            width="2940"
+            height="1840"
+            aria-label={copy.pip.recording}
+          >
+            <source src={demoVideo.src} type="video/mp4" />
+            <a href={demoVideo.src}>{copy.pip.recording}</a>
+          </video>
+          <p class="video-error" hidden>
+            {copy.pip.videoError}
+          </p>
+        </div>
+      )}
+    </div>
+  </div>
+</section>
