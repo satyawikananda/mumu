@@ -82,6 +82,7 @@ export const id: Copy = {
   },
   footer: {
     tagline: 'TV kecil untuk Mac kamu.',
+    mascots: ['Buat Mumu kiri melompat', 'Buat Mumu atas melompat', 'Buat Mumu kanan melompat'],
     issues: 'Laporkan masalah',
     license: 'Lisensi MIT',
     made: 'Dibuat untuk desktop. Disimpan di perangkatmu.',
@@ -175,6 +176,7 @@ export const zh: Copy = {
   },
   footer: {
     tagline: 'Mac 上的小电视。',
+    mascots: ['让左边的 Mumu 跳起来', '让上面的 Mumu 跳起来', '让右边的 Mumu 跳起来'],
     issues: '报告问题',
     license: 'MIT 许可证',
     made: '为桌面而做。数据留在你的设备上。',
@@ -268,6 +270,7 @@ export const ja: Copy = {
   },
   footer: {
     tagline: 'Mac に、小さなテレビを。',
+    mascots: ['左の Mumu をジャンプさせる', '上の Mumu をジャンプさせる', '右の Mumu をジャンプさせる'],
     issues: '不具合を報告',
     license: 'MIT ライセンス',
     made: 'デスクトップのために。データはあなたのデバイスに。',

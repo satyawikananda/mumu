@@ -1,6 +1,7 @@
 import { gsap } from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import Lenis from 'lenis'
+import { setupFooterMotion } from './footer'
 
 gsap.registerPlugin(ScrollTrigger)
 
@@ -16,6 +17,7 @@ function setupMotion() {
   media = gsap.matchMedia()
 
   media.add('(prefers-reduced-motion: no-preference)', () => {
+    const cleanupFooter = setupFooterMotion()
     const lenis = new Lenis({ autoRaf: false, anchors: true })
     const tick = (time: number) => lenis.raf(time * 1000)
 
@@ -41,6 +43,7 @@ function setupMotion() {
     })
 
     return () => {
+      cleanupFooter?.()
       gsap.ticker.remove(tick)
       lenis.off('scroll', ScrollTrigger.update)
       lenis.destroy()

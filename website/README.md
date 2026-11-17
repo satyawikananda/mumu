@@ -23,15 +23,21 @@ bun run build
 ## Content and components
 
 - `/`: English, `/id/`: Indonesian, `/zh-cn/`: Simplified Chinese, `/ja/`: Japanese. Dictionaries include metadata, visible content, image descriptions, and accessible control labels.
-- `src/components/landing/Landing.astro` composes the hero, screenshot gallery, PiP demonstration, benefits, download section, and footer. Header, platform actions, gallery, and PiP are separate components because the starter had no equivalents.
+- `src/components/landing/Landing.astro` composes the hero, screenshot gallery, PiP demonstration, benefits, download section, and footer. Header, platform actions, gallery, PiP, and footer are separate components because the starter had no equivalents.
 - `src/layouts/Layout.astro` owns metadata, local font preloads, and an inline theme initializer. Set Astro's `site` once the production domain is known to emit canonical and alternate-language links.
 - Landing components use Tailwind CSS 4 utilities for layout, responsive sizing, colors, and interaction states. `src/styles/global.css` contains Tailwind theme tokens, variants, bundled font declarations, and shared base/accessibility rules. It has no component class selectors or `@apply` component wrappers. Lexend and Inter Tight are copied from the app's bundled faces; their OFL licenses ship in `public/licenses`.
 - Product screenshots come from `docs/screenshots`. Astro emits responsive WebP sizes. Screenshots retain their original English app content in every locale.
-- `Mascot.astro` replaces the header, benefits, download, and footer mascot with `assets/lottie/mumu-happy-dance.json`, using `astro-integration-lottie` and the light SVG player from `lottie-web`. The animation URL is emitted by Vite; all four instances share one downloaded JSON file. Square containers reserve space, with 48/36-pixel desktop/mobile header marks and larger responsive benefits/download mascots. Lottie exports stay outside ESLint formatting.
+- `Mascot.astro` renders the header, benefits, and download mascots with `assets/lottie/mumu-happy-dance.json`, using `astro-integration-lottie` and the light SVG player from `lottie-web`. The animation URL is emitted by Vite; these three instances share one downloaded JSON file. Square containers reserve space, with 48/36-pixel desktop/mobile header marks and larger responsive benefits/download mascots. Lottie exports stay outside ESLint formatting.
 
 The page follows the system theme, with persistent light/dark/system overrides when browser storage is available. Language links preserve the current section hash; the URL determines the locale.
 
 The desktop header follows the portfolio reference: full-width and transparent at the top, then a centered 760-pixel capsule after 96 pixels of scrolling. Below 768 pixels, the MyGo Music layout uses a 60-pixel sticky bar with the mascot, icon-only language disclosure, and three theme radios in one row. It gains a blurred background when scrolling; there is no hamburger or mobile drawer. Download remains available in the hero and download section. `HeaderPreferences.astro` supplies the same controls across breakpoints, retaining Mumu's fonts, mascot, and semantic colors. The latest mobile canvas variant is **Mumu Navbar Mobile MyGo**.
+
+## Footer
+
+`Footer.astro` receives the localized `Copy` dictionary and preserves the repository, releases, issues, license, and Back to top links. The Doodle Crew reference informs the oversized lowercase wordmark and character arrangement; Mumu retains Lexend, Inter Tight, its tomato artwork, and the existing light/dark theme tokens. Three tomatoes and six TV/play/star doodles become two tomatoes and three doodles below 761 pixels. The footer uses optimized static images, including without JavaScript, rather than adding Lottie loops.
+
+`src/scripts/footer.ts` runs inside the existing GSAP media context. The entrance plays once per page, followed only by hover feedback and one jump per mascot activation. Native buttons support click, tap, Enter, and Space with localized labels. Repeated activation during a jump is ignored. Reduced motion disables the entrance and removes the decorative interaction buttons from focus order. Page cleanup aborts listeners and reverts the GSAP context; restoring a revealed page does not replay its entrance.
 
 ## Interaction and motion
 
@@ -43,7 +49,7 @@ The language disclosure supports arrows/Home/End, Escape, and outside-click dism
 
 `src/scripts/motion.ts` synchronizes Lenis with GSAP through one ticker. The hero screenshot settles in perspective, the gallery settles into place, and desktop scrolling demonstrates the PiP transition once. Manual PiP controls take priority. Smaller screens retain short reveals without perspective effects. Reduced motion disables these effects and uses native scrolling. Motion cleanup handles media changes, HMR, and browser back/forward restoration.
 
-Each mascot loops automatically when visible, at 1.25× speed (4.8 seconds per cycle). Offscreen mascots and hidden tabs pause playback. Reduced motion shows the first frame and responds to preference changes. The download mascot uses only Lottie motion, without the former GSAP rotation.
+Each Lottie mascot loops automatically when visible, at 1.25× speed (4.8 seconds per cycle). Offscreen mascots and hidden tabs pause playback. Reduced motion shows the first frame and responds to preference changes. The download mascot uses only Lottie motion, without the former GSAP rotation.
 
 `Cloudscape.astro` and `src/scripts/cloudscape.ts` adapt the supplied 21st.dev cloud shader to a decorative WebGL hero background without React. Semantic CSS tokens provide sky-blue clouds in light mode and subdued charcoal-blue clouds in dark mode. The full-width background fades into the page, with a canvas-colored overlay to preserve text contrast. The renderer caps drawing at 30 fps, DPR 1.5, and two million pixels; it pauses offscreen and in hidden tabs. Reduced motion keeps a static frame. A CSS gradient remains available without JavaScript, when WebGL initialization fails, or during context loss. Observers and GPU resources are released on navigation, page hide, and HMR; browser history restoration initializes one renderer again.
 

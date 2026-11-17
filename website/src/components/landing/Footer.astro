@@ -1,0 +1,122 @@
+---
+import type { Copy } from '../../i18n'
+import { ArrowUp, Play, Sparkles, Star, Tv } from '@lucide/astro'
+import { Image } from 'astro:assets'
+import mascot from '../../assets/mumu.png'
+import { repository } from '../../data/site'
+
+interface Props {
+  copy: Copy
+}
+const { copy } = Astro.props
+const links = [
+  { label: 'GitHub', href: repository },
+  { label: copy.download.releases, href: `${repository}/releases` },
+  { label: copy.footer.issues, href: `${repository}/issues` },
+  { label: copy.footer.license, href: `${repository}/blob/main/LICENSE` },
+]
+const crew = [
+  'z-3 left-0 -bottom-[1%] w-1/5 -rotate-12 max-[760px]:w-1/4',
+  'z-3 left-[37%] bottom-[53%] w-[17%] rotate-8 max-[760px]:left-[62%] max-[760px]:bottom-[46%] max-[760px]:w-[24%]',
+  'z-1 right-[4%] bottom-[36%] w-1/5 rotate-12 max-[760px]:hidden',
+]
+const doodles = [
+  { icon: Star, position: 'left-[6%] top-[13%] -rotate-18 max-[760px]:top-[15%]' },
+  { icon: Tv, position: 'left-1/4 top-[2%] rotate-14 max-[760px]:top-[1%] max-[760px]:left-[38%]' },
+  { icon: Play, position: 'right-[23%] top-[8%] -rotate-15 max-[760px]:top-[39%] max-[760px]:right-[5%]' },
+  { icon: Sparkles, position: 'right-0 top-[24%] rotate-8 max-[760px]:hidden' },
+  { icon: Star, position: 'left-[29%] top-[35%] rotate-12 max-[760px]:hidden' },
+  { icon: Tv, position: 'right-[41%] top-[27%] -rotate-12 max-[760px]:hidden' },
+]
+---
+
+<footer class="border-t border-line bg-surface" data-footer>
+  <div class="mx-auto flex min-h-[clamp(640px,85svh,900px)] max-[760px]:min-h-0 w-[min(1240px,calc(100%-96px))] flex-col pt-10 pb-6 max-[1050px]:w-[calc(100%-64px)] max-[760px]:w-[calc(100%-40px)]">
+    <div class="flex items-start justify-between gap-10 max-[760px]:flex-col max-[760px]:gap-6">
+      <a
+        class="inline-flex min-h-11 items-center gap-2 font-heading text-2xl font-semibold tracking-[-0.06em]"
+        href="#top"
+        aria-label={copy.footer.top}
+      >
+        <Image src={mascot} alt="" width={48} height={48} class="size-12" />
+        mumu
+      </a>
+      <nav
+        class="grid grid-cols-2 gap-x-12 gap-y-1 text-sm max-[760px]:w-full max-[760px]:gap-x-6 [&_a]:flex [&_a]:min-h-11 [&_a]:items-center [&_a]:underline-offset-[5px] [&_a:hover]:underline"
+        aria-label={copy.nav.source}
+      >
+        {links.map((link) => (
+          <a href={link.href}>{link.label}</a>
+        ))}
+      </nav>
+    </div>
+
+    <div
+      class="relative isolate mt-8 aspect-[2.55] [container-type:inline-size] max-[760px]:mt-11 max-[760px]:aspect-[2.1]"
+      data-footer-scene
+    >
+      <div
+        class="absolute inset-x-0 bottom-0 z-2 flex justify-center pr-[0.085em] font-heading text-[30cqw] leading-[0.92] font-bold tracking-[-0.085em]"
+        aria-hidden="true"
+      >
+        {'mumu'.split('').map((letter) => (
+          <span class="group/letter block" data-footer-letter>
+            <span class="block origin-[50%_85%] transition-transform duration-220 ease-[ease] motion-safe:group-hover/letter:-translate-y-0.75 motion-safe:group-hover/letter:-rotate-4">
+              {letter}
+            </span>
+          </span>
+        ))}
+      </div>
+      {crew.map((position, index) => (
+        <div class:list={['absolute', position]} data-footer-crew>
+          <div
+            class="relative aspect-square transition-[rotate] duration-220 ease-[ease] motion-safe:has-[button:hover]:-rotate-8"
+            data-footer-mascot
+          >
+            <Image
+              src={mascot}
+              alt=""
+              widths={[160, 320, 480]}
+              sizes="(max-width: 760px) 24vw, 20vw"
+              loading="lazy"
+              draggable="false"
+              class="pointer-events-none block size-full select-none"
+            />
+            <button
+              class="absolute inset-[12%] rounded-full"
+              type="button"
+              aria-label={copy.footer.mascots[index]}
+              data-footer-play
+              disabled
+              hidden
+            ></button>
+          </div>
+        </div>
+      ))}
+      {doodles.map(({ icon: Icon, position }) => (
+        <span
+          class:list={[
+            'pointer-events-none absolute text-action [&_svg]:h-auto [&_svg]:w-[clamp(18px,3cqw,36px)]',
+            position,
+          ]}
+          data-footer-doodle
+          aria-hidden="true"
+        >
+          <Icon size={32} stroke-width={1.5} />
+        </span>
+      ))}
+      <div class="absolute inset-x-0 bottom-0 h-0.5 origin-left bg-text" data-footer-ground aria-hidden="true"></div>
+    </div>
+
+    <p class="mt-7 text-center font-heading text-[clamp(1.25rem,2.4vw,2rem)] leading-snug tracking-[-0.035em] max-[760px]:mt-6">
+      {copy.footer.tagline}
+    </p>
+    <div class="mt-auto flex items-center justify-between gap-6 pt-14 text-[0.8125rem] text-secondary max-[760px]:flex-col max-[760px]:items-start max-[760px]:gap-2 max-[760px]:pt-10">
+      <span>{copy.footer.made}</span>
+      <a class="inline-flex min-h-11 items-center gap-3 underline-offset-[5px] hover:underline" href="#top">
+        {copy.footer.top}
+        <ArrowUp size={17} aria-hidden="true" />
+      </a>
+    </div>
+  </div>
+</footer>

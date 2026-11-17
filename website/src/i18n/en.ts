@@ -80,6 +80,7 @@ export const en = {
   },
   footer: {
     tagline: 'A little TV for your Mac.',
+    mascots: ['Make the left Mumu jump', 'Make the top Mumu jump', 'Make the right Mumu jump'],
     issues: 'Report an issue',
     license: 'MIT license',
     made: 'Made for the desktop. Kept on your device.',
