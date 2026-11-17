@@ -17,16 +17,25 @@ const themes = [
 ]
 ---
 
-<div class="header-preferences">
-  <details class="language-picker">
-    <summary aria-label={`${copy.nav.language}: ${current.name}`}>
+<div class="flex items-center gap-3.5 md:gap-4">
+  <details class="group/language relative" data-language-picker>
+    <summary
+      class="flex h-7.5 list-none items-center gap-1.5 rounded-[9px] bg-text/6 pr-2.25 pl-2.5 text-[13px] leading-none font-medium transition-[background] duration-150 ease-[ease] hover:bg-text/9 dark:bg-text/8 dark:hover:bg-text/12 [&::-webkit-details-marker]:hidden"
+      aria-label={`${copy.nav.language}: ${current.name}`}
+    >
       <Globe size={15} stroke-width={1.8} aria-hidden="true" />
-      <span class="language-current">{current.name}</span>
-      <ChevronDown class="language-chevron" size={12} stroke-width={2.2} aria-hidden="true" />
+      <span class="max-[600px]:hidden">{current.name}</span>
+      <ChevronDown
+        class="transition-transform duration-150 ease-[ease] group-open/language:rotate-180"
+        size={12}
+        stroke-width={2.2}
+        aria-hidden="true"
+      />
     </summary>
-    <div class="language-options">
+    <div class="absolute top-[calc(100%+8px)] right-0 z-1 flex min-w-44 origin-top-right flex-col gap-0.5 rounded-[14px] bg-canvas p-1.25 shadow-[0_0_0_.5px_var(--color-line),0_12px_32px_-8px_rgb(0_0_0/18%),0_2px_6px_rgb(0_0_0/8%)] group-open/language:animate-language-open supports-[backdrop-filter:blur(20px)]:bg-canvas/96 supports-[backdrop-filter:blur(20px)]:backdrop-blur-[20px] supports-[backdrop-filter:blur(20px)]:backdrop-saturate-160 reduce-transparency:bg-canvas! reduce-transparency:backdrop-filter-none!">
       {languages.map((language) => (
         <a
+          class="group/link flex h-9 items-center justify-between gap-4 rounded-[9px] pr-2.5 pl-3 text-[14px] leading-none hover:bg-surface aria-[current=page]:font-semibold"
           href={language.path}
           lang={language.locale}
           hreflang={language.locale}
@@ -34,14 +43,26 @@ const themes = [
           data-language={language.locale}
         >
           <span>{language.name}</span>
-          <Check class="language-check" size={14} stroke-width={2.4} aria-hidden="true" />
+          <Check
+            class="text-action opacity-0 group-aria-[current=page]/link:opacity-100"
+            size={14}
+            stroke-width={2.4}
+            aria-hidden="true"
+          />
         </a>
       ))}
     </div>
   </details>
-  <div class="theme-picker enhanced" role="radiogroup" aria-label={copy.nav.theme}>
+  <div
+    class="inline-flex h-7.5 rounded-[9px] bg-text/6 p-0.5 dark:bg-text/8 no-js:hidden"
+    role="radiogroup"
+    aria-label={copy.nav.theme}
+  >
     {themes.map(({ value, label, icon: Icon }) => (
-      <label class="theme-option" title={label}>
+      <label
+        class="relative flex h-6.5 w-7.5 cursor-pointer items-center justify-center rounded-[7px] px-2 text-secondary transition-[color,background,box-shadow] duration-150 ease-[ease] hover:text-text has-checked:bg-canvas has-checked:text-text has-checked:shadow-[0_.5px_1px_rgb(0_0_0/20%),0_1px_3px_rgb(0_0_0/6%)] has-focus-visible:outline-2 has-focus-visible:outline-focus has-focus-visible:outline-offset-3 dark:has-checked:bg-text/24"
+        title={label}
+      >
         <input
           class="sr-only"
           type="radio"

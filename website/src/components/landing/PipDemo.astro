@@ -12,15 +12,15 @@ const { copy } = Astro.props
 const corners = [ArrowUpLeft, ArrowUpRight, ArrowDownLeft, ArrowDownRight]
 ---
 
-<section class="pip-section" id="picture-in-picture" aria-labelledby="pip-title">
-  <div class="container pip-layout">
-    <div class="pip-copy" data-reveal>
+<section class="bg-surface py-section" id="picture-in-picture" aria-labelledby="pip-title">
+  <div class="mx-auto grid w-[min(1240px,calc(100%-96px))] grid-cols-[0.85fr_1.4fr] items-center gap-[clamp(32px,5vw,72px)] max-[1050px]:w-[calc(100%-64px)] max-[1050px]:grid-cols-[1fr_1.2fr] max-[1050px]:gap-8 max-[760px]:w-[calc(100%-40px)] max-[760px]:grid-cols-1 max-[760px]:gap-9">
+    <div data-reveal>
       <h2 id="pip-title">
-        <span>{copy.pip.first}</span> {copy.pip.second}
+        <span class="block">{copy.pip.first}</span> {copy.pip.second}
       </h2>
-      <p>{copy.pip.body}</p>
+      <p class="mt-6 text-[1.1875rem] text-secondary max-[760px]:text-lg">{copy.pip.body}</p>
       <button
-        class="text-action enhanced"
+        class="mt-5 inline-flex items-center gap-2.5 py-3 text-start text-base font-semibold text-action-text underline-offset-[6px] hover:underline no-js:hidden"
         id="pip-toggle"
         aria-pressed="false"
         aria-controls="pip-stage"
@@ -31,18 +31,31 @@ const corners = [ArrowUpLeft, ArrowUpRight, ArrowDownLeft, ArrowDownRight]
         <span>{copy.pip.enter}</span>
       </button>
     </div>
-    <div class="pip-demo">
-      <div class="pip-stage" id="pip-stage" data-corner="3">
-        <div class="desktop-illustration" aria-hidden="true">
-          <span>{copy.pip.desktop}</span>
-          <p>{copy.pip.desktopBody}</p>
-          <div class="paper-lines">
-            <i></i>
-            <i></i>
-            <i></i>
+    <div class="min-w-0">
+      <div
+        class="group/pip relative isolate aspect-[1.45] w-full overflow-hidden rounded-[20px] border border-line bg-raised"
+        id="pip-stage"
+        data-corner="3"
+      >
+        <div class="absolute inset-x-[12%] inset-y-[8%] rounded-xl bg-canvas p-[9%] text-text" aria-hidden="true">
+          <span class="block max-w-60 font-heading text-[clamp(1rem,2.1vw,1.75rem)] leading-[1.3] font-semibold tracking-[-0.04em] max-[760px]:max-w-45 max-[760px]:text-xl">
+            {copy.pip.desktop}
+          </span>
+          <p class="mt-3 text-sm text-secondary max-[760px]:text-[0.8125rem]">{copy.pip.desktopBody}</p>
+          <div class="mt-6 grid gap-3">
+            <i class="h-1 rounded bg-line"></i>
+            <i class="h-1 w-4/5 rounded bg-line"></i>
+            <i class="h-1 w-[55%] rounded bg-line"></i>
           </div>
         </div>
-        <div class="mini-player" tabindex="-1" role="group" aria-label={copy.pip.player} aria-describedby="pip-hint">
+        <div
+          class="absolute top-0 left-0 z-2 w-full translate-0 overflow-hidden rounded-xl bg-[#09090b] shadow-screen transition-[width,transform] duration-650 ease-[cubic-bezier(.22,1,.36,1)] group-data-floating/pip:w-[48%] group-data-floating/pip:touch-none group-data-floating/pip:cursor-grab group-data-floating/pip:active:cursor-grabbing data-dragging:transition-none"
+          data-mini-player
+          tabindex="-1"
+          role="group"
+          aria-label={copy.pip.player}
+          aria-describedby="pip-hint"
+        >
           <Image
             src={watch}
             alt={copy.alt.watch}
@@ -50,17 +63,18 @@ const corners = [ArrowUpLeft, ArrowUpRight, ArrowDownLeft, ArrowDownRight]
             sizes="(max-width: 700px) 90vw, 52vw"
             loading="lazy"
             draggable="false"
+            class="pointer-events-none aspect-2940/1840 w-full select-none"
           />
         </div>
       </div>
-      <div class="pip-tools enhanced">
-        <span class="caption" id="pip-hint">
+      <div class="mt-4 flex flex-wrap items-center justify-between gap-3 no-js:hidden">
+        <span class="max-w-67.5 text-sm leading-[1.55] text-secondary max-[760px]:max-w-none" id="pip-hint">
           {copy.pip.hint}
         </span>
-        <div class="corner-controls" role="group" aria-label={copy.pip.position}>
+        <div class="flex gap-1" role="group" aria-label={copy.pip.position}>
           {corners.map((Icon, index) => (
             <button
-              class="icon-button corner-button"
+              class="inline-flex size-11 items-center justify-center rounded-control border border-transparent p-2.5 hover:bg-raised active:scale-[.94] aria-pressed:border-line aria-pressed:bg-canvas"
               data-corner-button={index}
               aria-label={copy.pip.corners[index]}
               aria-pressed={index === 3 ? 'true' : 'false'}
@@ -70,11 +84,12 @@ const corners = [ArrowUpLeft, ArrowUpRight, ArrowDownLeft, ArrowDownRight]
           ))}
         </div>
       </div>
-      <p class="caption demo-disclosure">{copy.pip.illustration}</p>
+      <p class="mt-3 text-[0.8125rem] leading-[1.55] text-secondary">{copy.pip.illustration}</p>
       {demoVideo.src && (
-        <div class="recording">
-          <h3>{copy.pip.recording}</h3>
+        <div class="mt-8">
+          <h3 class="mb-4 text-lg">{copy.pip.recording}</h3>
           <video
+            class="w-full rounded-screen"
             controls
             playsinline
             preload="none"
@@ -86,7 +101,7 @@ const corners = [ArrowUpLeft, ArrowUpRight, ArrowDownLeft, ArrowDownRight]
             <source src={demoVideo.src} type="video/mp4" />
             <a href={demoVideo.src}>{copy.pip.recording}</a>
           </video>
-          <p class="video-error" hidden>
+          <p data-video-error hidden>
             {copy.pip.videoError}
           </p>
         </div>

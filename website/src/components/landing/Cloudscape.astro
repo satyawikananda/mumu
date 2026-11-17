@@ -1,0 +1,20 @@
+---
+interface Props {
+  speed?: number
+}
+
+const { speed = 0.35 } = Astro.props
+---
+
+<div
+  class="pointer-events-none absolute inset-0 overflow-hidden bg-[radial-gradient(ellipse_at_25%_45%,var(--cloud-mid),transparent_65%),linear-gradient(150deg,var(--cloud-bottom),var(--cloud-top))] mask-[linear-gradient(to_bottom,transparent,#000_15%,#000_65%,transparent)] after:absolute after:inset-0 after:bg-canvas/35 after:content-[''] [&[data-ready]>canvas]:visible"
+  data-cloudscape
+  data-speed={speed}
+  aria-hidden="true"
+>
+  <canvas class="invisible block size-full"></canvas>
+</div>
+
+<script>
+  import '../../scripts/cloudscape'
+</script>

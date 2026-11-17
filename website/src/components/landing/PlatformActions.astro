@@ -9,31 +9,39 @@ interface Props {
 }
 const { copy, final = false } = Astro.props
 const ready = isDownloadReady(release.macDownloadUrl)
+const button =
+  'inline-flex min-h-[54px] items-center justify-center gap-2.5 rounded-full border py-[15px] text-center leading-[1.35] transition-[transform,background,box-shadow] duration-180 ease-[ease] not-disabled:hover:-translate-y-[3px] not-disabled:active:translate-y-0 not-disabled:active:scale-[.98]'
+const primary =
+  'border-transparent bg-action px-[26px] text-base font-semibold text-on-action not-disabled:hover:shadow-[0_8px_20px_-10px_var(--color-action)] disabled:border-line disabled:bg-raised disabled:text-secondary max-[760px]:px-6'
+const quiet = 'bg-surface px-5 text-sm font-normal text-secondary max-[760px]:px-3.5 max-[760px]:py-[11px]'
 ---
 
-<div class:list={['platform-actions', { 'final-actions': final }]}>
+<div
+  class:list={['flex flex-wrap items-center justify-center gap-3', { 'mt-9 max-[760px]:flex-col': final }]}
+  data-platform-actions
+>
   {final && !ready ? (
-    <button class="button button-primary" disabled aria-describedby="release-notice">
+    <button class:list={[button, primary]} disabled aria-describedby="release-notice">
       <Download size={19} aria-hidden="true" />
       {copy.download.pending}
     </button>
   ) : (
-    <a class="button button-primary" href={final ? release.macDownloadUrl : '#download'}>
+    <a class:list={[button, primary]} href={final ? release.macDownloadUrl : '#download'}>
       <Download size={19} aria-hidden="true" />
       {copy.hero.download}
     </a>
   )}
-  <div class="soon-platforms">
-    <button class="button button-quiet" disabled>
+  <div class="flex flex-wrap items-center justify-center gap-3 max-[760px]:gap-2">
+    <button class:list={[button, quiet, final ? 'border-line' : 'border-transparent']} disabled>
       <Monitor size={16} aria-hidden="true" />
-      <span>
-        Windows <small>{copy.hero.soon}</small>
+      <span class="flex items-center gap-2 max-[760px]:flex-col max-[760px]:items-start max-[760px]:gap-0">
+        Windows <small class="text-xs">{copy.hero.soon}</small>
       </span>
     </button>
-    <button class="button button-quiet" disabled>
+    <button class:list={[button, quiet, final ? 'border-line' : 'border-transparent']} disabled>
       <Terminal size={16} aria-hidden="true" />
-      <span>
-        Linux <small>{copy.hero.soon}</small>
+      <span class="flex items-center gap-2 max-[760px]:flex-col max-[760px]:items-start max-[760px]:gap-0">
+        Linux <small class="text-xs">{copy.hero.soon}</small>
       </span>
     </button>
   </div>

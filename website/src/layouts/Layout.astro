@@ -14,7 +14,7 @@ const canonical = Astro.site ? new URL(Astro.url.pathname, Astro.site) : undefin
 ---
 
 <!doctype html>
-<html lang={locale}>
+<html lang={locale} class="scroll-pt-[calc(var(--header-height)+24px)] [scrollbar-gutter:stable]">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width" />
@@ -39,8 +39,11 @@ const canonical = Astro.site ? new URL(Astro.url.pathname, Astro.site) : undefin
     <title>{copy.title}</title>
     <script is:inline set:html={themeInit} />
   </head>
-  <body id="top">
-    <a class="skip-link" href="#main">
+  <body id="top" class="bg-canvas font-copy text-[18px] leading-[1.6] text-text antialiased">
+    <a
+      class="fixed top-2 left-4 z-100 -translate-y-[200%] rounded-control bg-text px-6 py-3 text-canvas focus:translate-y-0"
+      href="#main"
+    >
       {copy.nav.skip}
     </a>
     <slot />

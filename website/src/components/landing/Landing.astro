@@ -2,12 +2,13 @@
 import type { Locale } from '../../i18n'
 import { ArrowDown, ArrowUp, Heart } from '@lucide/astro'
 import { Image } from 'astro:assets'
-import mascot from '../../assets/mumu.png'
 import home from '../../assets/screenshots/homepage.webp'
 import { isDownloadReady, release, repository } from '../../data/site'
 import { dictionaries } from '../../i18n'
 import Layout from '../../layouts/Layout.astro'
+import Cloudscape from './Cloudscape.astro'
 import Header from './Header.astro'
+import Mascot from './Mascot.astro'
 import PipDemo from './PipDemo.astro'
 import PlatformActions from './PlatformActions.astro'
 import Screens from './Screens.astro'
@@ -23,123 +24,166 @@ const ready = isDownloadReady(release.macDownloadUrl)
 <Layout locale={locale} copy={copy}>
   <Header copy={copy} locale={locale} />
   <main id="main">
-    <section class="hero container" aria-labelledby="hero-title">
-      <div class="hero-copy">
-        <h1 id="hero-title">
-          <span>{`${copy.hero.first} `}</span>
-          <span>{copy.hero.second}</span>
-        </h1>
-        <p class="hero-description">{copy.hero.body}</p>
-        <PlatformActions copy={copy} />
-        <p class="caption hero-meta">
-          {`${copy.hero.free} `}
-          <span aria-hidden="true"> · </span>
-          {copy.hero.requirements}
-        </p>
-      </div>
-      <figure class="hero-figure">
-        <div class="hero-image-frame">
-          <Image
-            src={home}
-            alt={copy.alt.home}
-            widths={[600, 1000, 1600, 2000]}
-            sizes="(max-width: 700px) 92vw, 86vw"
-            loading="eager"
-            fetchpriority="high"
-            class="app-screenshot"
-          />
+    <section class="relative isolate pt-[clamp(4rem,7vw,6rem)] pb-8 max-[760px]:pt-14" aria-labelledby="hero-title">
+      <Cloudscape />
+      <div class="relative z-1 mx-auto w-[min(1240px,calc(100%-96px))] max-[1050px]:w-[calc(100%-64px)] max-[760px]:w-[calc(100%-40px)]">
+        <div class="flex flex-col items-center gap-6.5 text-center max-[760px]:gap-6">
+          <h1 id="hero-title">
+            <span class="block">{`${copy.hero.first} `}</span>
+            <span class="block">{copy.hero.second}</span>
+          </h1>
+          <p class="max-w-137.5 text-[1.3125rem] leading-[1.6] text-pretty text-secondary max-[760px]:max-w-100 max-[760px]:text-lg">
+            {copy.hero.body}
+          </p>
+          <PlatformActions copy={copy} />
+          <p class="-mt-1 text-sm leading-[1.55] text-secondary max-[760px]:max-w-75 max-[760px]:text-[0.8125rem]">
+            {`${copy.hero.free} `}
+            <span class="max-[760px]:block max-[760px]:h-1 max-[760px]:text-[0px]" aria-hidden="true">
+              {' '}
+              ·{' '}
+            </span>
+            {copy.hero.requirements}
+          </p>
         </div>
-        <figcaption>
-          <span>{copy.hero.caption}</span>
-          <a href="#features">
-            {copy.hero.scroll}
-            <ArrowDown size={16} aria-hidden="true" />
-          </a>
-        </figcaption>
-      </figure>
+        <figure class="mt-[clamp(3rem,5vw,4.5rem)] perspective-[1600px] max-[760px]:mt-10" data-hero-figure>
+          <div
+            class="origin-bottom overflow-hidden rounded-screen border border-line shadow-screen max-[760px]:rounded-[10px]"
+            data-hero-image-frame
+          >
+            <Image
+              src={home}
+              alt={copy.alt.home}
+              widths={[600, 1000, 1600, 2000]}
+              sizes="(max-width: 700px) 92vw, 86vw"
+              loading="eager"
+              fetchpriority="high"
+              class="aspect-2940/1840 w-full bg-[#09090b] object-contain max-[760px]:rounded-[10px]"
+            />
+          </div>
+          <figcaption class="mt-6 flex justify-between gap-5 text-sm text-secondary max-[760px]:mt-4 max-[760px]:text-[0.8125rem]">
+            <span>{copy.hero.caption}</span>
+            <a
+              class="inline-flex items-center gap-2.5 hover:[&_svg]:translate-y-0.75 max-[760px]:hidden"
+              href="#features"
+            >
+              {copy.hero.scroll}
+              <ArrowDown size={16} aria-hidden="true" />
+            </a>
+          </figcaption>
+        </figure>
+      </div>
     </section>
     <Screens copy={copy} />
     <PipDemo copy={copy} />
-    <section class="section container benefits-section" aria-labelledby="benefits-title">
-      <div class="benefits-heading" data-reveal>
-        <h2 id="benefits-title">{copy.benefits.title}</h2>
-        <Image class="companion-mascot" src={mascot} alt="" width={100} height={100} loading="lazy" />
+    <section
+      class="mx-auto w-[min(1240px,calc(100%-96px))] py-section max-[1050px]:w-[calc(100%-64px)] max-[760px]:w-[calc(100%-40px)]"
+      aria-labelledby="benefits-title"
+    >
+      <div class="mb-14 flex items-center justify-between gap-6 max-[760px]:mb-10 max-[760px]:items-start" data-reveal>
+        <h2 class="max-[760px]:max-w-70" id="benefits-title">
+          {copy.benefits.title}
+        </h2>
+        <Mascot class="w-[clamp(96px,12vw,160px)]" />
       </div>
-      <div class="benefits-grid">
+      <div class="grid grid-cols-3 gap-13.5 max-[1050px]:gap-7 max-[760px]:grid-cols-1 max-[760px]:gap-9">
         {copy.benefits.items.map((item, index) => (
-          <article class="benefit" data-reveal>
-            <h3>{item.title}</h3>
-            <p>{item.body}</p>
+          <article class="border-t border-line pt-7 max-[760px]:pt-6" data-reveal>
+            <h3 class="max-[760px]:text-[1.375rem]">{item.title}</h3>
+            <p class="mt-4 text-secondary">{item.body}</p>
             {index === 1 && (
-              <div class="favorite-demo enhanced">
+              <div class="mt-6 no-js:hidden max-[760px]:max-w-87.5">
                 <span class="sr-only">{copy.benefits.demo}</span>
                 <button
                   id="favorite-toggle"
-                  class="favorite-button"
+                  class="group/favorite flex w-full items-center justify-between gap-5 rounded-control border border-line bg-surface px-4 py-3 text-[0.9375rem]"
                   aria-pressed="false"
                   aria-label={copy.benefits.add}
                   data-add={copy.benefits.add}
                   data-remove={copy.benefits.remove}
                 >
                   <span>Cartoonito Asia</span>
-                  <Heart size={20} aria-hidden="true" />
+                  <Heart
+                    class="transition-[transform,fill] duration-220 ease-[ease] group-hover/favorite:scale-[1.18] group-aria-pressed/favorite:fill-action group-aria-pressed/favorite:stroke-action"
+                    size={20}
+                    aria-hidden="true"
+                  />
                 </button>
                 <span
-                  class="caption favorite-status"
+                  class="mt-2.5 block text-sm leading-[1.55] text-secondary"
+                  data-favorite-status
                   role="status"
                   data-saved={copy.benefits.saved}
                   data-empty={copy.benefits.empty}
                 >
                   {copy.benefits.empty}
                 </span>
-                <small>{copy.benefits.note}</small>
+                <small class="mt-1 block text-xs text-secondary">{copy.benefits.note}</small>
               </div>
             )}
           </article>
         ))}
       </div>
     </section>
-    <section class="download-section" id="download" aria-labelledby="download-title">
-      <div class="container download-content" data-reveal>
-        <Image class="download-mascot" src={mascot} alt="" width={88} height={88} loading="lazy" />
-        <h2 id="download-title">{copy.download.title}</h2>
-        <p class="download-description">{copy.download.body}</p>
+    <section class="bg-surface py-section" id="download" aria-labelledby="download-title">
+      <div
+        class="mx-auto flex w-[min(1240px,calc(100%-96px))] flex-col items-center text-center max-[1050px]:w-[calc(100%-64px)] max-[760px]:w-[calc(100%-40px)]"
+        data-reveal
+      >
+        <Mascot class="mb-6 w-[clamp(128px,14vw,176px)]" />
+        <h2 class="max-w-225 text-[clamp(2.3rem,4.5vw,4rem)] max-[760px]:max-w-110" id="download-title">
+          {copy.download.title}
+        </h2>
+        <p class="mt-6 text-xl text-secondary max-[760px]:text-lg">{copy.download.body}</p>
         <PlatformActions copy={copy} final />
         {!ready && (
-          <p class="release-notice caption" id="release-notice">
+          <p class="mt-5 max-w-125 text-sm leading-[1.55] text-secondary" id="release-notice">
             {copy.download.notice}
           </p>
         )}
-        <p class="download-requirements caption">
+        <p class="mt-4 text-sm leading-[1.55] text-secondary">
           {copy.hero.requirements}
           {ready && release.version && ` · ${release.version}`}
         </p>
-        <div class="download-links">
-          <a href={`${repository}/blob/main/docs/release/macos.md#unsigned-distribution`}>{copy.download.install}</a>
-          <a href={`${repository}/releases`}>{copy.download.releases}</a>
+        <div class="mt-4.5 flex flex-wrap justify-center gap-6 text-[0.9375rem] max-[760px]:gap-4">
+          <a
+            class="underline underline-offset-[5px]"
+            href={`${repository}/blob/main/docs/release/macos.md#unsigned-distribution`}
+          >
+            {copy.download.install}
+          </a>
+          <a class="underline underline-offset-[5px]" href={`${repository}/releases`}>
+            {copy.download.releases}
+          </a>
         </div>
-        <p class="caption unsigned-note">{copy.download.unsigned}</p>
-        <p class="caption source-note">{copy.download.rights}</p>
+        <p class="mt-3.5 max-w-135 text-sm leading-[1.55] text-secondary">{copy.download.unsigned}</p>
+        <p class="mt-9 max-w-170 text-[0.8125rem] leading-[1.55] text-secondary">{copy.download.rights}</p>
       </div>
     </section>
   </main>
-  <footer class="site-footer container">
-    <div class="footer-main">
-      <a class="brand" href="#top" aria-label={copy.footer.top}>
-        <Image src={mascot} alt="" width={32} height={32} loading="lazy" />
+  <footer class="mx-auto w-[min(1240px,calc(100%-96px))] pt-9 pb-6 max-[1050px]:w-[calc(100%-64px)] max-[760px]:w-[calc(100%-40px)]">
+    <div class="flex items-center gap-4 max-[1050px]:flex-wrap max-[760px]:gap-3.5">
+      <a
+        class="group/brand inline-flex shrink-0 items-center gap-2 font-heading text-[21px] leading-none font-semibold tracking-[-0.06em]"
+        href="#top"
+        aria-label={copy.footer.top}
+      >
+        <Mascot class="w-12 transition-transform duration-240 ease-[ease] group-hover/brand:-rotate-10 max-[760px]:w-10" />
         <span>mumu</span>
       </a>
-      <p>{copy.footer.tagline}</p>
-      <nav aria-label={copy.nav.source}>
+      <p class="text-[0.9375rem] text-secondary max-[760px]:text-[0.8125rem]">{copy.footer.tagline}</p>
+      <nav
+        class="ml-auto flex flex-wrap gap-6 text-sm max-[1050px]:mt-3 max-[1050px]:ml-0 max-[1050px]:w-full max-[760px]:gap-x-5 max-[760px]:gap-y-2.5 [&_a]:py-2.5 [&_a]:underline-offset-[5px] [&_a:hover]:underline"
+        aria-label={copy.nav.source}
+      >
         <a href={repository}>GitHub</a>
         <a href={`${repository}/releases`}>{copy.download.releases}</a>
         <a href={`${repository}/issues`}>{copy.footer.issues}</a>
         <a href={`${repository}/blob/main/LICENSE`}>{copy.footer.license}</a>
       </nav>
     </div>
-    <div class="footer-bottom">
+    <div class="mt-8 flex items-center justify-between gap-4 border-t border-line pt-5 text-[0.8125rem] text-secondary max-[760px]:flex-col max-[760px]:items-start max-[760px]:gap-2">
       <span>{copy.footer.made}</span>
-      <a class="back-top" href="#top">
+      <a class="inline-flex min-h-11 items-center gap-2" href="#top">
         {copy.footer.top}
         <ArrowUp size={15} aria-hidden="true" />
       </a>

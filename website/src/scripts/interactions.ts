@@ -37,19 +37,19 @@ themeOptions.forEach(input => input.addEventListener('change', () => {
 systemTheme.addEventListener('change', applyTheme, { signal })
 applyTheme()
 
-const header = document.querySelector<HTMLElement>('.site-header')
-const sentinel = document.querySelector<HTMLElement>('.navigation-sentinel')
+const header = document.querySelector<HTMLElement>('[data-site-header]')
+const sentinel = document.querySelector<HTMLElement>('[data-navigation-sentinel]')
 const headerObserver = new IntersectionObserver(([entry]) => {
   if (entry)
-    header?.classList.toggle('is-compact', entry.boundingClientRect.top < 0)
+    header?.toggleAttribute('data-compact', entry.boundingClientRect.top < 0)
 })
 if (sentinel) {
-  header?.classList.toggle('is-compact', sentinel.getBoundingClientRect().top < 0)
+  header?.toggleAttribute('data-compact', sentinel.getBoundingClientRect().top < 0)
   headerObserver.observe(sentinel)
 }
 
 const languagePickers = [
-  ...document.querySelectorAll<HTMLDetailsElement>('.language-picker'),
+  ...document.querySelectorAll<HTMLDetailsElement>('[data-language-picker]'),
 ]
 document.querySelectorAll<HTMLAnchorElement>('[data-language]').forEach((anchor) => {
   anchor.addEventListener('click', () => {
@@ -158,8 +158,8 @@ for (const [index, tab] of tabs.entries()) {
   }, { signal })
 }
 
-const dialog = document.querySelector<HTMLDialogElement>('.screenshot-dialog')
-const dialogImage = dialog?.querySelector<HTMLImageElement>('.dialog-image')
+const dialog = document.querySelector<HTMLDialogElement>('[data-screenshot-dialog]')
+const dialogImage = dialog?.querySelector<HTMLImageElement>('[data-dialog-image]')
 let expandedBy: HTMLButtonElement | undefined
 document.querySelectorAll<HTMLButtonElement>('[data-expand]').forEach((button) => {
   button.addEventListener('click', () => {
@@ -175,7 +175,7 @@ document.querySelectorAll<HTMLButtonElement>('[data-expand]').forEach((button) =
     document.documentElement.style.overflow = 'hidden'
   }, { signal })
 })
-dialog?.querySelector('.dialog-close')?.addEventListener('click', () => dialog.close(), { signal })
+dialog?.querySelector('[data-dialog-close]')?.addEventListener('click', () => dialog.close(), { signal })
 dialog?.addEventListener('click', (event) => {
   if (event.target === dialog)
     dialog.close()
@@ -190,13 +190,13 @@ favorite?.addEventListener('click', () => {
   const saved = favorite.getAttribute('aria-pressed') !== 'true'
   favorite.setAttribute('aria-pressed', String(saved))
   favorite.setAttribute('aria-label', (saved ? favorite.dataset.remove : favorite.dataset.add) || '')
-  const status = document.querySelector<HTMLElement>('.favorite-status')
+  const status = document.querySelector<HTMLElement>('[data-favorite-status]')
   if (status)
     status.textContent = (saved ? status.dataset.saved : status.dataset.empty) || ''
 }, { signal })
 
 const stage = document.querySelector<HTMLElement>('#pip-stage')
-const player = stage?.querySelector<HTMLElement>('.mini-player')
+const player = stage?.querySelector<HTMLElement>('[data-mini-player]')
 const pipToggle = document.querySelector<HTMLButtonElement>('#pip-toggle')
 const cornerButtons = [
   ...document.querySelectorAll<HTMLButtonElement>('[data-corner-button]'),
@@ -226,7 +226,7 @@ function positionPlayer(left?: number, top?: number) {
 }
 function setFloating(value: boolean) {
   floating = value
-  stage?.classList.toggle('is-floating', value)
+  stage?.toggleAttribute('data-floating', value)
   pipToggle?.setAttribute('aria-pressed', String(value))
   const label = pipToggle?.querySelector('span')
   if (label && pipToggle)
@@ -285,7 +285,7 @@ player?.addEventListener('pointerdown', (event) => {
     top: rect.top - bounds.top,
   }
   player.setPointerCapture(event.pointerId)
-  player.classList.add('is-dragging')
+  player.setAttribute('data-dragging', '')
 }, { signal })
 player?.addEventListener('pointermove', (event) => {
   if (drag?.id !== event.pointerId)
@@ -295,7 +295,7 @@ player?.addEventListener('pointermove', (event) => {
 }, { signal })
 function finishDrag() {
   drag = undefined
-  player?.classList.remove('is-dragging')
+  player?.removeAttribute('data-dragging')
 }
 player?.addEventListener('pointerup', finishDrag, { signal })
 player?.addEventListener('pointercancel', finishDrag, { signal })
@@ -306,12 +306,12 @@ if (stage)
 setFloating(false)
 
 document.querySelector<HTMLVideoElement>('video')?.addEventListener('error', () => {
-  const error = document.querySelector<HTMLElement>('.video-error')
+  const error = document.querySelector<HTMLElement>('[data-video-error]')
   if (error)
     error.hidden = false
 }, { signal })
 document.querySelector<HTMLSourceElement>('video source')?.addEventListener('error', () => {
-  const error = document.querySelector<HTMLElement>('.video-error')
+  const error = document.querySelector<HTMLElement>('[data-video-error]')
   if (error)
     error.hidden = false
 }, { signal })

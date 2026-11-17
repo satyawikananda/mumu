@@ -15,6 +15,7 @@ export default antfu({
     '.astro/**',
     '.wrangler/**',
     '.cloudflare/**',
+    'src/assets/lottie/**',
     '**/.env*',
     '**/.dev.vars*',
   ],

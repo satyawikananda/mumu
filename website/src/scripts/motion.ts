@@ -22,7 +22,7 @@ function setupMotion() {
     lenis.on('scroll', ScrollTrigger.update)
     gsap.ticker.add(tick)
 
-    gsap.from('.hero h1 span', {
+    gsap.from('#hero-title span', {
       y: 18,
       opacity: 0.4,
       duration: 0.75,
@@ -48,24 +48,24 @@ function setupMotion() {
   })
 
   media.add('(min-width: 1001px) and (prefers-reduced-motion: no-preference)', () => {
-    gsap.from('.hero-image-frame', {
+    gsap.from('[data-hero-image-frame]', {
       rotateX: 10,
       scale: 0.94,
       ease: 'none',
       scrollTrigger: {
-        trigger: '.hero-figure',
+        trigger: '[data-hero-figure]',
         start: 'top 95%',
         end: 'top 25%',
         scrub: 0.7,
       },
     })
 
-    gsap.from('.discover-section .screenshot-wrap', {
+    gsap.from('#features [data-screenshot-wrap]', {
       y: 32,
       scale: 0.97,
       ease: 'none',
       scrollTrigger: {
-        trigger: '.discover-section',
+        trigger: '#features',
         start: 'top 85%',
         end: 'top 25%',
         scrub: 0.6,
@@ -77,18 +77,6 @@ function setupMotion() {
       start: 'center 65%',
       once: true,
       onEnter: () => document.dispatchEvent(new Event('mumu:show-pip')),
-    })
-
-    gsap.fromTo('.download-mascot', { rotation: -9, y: 12 }, {
-      rotation: 5,
-      y: 0,
-      ease: 'none',
-      scrollTrigger: {
-        trigger: '.download-section',
-        start: 'top bottom',
-        end: 'top 30%',
-        scrub: 0.7,
-      },
     })
   })
 

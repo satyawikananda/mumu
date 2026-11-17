@@ -1,0 +1,74 @@
+---
+import Lottie from 'astro-integration-lottie/Lottie.astro'
+import animation from '../../assets/lottie/mumu-happy-dance.json?url'
+
+interface Props {
+  class?: string
+}
+const { class: className } = Astro.props
+---
+
+<div
+  class:list={[
+    'pointer-events-none aspect-square shrink-0 [&>[data-lottie]]:size-full [&_svg]:block [&_svg]:size-full',
+    className,
+  ]}
+  aria-hidden="true"
+>
+  <Lottie src={animation} player="light" autoplay={false} loop={true} />
+</div>
+
+<script>
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
+  let observer: IntersectionObserver | undefined
+
+  function pauseAnimations() {
+    observer?.disconnect()
+    window.astroLottie?.getAllAnimations().forEach((animation) => animation.player?.pause())
+  }
+
+  function setupAnimations() {
+    pauseAnimations()
+    observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        const animation = window.astroLottie?.getAnimation({ container: entry.target as HTMLElement })
+        animation?.player?.pause()
+        if (entry.isIntersecting && !reducedMotion.matches && !document.hidden) {
+          animation?.player?.play()
+        }
+      }
+    })
+
+    for (const animation of window.astroLottie?.getAllAnimations() ?? []) {
+      animation.player?.setSpeed(1.25)
+      if (reducedMotion.matches) {
+        animation.player?.goToAndStop(0, true)
+      }
+      observer.observe(animation.container)
+    }
+  }
+
+  function restoreAnimations(event: PageTransitionEvent) {
+    if (event.persisted) {
+      setupAnimations()
+    }
+  }
+
+  setupAnimations()
+  document.addEventListener('astro-lottie-loaded', setupAnimations)
+  reducedMotion.addEventListener('change', setupAnimations)
+  document.addEventListener('visibilitychange', setupAnimations)
+  window.addEventListener('pagehide', pauseAnimations)
+  window.addEventListener('pageshow', restoreAnimations)
+
+  if (import.meta.hot) {
+    import.meta.hot.dispose(() => {
+      pauseAnimations()
+      document.removeEventListener('astro-lottie-loaded', setupAnimations)
+      reducedMotion.removeEventListener('change', setupAnimations)
+      document.removeEventListener('visibilitychange', setupAnimations)
+      window.removeEventListener('pagehide', pauseAnimations)
+      window.removeEventListener('pageshow', restoreAnimations)
+    })
+  }
+</script>
