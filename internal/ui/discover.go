@@ -924,14 +924,6 @@ func (d *Discover) selectKey(key string) {
 	}
 }
 
-// toggleFavorite toggles one row's favorite state.
-func (d *Discover) toggleFavorite(key string) {
-	if key == "" || d.OnToggleFavorite == nil {
-		return
-	}
-	d.OnToggleFavorite(key)
-}
-
 // retry dispatches the retry intent.
 func (d *Discover) retry() {
 	if d.OnRetry != nil {

@@ -27,6 +27,18 @@ func clientFor(t *testing.T, p *proxy.Proxy) *http.Client {
 	}}
 }
 
+func startProxy(t *testing.T) *proxy.Proxy {
+	t.Helper()
+
+	p, err := proxy.Start(netguard.Policy{})
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	t.Cleanup(func() { _ = p.Close() })
+
+	return p
+}
+
 // A strict proxy refuses an absolute-form request to a loopback server.
 func TestForwardRejectsPrivateWithoutConsent(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -34,17 +46,13 @@ func TestForwardRejectsPrivateWithoutConsent(t *testing.T) {
 	}))
 	defer server.Close()
 
-	p, err := proxy.Start(netguard.Policy{})
-	if err != nil {
-		t.Fatalf("Start: %v", err)
-	}
-	defer p.Close()
+	p := startProxy(t)
 
 	response, err := clientFor(t, p).Get(server.URL)
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 
 	if response.StatusCode != http.StatusForbidden {
 		t.Fatalf("status %d, want 403", response.StatusCode)
@@ -58,18 +66,14 @@ func TestForwardAllowsPrivateWithConsent(t *testing.T) {
 	}))
 	defer server.Close()
 
-	p, err := proxy.Start(netguard.Policy{})
-	if err != nil {
-		t.Fatalf("Start: %v", err)
-	}
-	defer p.Close()
+	p := startProxy(t)
 	p.SetAllowPrivate(true)
 
 	response, err := clientFor(t, p).Get(server.URL)
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 
 	body, _ := io.ReadAll(response.Body)
 	if response.StatusCode != http.StatusOK || !strings.Contains(string(body), "reached") {
@@ -84,13 +88,11 @@ func TestConnectRejectsPrivateWithoutConsent(t *testing.T) {
 	}))
 	defer server.Close()
 
-	p, err := proxy.Start(netguard.Policy{})
-	if err != nil {
-		t.Fatalf("Start: %v", err)
-	}
-	defer p.Close()
+	p := startProxy(t)
 
-	if _, err := clientFor(t, p).Get(server.URL); err == nil {
+	response, err := clientFor(t, p).Get(server.URL)
+	if err == nil {
+		_ = response.Body.Close()
 		t.Fatal("Get succeeded, want a refused tunnel")
 	}
 }
@@ -102,18 +104,14 @@ func TestConnectAllowsPrivateWithConsent(t *testing.T) {
 	}))
 	defer server.Close()
 
-	p, err := proxy.Start(netguard.Policy{})
-	if err != nil {
-		t.Fatalf("Start: %v", err)
-	}
-	defer p.Close()
+	p := startProxy(t)
 	p.SetAllowPrivate(true)
 
 	response, err := clientFor(t, p).Get(server.URL)
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 
 	body, _ := io.ReadAll(response.Body)
 	if response.StatusCode != http.StatusOK || !strings.Contains(string(body), "tunneled") {
@@ -128,18 +126,14 @@ func TestSetAllowPrivateRestoresStrict(t *testing.T) {
 	}))
 	defer server.Close()
 
-	p, err := proxy.Start(netguard.Policy{})
-	if err != nil {
-		t.Fatalf("Start: %v", err)
-	}
-	defer p.Close()
+	p := startProxy(t)
 
 	p.SetAllowPrivate(true)
 	response, err := clientFor(t, p).Get(server.URL)
 	if err != nil {
 		t.Fatalf("consented Get: %v", err)
 	}
-	response.Body.Close()
+	_ = response.Body.Close()
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("consented status %d, want 200", response.StatusCode)
 	}
@@ -149,7 +143,7 @@ func TestSetAllowPrivateRestoresStrict(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusForbidden {
 		t.Fatalf("status %d, want 403 after consent is cleared", response.StatusCode)
 	}
@@ -157,11 +151,7 @@ func TestSetAllowPrivateRestoresStrict(t *testing.T) {
 
 // The proxy URL is always a loopback address.
 func TestURLIsLoopback(t *testing.T) {
-	p, err := proxy.Start(netguard.Policy{})
-	if err != nil {
-		t.Fatalf("Start: %v", err)
-	}
-	defer p.Close()
+	p := startProxy(t)
 
 	parsed, err := url.Parse(p.URL())
 	if err != nil {

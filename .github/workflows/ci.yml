@@ -8,6 +8,12 @@ on:
 permissions:
   contents: read
 
+# A private repository pays for every minute. Cancel a superseded run when a
+# new commit lands on the same branch instead of running both to completion.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   checks:
     name: checks (${{ matrix.os }})
@@ -55,7 +61,14 @@ jobs:
         run: |
           test ! -e package.json
           test ! -e index.html
-          test -z "$(git ls-files '*.ts' '*.tsx' '*.js' '*.jsx')"
+          # The website is a separate Astro project. The app itself must stay
+          # native: no web source outside website/.
+          offenders="$(git ls-files '*.ts' '*.tsx' '*.js' '*.jsx' | grep -v '^website/' || true)"
+          if [ -n "$offenders" ]; then
+            echo "unexpected web source outside website/:"
+            echo "$offenders"
+            exit 1
+          fi
 
   lint:
     name: lint
