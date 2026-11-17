@@ -16,4 +16,5 @@ export default defineConfig({
       tailwindcss(),
     ],
   },
+  site: 'https://mumu.hi-satya.my.id',
 })
