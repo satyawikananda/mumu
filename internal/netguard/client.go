@@ -187,6 +187,19 @@ func (p Policy) control(network, address string, _ syscall.RawConn) error {
 	return nil
 }
 
+// Dialer returns a dialer that applies the policy's resolved-address check.
+//
+// It exists for components that must open their own connections, such as the
+// playback proxy; the HTTP client builds the same dialer internally. Callers
+// should pass a Policy from WithDefaults.
+func (p Policy) Dialer() *net.Dialer {
+	return &net.Dialer{
+		Timeout:   dialTimeout,
+		KeepAlive: idleConnectionTimeout,
+		Control:   p.control,
+	}
+}
+
 func acceptOr(value string) string {
 	if strings.TrimSpace(value) == "" {
 		return "*/*"

@@ -16,16 +16,22 @@ const (
 //
 // VideoOutput "null" (the default) keeps playback headless. On-screen frames
 // require "libmpv"; the engine only then provides a render context.
+//
+// BlockPrivateMedia routes libmpv's HTTP(S) traffic through a loopback proxy
+// that refuses private, loopback and link-local destinations. Sources whose
+// stored policy carries explicit user consent bypass the proxy, which is how
+// the documented private-host consent survives at the playback boundary.
 type Config struct {
-	Volume           int
-	Muted            bool
-	HardwareDecoding string
-	VideoOutput      string
-	AudioOutput      string
-	NetworkTimeout   time.Duration
-	DemuxerMaxBytes  string
-	MetricsInterval  time.Duration
-	Logger           *slog.Logger
+	Volume            int
+	Muted             bool
+	HardwareDecoding  string
+	VideoOutput       string
+	AudioOutput       string
+	NetworkTimeout    time.Duration
+	DemuxerMaxBytes   string
+	MetricsInterval   time.Duration
+	BlockPrivateMedia bool
+	Logger            *slog.Logger
 }
 
 // DefaultConfig returns the M0-derived defaults.

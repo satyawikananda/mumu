@@ -62,7 +62,11 @@ type Channel struct {
 	Language   string
 	LogoURL    string
 	EPGID      string
-	Streams    []Stream
+	// AllowPrivate reports that the owning source's stored policy lets this
+	// channel's streams reach private or local hosts. It is derived from the
+	// source, never read from playlist text.
+	AllowPrivate bool
+	Streams      []Stream
 }
 
 // HasLiveStream reports whether at least one stream is marked live.

@@ -59,9 +59,23 @@ The runtime is loaded on the first Play, never at package init or launch. Search
 order:
 
 1. `MUMU_MPV_LIBRARY`, a dylib or a `:`-separated directory list.
-2. The dynamic loader path, including `DYLD_LIBRARY_PATH`.
-3. `/opt/homebrew/lib`, then `/usr/local/lib`.
-4. `Contents/Resources/libmpv` and `Contents/Resources` next to the executable.
+2. `Contents/Resources/libmpv` and `Contents/Resources` next to the executable,
+   when they exist.
+3. The dynamic loader path, including `DYLD_LIBRARY_PATH`.
+4. `/opt/homebrew/lib`, then `/usr/local/lib`.
+
+A packaged app therefore uses the runtime the release verified; a Homebrew or
+system copy cannot silently shadow it. A dev build without a bundle keeps the
+loader-first order.
+
+The playback network path is guarded separately from the app's own HTTP client.
+libmpv's HTTP(S) traffic is routed through a loopback proxy that applies the
+`netguard` address policy to every request, CONNECT tunnel, redirect and HLS
+segment, so a rebinding hostname or a private segment URL is refused. A source
+whose stored policy carries explicit private-host consent bypasses the proxy,
+which is the only case where mumu intentionally reaches a private destination.
+The proxy fails closed: if it cannot be applied, the load fails instead of
+connecting unproxied.
 
 A missing or incompatible runtime produces one actionable Watch error. Installing
 a runtime and pressing Retry works without restarting the app.

@@ -21,23 +21,28 @@ func searchFixture(t *testing.T, exists func(string) bool, open func(string) err
 	}
 }
 
-// The dynamic loader's own search path is tried first, before any directory.
-func TestResolveUsesLoaderPathFirst(t *testing.T) {
+// A packaged app prefers its bundled runtime over the dynamic-loader path.
+func TestResolvePrefersBundledRuntime(t *testing.T) {
+	bundleLib := "/Applications/Mumu.app/Contents/Resources/libmpv.dylib"
+
 	var opened []string
 
 	got, err := library.Resolve(searchFixture(t,
-		func(string) bool { return true },
+		func(path string) bool { return path == bundleLib },
 		func(candidate string) error {
 			opened = append(opened, candidate)
+			if candidate == bundleLib {
+				return nil
+			}
 
-			return nil
+			return errors.New("dlopen failed")
 		},
 	))
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
-	if got != "libmpv.dylib" {
-		t.Fatalf("candidate %q, want the loader name libmpv.dylib", got)
+	if got != bundleLib {
+		t.Fatalf("candidate %q, want the bundled runtime", got)
 	}
 	if len(opened) != 1 {
 		t.Fatalf("opened %v, want one attempt", opened)
@@ -66,15 +71,18 @@ func TestResolveInstallOrder(t *testing.T) {
 	}
 }
 
-// The bundle directory is only used when nothing else works.
-func TestResolveBundleLast(t *testing.T) {
+// The bundled runtime is tried before Homebrew and /usr/local when present.
+func TestResolveBundleBeforeInstallDirs(t *testing.T) {
+	bundleLib := "/Applications/Mumu.app/Contents/Resources/libmpv.dylib"
+	brew := "/opt/homebrew/lib/libmpv.dylib"
+
 	var opened []string
 
 	got, err := library.Resolve(searchFixture(t,
-		func(path string) bool { return strings.Contains(path, "Contents/Resources") },
+		func(path string) bool { return path == bundleLib || path == brew },
 		func(candidate string) error {
 			opened = append(opened, candidate)
-			if strings.Contains(candidate, "Contents/Resources") {
+			if candidate == bundleLib {
 				return nil
 			}
 
@@ -84,12 +92,36 @@ func TestResolveBundleLast(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
-	if !strings.HasPrefix(got, "/Applications/Mumu.app/Contents/Resources/") {
+	if got != bundleLib {
 		t.Fatalf("candidate %q, want the bundled copy", got)
 	}
-	// Bare loader names are always attempted, because the loader decides them.
-	if len(opened) != 3 {
-		t.Fatalf("opened %v, want the two loader names and the bundle", opened)
+	if len(opened) == 0 || opened[0] != bundleLib {
+		t.Fatalf("opened %v, want the bundle first", opened)
+	}
+}
+
+// A bundle candidate rejected by the loader falls through to the next one.
+func TestResolveFallsBackWhenBundleFails(t *testing.T) {
+	brew := "/opt/homebrew/lib/libmpv.dylib"
+
+	got, err := library.Resolve(library.Search{
+		Names:  []string{"libmpv.dylib"},
+		Dirs:   []string{"/opt/homebrew/lib"},
+		Bundle: []string{"/Applications/Mumu.app/Contents/Resources"},
+		Exists: func(string) bool { return true },
+		Open: func(candidate string) error {
+			if candidate == brew {
+				return nil
+			}
+
+			return errors.New("dlopen failed")
+		},
+	})
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if got != brew {
+		t.Fatalf("candidate %q, want the fallback copy", got)
 	}
 }
 

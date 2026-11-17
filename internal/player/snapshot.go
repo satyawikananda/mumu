@@ -8,12 +8,18 @@ import "time"
 // http and https are accepted; the source policy decides whether a private
 // host or a playback header is allowed, and the controller never fetches.
 //
+// AllowPrivate carries the stored source policy to the playback boundary: the
+// controller re-validates the URL against it, and the engine routes strict
+// sources through a validating proxy so DNS rebinding cannot reach a private
+// address. A source that never passed a source policy stays strict.
+//
 // Headers holds the playback headers the engine may forward. Only
 // User-Agent and Referer reach libmpv, and Header values must never be logged.
 type Source struct {
-	URL     string
-	Scheme  string
-	Headers map[string]string
+	URL          string
+	Scheme       string
+	AllowPrivate bool
+	Headers      map[string]string
 }
 
 // Variant is one playable stream of a channel.
@@ -133,6 +139,7 @@ func (s Snapshot) equal(other Snapshot) bool {
 		s.Capabilities == other.Capabilities &&
 		s.Source.URL == other.Source.URL &&
 		s.Source.Scheme == other.Source.Scheme &&
+		s.Source.AllowPrivate == other.Source.AllowPrivate &&
 		equalHeaders(s.Source.Headers, other.Source.Headers)
 }
 
