@@ -47,8 +47,8 @@ Remove, enable/disable and the import sheet.
 
 ## Channel row actions
 
-- `Enter` or a double click plays the row through the same controller as
-  Discover and Watch.
+- A single click plays the row through the same controller as Discover and
+  Watch. `Enter` plays the chosen row too.
 - `Add to Favorites` and `Remove from Favorites` update the row, Watch and
   Discover through one shared favorite cache.
 - A disabled source shows `Source disabled. Enable it in Playlists.`

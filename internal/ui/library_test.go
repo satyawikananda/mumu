@@ -571,6 +571,9 @@ func TestLibraryFavoriteActions(t *testing.T) {
 	if len(favorites) != 1 || favorites[0] != "remote:tvri" {
 		t.Fatalf("favorites %v, want [remote:tvri]", favorites)
 	}
+	if len(played) != 0 {
+		t.Fatalf("played %v after a favorite press, want none", played)
+	}
 
 	if err := tt.Click("Add to Favorites"); err != nil {
 		t.Fatal(err)
@@ -578,13 +581,47 @@ func TestLibraryFavoriteActions(t *testing.T) {
 	if len(favorites) != 2 || favorites[1] != "file:metro" {
 		t.Fatalf("favorites %v, want the second channel", favorites)
 	}
+	if len(played) != 0 {
+		t.Fatalf("played %v after a favorite press, want none", played)
+	}
 
 	if err := tt.Click("TVRI Nasional"); err != nil {
 		t.Fatal(err)
 	}
-	tt.Key(0, ui.KeyEnter)
 	if len(played) != 1 || played[0] != "remote:tvri" {
-		t.Fatalf("played %v, want [remote:tvri]", played)
+		t.Fatalf("played %v after one click, want [remote:tvri]", played)
+	}
+
+	tt.Advance(time.Second)
+	if err := tt.Click("Metro TV"); err != nil {
+		t.Fatal(err)
+	}
+	if len(played) != 2 || played[1] != "file:metro" {
+		t.Fatalf("played %v after the second row, want [remote:tvri file:metro]", played)
+	}
+
+	tt.Advance(time.Second)
+	tt.Key(0, ui.KeyEnter)
+	if len(played) != 3 || played[2] != "file:metro" {
+		t.Fatalf("played %v after Enter, want the chosen channel again", played)
+	}
+}
+
+// A single click on a recent channel opens it without a second click.
+func TestLibraryRecentRowSingleClickPlays(t *testing.T) {
+	l := NewLibrary()
+	l.section = int(LibraryRecent)
+	l.SetState(libraryChannelState())
+
+	var played []string
+	l.OnPlay = func(key string) { played = append(played, key) }
+
+	tt := libraryPage(l)
+	if err := tt.Click("TVRI Nasional"); err != nil {
+		t.Fatal(err)
+	}
+	if len(played) != 1 || played[0] != "remote:tvri" {
+		t.Fatalf("played %v after one click, want [remote:tvri]", played)
 	}
 }
 

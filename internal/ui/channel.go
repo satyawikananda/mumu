@@ -224,6 +224,9 @@ type ChannelRow struct {
 	Action         string
 	ActionSelected bool
 	OnAction       func()
+	// OnClick opens the row on a pointer click. The click still chooses the
+	// row in its list, so Enter keeps working.
+	OnClick func()
 }
 
 // ListView draws a row from ui.List's row state.
@@ -313,6 +316,9 @@ func (ch ChannelRow) View(c *ui.Context, state RowState) ui.Element {
 	row = row.Label(ch.rowLabel(name)).AccessSelected(state.Selected)
 	if ch.Disabled {
 		row = row.Disabled(true).DimDisabled(false)
+	}
+	if ch.OnClick != nil && !ch.Disabled && row.RowClicked() {
+		ch.OnClick()
 	}
 
 	return row

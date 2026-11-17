@@ -504,6 +504,7 @@ func (l *Library) channelRow(row ui.ListRow, channel LibraryChannel) {
 		Action:         label,
 		ActionSelected: channel.Favorite,
 		OnAction:       func() { l.toggleFavorite(channel.Key) },
+		OnClick:        func() { l.play(channel) },
 	}.ListView(row.Context, row)
 }
 
