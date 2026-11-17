@@ -35,9 +35,9 @@ The desktop header follows the portfolio reference: full-width and transparent a
 
 ## Footer
 
-`Footer.astro` receives the localized `Copy` dictionary and preserves the repository, releases, issues, license, and Back to top links. The Doodle Crew reference informs the oversized lowercase wordmark and character arrangement; Mumu retains Lexend, Inter Tight, its tomato artwork, and the existing light/dark theme tokens. Three tomatoes and six TV/play/star doodles become two tomatoes and three doodles below 761 pixels. The footer uses optimized static images, including without JavaScript, rather than adding Lottie loops.
+`Footer.astro` receives the localized `Copy` dictionary and preserves the repository, releases, issues, license, and Back to top links. The Doodle Crew reference informs the oversized “Mumu TV” wordmark and character arrangement. The footer uses the locally bundled Finger Paint Regular font with its OFL license in `public/licenses`; Chinese and Japanese characters use the existing system font fallbacks. The rest of the site retains Lexend and Inter Tight. Tomato artwork and light/dark theme tokens remain shared. Three tomatoes and six TV/play/star doodles become two tomatoes and three doodles below 761 pixels. The footer uses optimized static images, including without JavaScript, rather than adding Lottie loops.
 
-`src/scripts/footer.ts` runs inside the existing GSAP media context. The entrance plays once per page, followed only by hover feedback and one jump per mascot activation. Native buttons support click, tap, Enter, and Space with localized labels. Repeated activation during a jump is ignored. Reduced motion disables the entrance and removes the decorative interaction buttons from focus order. Page cleanup aborts listeners and reverts the GSAP context; restoring a revealed page does not replay its entrance.
+`src/scripts/footer.ts` runs inside the existing GSAP media context. The entrance plays once per page, followed only by hover feedback and one jump per mascot activation. Native buttons support click, tap, Enter, and Space with localized labels. Repeated activation during a jump is ignored. Reduced motion disables the entrance and removes the decorative interaction buttons from focus order. The character artwork and its button use separate stacking layers, so letters cannot block the peeking mascot’s click target. Page cleanup aborts listeners and reverts the GSAP context; restoring a revealed page does not replay its entrance.
 
 ## Interaction and motion
 
@@ -96,3 +96,19 @@ The subsequent autoloop revision enables looping for all four mascots. `bun run 
 Layout and component states now use Tailwind utilities; all scoped component style blocks and component class selectors were removed. `bun run test` (2 tests), `bun run lint`, `bun run check` (0 diagnostics), and `bun run build` passed. Before/after Chromium measurements matched within one pixel for the sampled elements across seven combinations of 375/768/1024/1440-pixel widths, all four locales, and light/dark themes. Desktop and mobile screenshots were inspected. Runtime checks covered theme persistence, language keyboard controls, gallery tabs, screenshot dialog and restored focus, favorite styling, PiP dragging/corners/return, compact/mobile headers, skip-link focus, no-JavaScript gallery fallback, and mascot looping/reduced motion. Safari and Firefox remain unverified.
 
 Additional Chromium checks verified the WebGL cloud renderer, GSAP hero/gallery animations, automatic PiP presentation, and an opaque header with reduced transparency enabled. No browser errors were observed.
+
+
+### Footer verification (2026-11-18)
+
+`bun run lint`, `bun run check` (27 files, zero diagnostics), `bun run test` (2 tests), `bun run build` (four pages), and `git diff --check` passed. The build required a permitted rerun because the sandbox blocks Cloudflare's local inspector listener and Wrangler log writes. The existing upstream `lottie-web` direct-`eval` build warning remains.
+
+Local Chromium checks covered all 32 combinations of 320/390/768/1440-pixel widths, four locales, and light/dark themes: four repository links, the responsive mascot/doodle counts, reduced-motion controls, visible image loading, and no horizontal overflow. Additional checks verified click and Enter for all three mascots, Space, rapid repeated activation, touch activation at 390 pixels, preference changes in both directions, Back to top, and simulated pagehide/persisted-pageshow restoration without replaying the entrance. The right mascot's button now sits above the lettering while its artwork stays behind it. Desktop and mobile light/dark screenshots were inspected; the top mascot was repositioned to sit against the wordmark.
+
+A 320-pixel Japanese page with JavaScript disabled retained the visible wordmark, images, links, and no horizontal overflow. A 200% CSS zoom check at 1440 pixels also had no horizontal overflow; native browser zoom was not tested. The local QA scripts and screenshots are in `/private/tmp/mumu-footer-check.mjs`, `/private/tmp/mumu-footer-extra.mjs`, and `/private/tmp/mumu-footer-*.png`. Safari, Firefox, physical-device touch, and production deployment remain unverified.
+
+
+### Footer font revision (2026-11-18)
+
+The footer brand and animated wordmark now read “Mumu TV”. Finger Paint Regular is bundled locally from the Google Fonts repository with its OFL license; it applies throughout the footer, with system fallbacks for Chinese and Japanese text. The wordmark uses a responsive 20cqw size, preserves the space before TV, and keeps the existing character interactions.
+
+Lint, Astro check (zero diagnostics), both content tests, and the four-page build passed. Chromium verified the loaded Finger Paint face and wordmark bounds at 320/390/768/1440 pixels without horizontal overflow; final desktop and mobile screenshots were inspected. The footer regression checks also passed across four locales and both themes, including mascot click/Enter, reduced-motion preference changes, and Back to top. The existing Lottie build warning remains. No deployment was performed.

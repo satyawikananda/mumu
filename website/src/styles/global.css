@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @import "lenis/dist/lenis.css";
 
+@font-face { font-family: 'Finger Paint'; src: url('/fonts/FingerPaint-Regular.ttf') format('truetype'); font-weight: 400; font-style: normal; font-display: swap; }
+
 @font-face { font-family: Lexend; src: url('/fonts/Lexend-600.ttf') format('truetype'); font-weight: 600; font-display: swap; }
 @font-face { font-family: Lexend; src: url('/fonts/Lexend-700.ttf') format('truetype'); font-weight: 700; font-display: swap; }
 @font-face { font-family: 'Inter Tight'; src: url('/fonts/InterTight-400.ttf') format('truetype'); font-weight: 400; font-display: swap; }
@@ -25,6 +27,7 @@
   --color-on-action: #fff;
   --color-focus: #18181b;
   --color-action-text: var(--color-action);
+  --font-footer: 'Finger Paint', 'PingFang SC', 'Hiragino Sans', 'Yu Gothic', sans-serif;
   --font-heading: Lexend, 'PingFang SC', 'Hiragino Sans', 'Yu Gothic', sans-serif;
   --font-copy: 'Inter Tight', 'PingFang SC', 'Hiragino Sans', 'Yu Gothic', sans-serif;
   --text-xs--line-height: inherit;

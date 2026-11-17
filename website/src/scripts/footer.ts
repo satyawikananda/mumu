@@ -15,14 +15,14 @@ export function setupFooterMotion() {
   ]
   const events = new AbortController()
   const jumps = buttons.map(button => gsap.timeline({ paused: true })
-    .to(button.parentElement, {
+    .to(button.parentElement?.querySelector('[data-footer-mascot]') ?? [], {
       y: -22,
       scaleX: 0.96,
       scaleY: 1.04,
       duration: 0.2,
       ease: 'power2.out',
     })
-    .to(button.parentElement, {
+    .to(button.parentElement?.querySelector('[data-footer-mascot]') ?? [], {
       y: 0,
       scaleX: 1,
       scaleY: 1,

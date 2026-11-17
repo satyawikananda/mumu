@@ -29,7 +29,7 @@ const ready = isDownloadReady(release.macDownloadUrl)
       <Cloudscape />
       <div class="relative z-1 mx-auto w-[min(1240px,calc(100%-96px))] max-[1050px]:w-[calc(100%-64px)] max-[760px]:w-[calc(100%-40px)]">
         <div class="flex flex-col items-center gap-6.5 text-center max-[760px]:gap-6">
-          <h1 id="hero-title">
+          <h1 id="hero-title" class="font-footer">
             <span class="block">{`${copy.hero.first} `}</span>
             <span class="block">{copy.hero.second}</span>
           </h1>
@@ -81,7 +81,7 @@ const ready = isDownloadReady(release.macDownloadUrl)
       aria-labelledby="benefits-title"
     >
       <div class="mb-14 flex items-center justify-between gap-6 max-[760px]:mb-10 max-[760px]:items-start" data-reveal>
-        <h2 class="max-[760px]:max-w-70" id="benefits-title">
+        <h2 class="max-[760px]:max-w-70 font-footer" id="benefits-title">
           {copy.benefits.title}
         </h2>
         <Mascot class="w-[clamp(96px,12vw,160px)]" />
@@ -131,7 +131,7 @@ const ready = isDownloadReady(release.macDownloadUrl)
         data-reveal
       >
         <Mascot class="mb-6 w-[clamp(128px,14vw,176px)]" />
-        <h2 class="max-w-225 text-[clamp(2.3rem,4.5vw,4rem)] max-[760px]:max-w-110" id="download-title">
+        <h2 class="max-w-225 text-[clamp(2.3rem,4.5vw,4rem)] max-[760px]:max-w-110 font-footer" id="download-title">
           {copy.download.title}
         </h2>
         <p class="mt-6 text-xl text-secondary max-[760px]:text-lg">{copy.download.body}</p>

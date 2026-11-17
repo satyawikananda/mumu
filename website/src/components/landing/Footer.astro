@@ -16,9 +16,12 @@ const links = [
   { label: copy.footer.license, href: `${repository}/blob/main/LICENSE` },
 ]
 const crew = [
-  'z-3 left-0 -bottom-[1%] w-1/5 -rotate-12 max-[760px]:w-1/4',
-  'z-3 left-[37%] bottom-[53%] w-[17%] rotate-8 max-[760px]:left-[62%] max-[760px]:bottom-[46%] max-[760px]:w-[24%]',
-  'z-1 right-[4%] bottom-[36%] w-1/5 rotate-12 max-[760px]:hidden',
+  { position: 'left-0 -bottom-[1%] w-1/5 max-[760px]:w-1/4', art: 'z-3 -rotate-12' },
+  {
+    position: 'left-[37%] bottom-[40%] w-[17%] max-[760px]:left-[62%] max-[760px]:bottom-[32%] max-[760px]:w-[24%]',
+    art: 'z-3 rotate-8',
+  },
+  { position: 'right-[4%] bottom-[23%] w-1/5 max-[760px]:hidden', art: 'z-1 rotate-12' },
 ]
 const doodles = [
   { icon: Star, position: 'left-[6%] top-[13%] -rotate-18 max-[760px]:top-[15%]' },
@@ -30,16 +33,12 @@ const doodles = [
 ]
 ---
 
-<footer class="border-t border-line bg-surface" data-footer>
+<footer class="font-footer border-t border-line bg-surface" data-footer>
   <div class="mx-auto flex min-h-[clamp(640px,85svh,900px)] max-[760px]:min-h-0 w-[min(1240px,calc(100%-96px))] flex-col pt-10 pb-6 max-[1050px]:w-[calc(100%-64px)] max-[760px]:w-[calc(100%-40px)]">
     <div class="flex items-start justify-between gap-10 max-[760px]:flex-col max-[760px]:gap-6">
-      <a
-        class="inline-flex min-h-11 items-center gap-2 font-heading text-2xl font-semibold tracking-[-0.06em]"
-        href="#top"
-        aria-label={copy.footer.top}
-      >
+      <a class="inline-flex min-h-11 items-center gap-2 text-2xl" href="#top" aria-label={copy.footer.top}>
         <Image src={mascot} alt="" width={48} height={48} class="size-12" />
-        mumu
+        Mumu TV
       </a>
       <nav
         class="grid grid-cols-2 gap-x-12 gap-y-1 text-sm max-[760px]:w-full max-[760px]:gap-x-6 [&_a]:flex [&_a]:min-h-11 [&_a]:items-center [&_a]:underline-offset-[5px] [&_a:hover]:underline"
@@ -56,10 +55,10 @@ const doodles = [
       data-footer-scene
     >
       <div
-        class="absolute inset-x-0 bottom-0 z-2 flex justify-center pr-[0.085em] font-heading text-[30cqw] leading-[0.92] font-bold tracking-[-0.085em]"
+        class="absolute inset-x-0 bottom-0 z-2 flex justify-center whitespace-pre text-[20cqw] leading-[1.15] font-normal tracking-[-0.035em]"
         aria-hidden="true"
       >
-        {'mumu'.split('').map((letter) => (
+        {'Mumu TV'.split('').map((letter) => (
           <span class="group/letter block" data-footer-letter>
             <span class="block origin-[50%_85%] transition-transform duration-220 ease-[ease] motion-safe:group-hover/letter:-translate-y-0.75 motion-safe:group-hover/letter:-rotate-4">
               {letter}
@@ -67,11 +66,14 @@ const doodles = [
           </span>
         ))}
       </div>
-      {crew.map((position, index) => (
-        <div class:list={['absolute', position]} data-footer-crew>
+      {crew.map(({ position, art }, index) => (
+        <div class:list={['group/mascot absolute aspect-square', position]}>
           <div
-            class="relative aspect-square transition-[rotate] duration-220 ease-[ease] motion-safe:has-[button:hover]:-rotate-8"
-            data-footer-mascot
+            class:list={[
+              'relative aspect-square transition-[rotate] duration-220 ease-[ease] motion-safe:group-has-[button:hover]/mascot:-rotate-8',
+              art,
+            ]}
+            data-footer-crew
           >
             <Image
               src={mascot}
@@ -81,16 +83,17 @@ const doodles = [
               loading="lazy"
               draggable="false"
               class="pointer-events-none block size-full select-none"
+              data-footer-mascot
             />
-            <button
-              class="absolute inset-[12%] rounded-full"
-              type="button"
-              aria-label={copy.footer.mascots[index]}
-              data-footer-play
-              disabled
-              hidden
-            ></button>
           </div>
+          <button
+            class="absolute inset-[12%] z-4 rounded-full"
+            type="button"
+            aria-label={copy.footer.mascots[index]}
+            data-footer-play
+            disabled
+            hidden
+          ></button>
         </div>
       ))}
       {doodles.map(({ icon: Icon, position }) => (
@@ -105,13 +108,10 @@ const doodles = [
           <Icon size={32} stroke-width={1.5} />
         </span>
       ))}
-      <div class="absolute inset-x-0 bottom-0 h-0.5 origin-left bg-text" data-footer-ground aria-hidden="true"></div>
     </div>
 
-    <p class="mt-7 text-center font-heading text-[clamp(1.25rem,2.4vw,2rem)] leading-snug tracking-[-0.035em] max-[760px]:mt-6">
-      {copy.footer.tagline}
-    </p>
-    <div class="mt-auto flex items-center justify-between gap-6 pt-14 text-[0.8125rem] text-secondary max-[760px]:flex-col max-[760px]:items-start max-[760px]:gap-2 max-[760px]:pt-10">
+    <p class="mt-7 text-center text-[clamp(1.25rem,2.4vw,2rem)] leading-snug max-[760px]:mt-6">{copy.footer.tagline}</p>
+    <div class="mt-auto flex items-center justify-between gap-6 pt-14 text-sm text-secondary max-[760px]:flex-col max-[760px]:items-start max-[760px]:gap-2 max-[760px]:pt-10">
       <span>{copy.footer.made}</span>
       <a class="inline-flex min-h-11 items-center gap-3 underline-offset-[5px] hover:underline" href="#top">
         {copy.footer.top}
