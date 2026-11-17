@@ -60,6 +60,7 @@ type command struct {
 type Engine struct {
 	client *mpv.Mpv
 	cfg    Config
+	proxy  *mediaProxy
 
 	commands chan command
 	events   chan player.Event
@@ -99,8 +100,19 @@ func New(cfg Config) (*Engine, error) {
 		return nil, err
 	}
 
+	var media *mediaProxy
+	if cfg.BlockPrivateMedia {
+		started, proxyErr := startMediaProxy()
+		if proxyErr != nil {
+			return nil, proxyErr
+		}
+		media = started
+	}
+
 	client := mpv.New()
 	if client == nil {
+		media.close()
+
 		return nil, fmt.Errorf("%w: create libmpv client", player.ErrRuntimeUnavailable)
 	}
 
@@ -120,6 +132,9 @@ func New(cfg Config) (*Engine, error) {
 		"network-timeout":        strconv.Itoa(int(cfg.NetworkTimeout.Seconds())),
 		"demuxer-max-bytes":      cfg.DemuxerMaxBytes,
 	}
+	if media != nil {
+		options["http-proxy"] = media.url
+	}
 	if cfg.AudioOutput != "" {
 		options["ao"] = cfg.AudioOutput
 	}
@@ -138,12 +153,14 @@ func New(cfg Config) (*Engine, error) {
 				continue
 			}
 			client.TerminateDestroy()
+			media.close()
 
 			return nil, fmt.Errorf("set libmpv option %s: %w", name, err)
 		}
 	}
 	if err := client.Initialize(); err != nil {
 		client.TerminateDestroy()
+		media.close()
 
 		return nil, fmt.Errorf("initialize libmpv: %w", err)
 	}
@@ -156,6 +173,7 @@ func New(cfg Config) (*Engine, error) {
 	engine := &Engine{
 		client:   client,
 		cfg:      cfg,
+		proxy:    media,
 		commands: make(chan command, 16),
 		events:   make(chan player.Event, 32),
 		ctx:      ctx,
@@ -302,6 +320,7 @@ func (e *Engine) call(ctx context.Context, cmd command) error {
 func (e *Engine) run() {
 	defer close(e.done)
 	defer close(e.events)
+	defer e.proxy.close()
 	defer e.client.TerminateDestroy()
 
 	ticker := time.NewTicker(e.cfg.MetricsInterval)
@@ -348,6 +367,12 @@ func (e *Engine) handleCommand(cmd command) {
 
 			return
 		}
+
+		// Apply the per-source address policy at the network layer: a strict
+		// source keeps the private block, a consented private source may reach
+		// private hosts. The proxy itself is installed at engine creation, so
+		// this only selects the policy.
+		e.setPlaybackPolicy(cmd.source.AllowPrivate)
 
 		err := e.client.CommandAsync(cmd.generation, []string{"loadfile", cmd.source.URL})
 		if err != nil {

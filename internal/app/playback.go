@@ -1217,9 +1217,10 @@ func channelRequest(channel catalog.Channel, selected string) (player.Request, b
 
 		variants = append(variants, player.Variant{
 			Source: player.Source{
-				URL:     rawURL,
-				Scheme:  scheme,
-				Headers: streamHeaders(stream.Headers),
+				URL:          rawURL,
+				Scheme:       scheme,
+				AllowPrivate: channel.AllowPrivate,
+				Headers:      streamHeaders(stream.Headers),
 			},
 			Quality: strings.TrimSpace(stream.Quality),
 		})

@@ -171,6 +171,13 @@ Help keep the Mumu community welcoming and respectful. Read the
 [Code of Conduct](CODE_OF_CONDUCT.MD) for expected behavior, enforcement, and
 the private reporting contact.
 
+## Security
+
+Report a vulnerability privately through the [security policy](SECURITY.md).
+Do not open a public issue for a security problem. The policy also lists the
+supported versions, scope, and the project's security model and known
+limitations.
+
 ## Changelog
 
 See [CHANGELOG.MD](CHANGELOG.MD) for notable changes. The current **Unreleased**

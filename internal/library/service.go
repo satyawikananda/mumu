@@ -156,6 +156,9 @@ func (s *Service) build(
 		}
 
 		mapped := sources.FromStorageChannel(stored, streams[stored.ID])
+		// Carry the source policy to the playback boundary, so a consented
+		// private source replays from favorites or history too.
+		mapped.AllowPrivate = source.EffectivePolicy().AllowPrivate
 		entry := Entry{
 			Key:      Key(stored.SourceID, stored.ProviderID),
 			Channel:  mapped,

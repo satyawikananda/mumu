@@ -77,7 +77,7 @@ in `internal/`.
 | MyGo | `github.com/egoist/mygo` 0.9.0 | Pinned |
 | Playback engine | libmpv | Native child-surface path proven on the tested Mac |
 | Go mpv binding | `gen2brain/go-mpv` 0.4.0, patched in `third_party/go-mpv` | Default darwin/arm64 adapter; the runtime is opened explicitly, never in a package init |
-| libmpv runtime | Bundled LGPL build in `Contents/Resources/libmpv`; discovered at runtime through `MUMU_MPV_LIBRARY`, the loader's own search path (`DYLD_LIBRARY_PATH`), `/opt/homebrew/lib`, `/usr/local/lib`, then `Contents/Resources/libmpv` and `Contents/Resources` | Implemented; a missing runtime is an actionable error, not a panic |
+| libmpv runtime | Bundled LGPL build in `Contents/Resources/libmpv`; the packaged app prefers it, then `MUMU_MPV_LIBRARY`, the loader's own search path (`DYLD_LIBRARY_PATH`), `/opt/homebrew/lib`, `/usr/local/lib` | Implemented; a missing runtime is an actionable error, not a panic |
 | Renderer on macOS | MyGo Metal UI + separate native OpenGL video view | No direct Metal interop claim |
 | PiP | Floating native window with one retained view/session | Lifecycle/Spaces/stacking observed on the tested Mac |
 | Persistence | SQLite via the MyGo plugin and its native module, local only | Implemented; native module loader since MyGo 0.9 |
@@ -100,11 +100,15 @@ machine without mpv stays silent and the Watch page only reports a missing
 runtime when the viewer asks to play. The search order is:
 
 1. `MUMU_MPV_LIBRARY` (a dylib file or `:`-separated directories);
-2. the dynamic loader's own search path, which honours `DYLD_LIBRARY_PATH`;
-3. `/opt/homebrew/lib/libmpv.dylib`, then `/usr/local/lib/libmpv.dylib`
-   (and the `.2.dylib` variant of each);
-4. `Contents/Resources/libmpv` and `Contents/Resources` next to the executable,
-   when they already exist.
+2. `Contents/Resources/libmpv` and `Contents/Resources` next to the executable,
+   when they already exist;
+3. the dynamic loader's own search path, which honours `DYLD_LIBRARY_PATH`;
+4. `/opt/homebrew/lib/libmpv.dylib`, then `/usr/local/lib/libmpv.dylib`
+   (and the `.2.dylib` variant of each).
+
+The packaged app therefore uses the runtime the release verified, and a
+Homebrew or system copy cannot silently shadow it; a dev build without a bundle
+keeps the loader-first order.
 
 `MUMU_MPV_LIBRARY` exists because the `go` command removes `DYLD_LIBRARY_PATH`
 from the environment of the binaries it runs, so `go test` cannot use the

@@ -296,9 +296,24 @@ func (s *Service) channelsForSource(ctx context.Context, sourceID string) ([]cat
 		return nil, err
 	}
 
+	// The playback boundary re-applies this flag, so a channel carries the
+	// stored source policy instead of re-deriving it from a URL.
+	allowPrivate := false
+	if stored, found, getErr := s.store.Sources().Get(ctx, sourceID); getErr != nil {
+		return nil, getErr
+	} else if found {
+		source, mapErr := FromStorageSource(stored)
+		if mapErr != nil {
+			return nil, mapErr
+		}
+		allowPrivate = source.EffectivePolicy().AllowPrivate
+	}
+
 	mapped := make([]catalog.Channel, 0, len(channels))
 	for _, channel := range channels {
-		mapped = append(mapped, FromStorageChannel(channel, streams[channel.ID]))
+		entry := FromStorageChannel(channel, streams[channel.ID])
+		entry.AllowPrivate = allowPrivate
+		mapped = append(mapped, entry)
 	}
 
 	return mapped, nil

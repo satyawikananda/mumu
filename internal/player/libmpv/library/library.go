@@ -39,8 +39,9 @@ type Search struct {
 	// Names and Dirs default to the package values when empty.
 	Names []string
 	Dirs  []string
-	// Bundle lists directories resolved next to the executable. They are
-	// searched last, and only when they exist.
+	// Bundle lists directories resolved next to the executable. A packaged app
+	// ships its own verified runtime there, so an existing bundle candidate is
+	// preferred over the loader path and the installation directories.
 	Bundle []string
 	// Exists reports whether path names a file. Absolute candidates are
 	// skipped when it returns false; nil uses os.Stat.
@@ -85,9 +86,13 @@ func (e *NotFoundError) Error() string {
 // Unwrap reports ErrNotFound for errors.Is.
 func (e *NotFoundError) Unwrap() error { return ErrNotFound }
 
-// Resolve opens the first candidate that loads, in this order: the dynamic
-// loader's own search path, every installation directory, then the bundle
-// directories. It returns the candidate that loaded.
+// Resolve opens the first candidate that loads.
+//
+// A packaged app that carries a runtime next to its executable uses that
+// bundled copy before the dynamic-loader path and the installation
+// directories, so a Homebrew or system libmpv cannot shadow the build the
+// release verified. A dev build without a bundle keeps the loader-first order.
+// The Override always wins. It returns the candidate that loaded.
 func Resolve(s Search) (string, error) {
 	if s.Open == nil {
 		return "", fmt.Errorf("%w: no loader given", ErrNotFound)
@@ -98,7 +103,22 @@ func Resolve(s Search) (string, error) {
 		exists = fileExists
 	}
 
-	candidates := slices.Concat(s.Override, Candidates(s.Names, s.Dirs, s.Bundle))
+	names := s.Names
+	if len(names) == 0 {
+		names = Names
+	}
+	dirs := s.Dirs
+	if len(dirs) == 0 {
+		dirs = Dirs
+	}
+
+	bundle := joinCandidates(names, s.Bundle)
+	rest := append(append([]string{}, names...), joinCandidates(names, dirs)...)
+
+	candidates := slices.Concat(s.Override, rest)
+	if anyCandidateExists(bundle, exists) {
+		candidates = slices.Concat(s.Override, bundle, rest)
+	}
 
 	var detail error
 	for _, candidate := range candidates {
@@ -122,8 +142,31 @@ func Resolve(s Search) (string, error) {
 	return "", notFound
 }
 
-// Candidates builds the search order: bare loader names first, then every
-// directory, then the bundle directories.
+// anyCandidateExists reports whether any absolute candidate already exists.
+func anyCandidateExists(candidates []string, exists func(string) bool) bool {
+	for _, candidate := range candidates {
+		if exists(candidate) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// joinCandidates lists every name under every directory.
+func joinCandidates(names, dirs []string) []string {
+	candidates := make([]string, 0, len(names)*len(dirs))
+	for _, dir := range dirs {
+		for _, name := range names {
+			candidates = append(candidates, filepath.Join(dir, name))
+		}
+	}
+
+	return candidates
+}
+
+// Candidates builds the default search order: bare loader names first, then
+// every installation directory, then the bundle directories.
 func Candidates(names, dirs, bundle []string) []string {
 	if len(names) == 0 {
 		names = Names
@@ -134,11 +177,8 @@ func Candidates(names, dirs, bundle []string) []string {
 
 	candidates := make([]string, 0, len(names)*(len(dirs)+len(bundle)+1))
 	candidates = append(candidates, names...)
-	for _, dir := range append(append([]string{}, dirs...), bundle...) {
-		for _, name := range names {
-			candidates = append(candidates, filepath.Join(dir, name))
-		}
-	}
+	candidates = append(candidates, joinCandidates(names, dirs)...)
+	candidates = append(candidates, joinCandidates(names, bundle)...)
 
 	return candidates
 }

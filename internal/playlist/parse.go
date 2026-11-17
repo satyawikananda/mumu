@@ -246,14 +246,15 @@ func (p *parser) addURL(number int, raw string) {
 	}
 
 	channel := catalog.Channel{
-		ProviderID: providerID,
-		Name:       name,
-		Group:      attribute(pending.attrs, "group-title"),
-		Country:    country,
-		Language:   attribute(pending.attrs, "tvg-language"),
-		LogoURL:    attribute(pending.attrs, "tvg-logo"),
-		EPGID:      attribute(pending.attrs, "tvg-id"),
-		Streams:    []catalog.Stream{stream},
+		ProviderID:   providerID,
+		Name:         name,
+		Group:        attribute(pending.attrs, "group-title"),
+		Country:      country,
+		Language:     attribute(pending.attrs, "tvg-language"),
+		LogoURL:      attribute(pending.attrs, "tvg-logo"),
+		EPGID:        attribute(pending.attrs, "tvg-id"),
+		AllowPrivate: p.opts.AllowPrivateHosts,
+		Streams:      []catalog.Stream{stream},
 	}
 	p.result.Channels = append(p.result.Channels, channel)
 	p.byProvider[providerID] = len(p.result.Channels) - 1

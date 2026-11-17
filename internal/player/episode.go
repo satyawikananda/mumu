@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"mumu/internal/netguard"
 )
 
 // qualityAuto keeps the supported-stream order the app supplied.
@@ -35,6 +37,13 @@ func normalizeRequest(request Request) (Request, error) {
 		}
 		if _, err := sourceScheme(source); err != nil {
 			return Request{}, err
+		}
+		// Re-apply the stored source policy at the boundary the engine trusts.
+		// Import already filtered these URLs; this rejects a stale or tampered
+		// row before it can reach the media engine.
+		policy := netguard.Policy{AllowPrivate: source.AllowPrivate}
+		if _, err := policy.ValidateURL(source.URL); err != nil {
+			return Request{}, fmt.Errorf("%w: %w", ErrInvalid, err)
 		}
 		if len(source.Headers) > 0 {
 			headers := make(map[string]string, len(source.Headers))

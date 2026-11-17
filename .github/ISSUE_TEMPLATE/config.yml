@@ -1,5 +1,8 @@
 blank_issues_enabled: true
 contact_links:
+  - name: Security policy
+    url: https://github.com/satyawikananda/mumu/blob/main/SECURITY.md
+    about: Report a vulnerability privately. Do not open a public issue for security problems.
   - name: Contributor rules
     url: https://github.com/satyawikananda/mumu/blob/main/CONTRIBUTING.MD
     about: Read the setup, contribution workflow, and verification requirements before contributing.

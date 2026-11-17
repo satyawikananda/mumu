@@ -12,5 +12,10 @@ import (
 // the effective launch volume: libmpv's own zero would otherwise play silently
 // while the page shows a different number.
 func newPlaybackEngine(videoOutput string, volume int) (player.Engine, error) {
-	return libmpv.New(libmpv.Config{VideoOutput: videoOutput, Volume: volume, Muted: false})
+	return libmpv.New(libmpv.Config{
+		VideoOutput:       videoOutput,
+		Volume:            volume,
+		Muted:             false,
+		BlockPrivateMedia: true,
+	})
 }
