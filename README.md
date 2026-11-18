@@ -74,6 +74,19 @@ published Apple Silicon DMG. If no published build is available, use the
 [source setup](#development) below. Tags and draft releases are not public
 downloads.
 
+### Install with Homebrew
+
+```sh
+brew install --cask satyawikananda/tap/mumu
+```
+
+Homebrew downloads the published DMG and verifies its checksum. If macOS
+blocks the first launch, try opening Mumu once, then choose **System Settings >
+Privacy & Security > Open Anyway** and confirm.
+
+To update, run `brew update` followed by
+`brew upgrade --cask satyawikananda/tap/mumu`.
+
 ### Install a published build
 
 1. Download the DMG and `SHA256SUMS` from the same release into one folder.

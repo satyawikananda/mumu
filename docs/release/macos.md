@@ -161,6 +161,22 @@ suffix instead, and asset names keep the bundle version:
 the current download: it points at a release the maintainer has not accepted as
 stable yet. Publish it with the stable tag.
 
+## Homebrew tap
+
+The public `satyawikananda/homebrew-tap` repository provides `Casks/mumu.rb`.
+Users can install it with `brew install --cask satyawikananda/tap/mumu`.
+The cask supports Apple Silicon on macOS 13 or later and verifies the published
+DMG's SHA-256 checksum before installation.
+
+After publishing each stable release, update the version and checksum in the
+tap, and test the cask before pushing. Calculate the checksum from the published
+DMG and compare it with the release's `SHA256SUMS`. The cask uses the tag's public
+download URL, so publish the release before updating the tap. Update its URL
+template if the DMG naming changes.
+
+The tap displays the Open Anyway instructions for the current ad-hoc build.
+macOS applies its normal Gatekeeper checks on first launch.
+
 ## Unsigned distribution
 
 There is no Developer ID and no notarization for v0.1. Ad-hoc signing is still
