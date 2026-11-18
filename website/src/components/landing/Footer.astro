@@ -24,12 +24,12 @@ const crew = [
   { position: 'right-[4%] bottom-[23%] w-1/5 max-[760px]:hidden', art: 'z-1 rotate-12' },
 ]
 const doodles = [
-  { icon: Star, position: 'left-[6%] top-[13%] -rotate-18 max-[760px]:top-[15%]' },
-  { icon: Tv, position: 'left-1/4 top-[2%] rotate-14 max-[760px]:top-[1%] max-[760px]:left-[38%]' },
-  { icon: Play, position: 'right-[23%] top-[8%] -rotate-15 max-[760px]:top-[39%] max-[760px]:right-[5%]' },
-  { icon: Sparkles, position: 'right-0 top-[24%] rotate-8 max-[760px]:hidden' },
-  { icon: Star, position: 'left-[29%] top-[35%] rotate-12 max-[760px]:hidden' },
-  { icon: Tv, position: 'right-[41%] top-[27%] -rotate-12 max-[760px]:hidden' },
+  { icon: Star, position: 'left-[6%] top-[13%] max-[760px]:top-[15%]', rotation: '-rotate-18' },
+  { icon: Tv, position: 'left-1/4 top-[2%] max-[760px]:top-[1%] max-[760px]:left-[38%]', rotation: 'rotate-14' },
+  { icon: Play, position: 'right-[23%] top-[8%] max-[760px]:top-[39%] max-[760px]:right-[5%]', rotation: '-rotate-15' },
+  { icon: Sparkles, position: 'right-0 top-[24%] max-[760px]:hidden', rotation: 'rotate-8' },
+  { icon: Star, position: 'left-[29%] top-[35%] max-[760px]:hidden', rotation: 'rotate-12' },
+  { icon: Tv, position: 'right-[41%] top-[27%] max-[760px]:hidden', rotation: '-rotate-12' },
 ]
 ---
 
@@ -96,7 +96,7 @@ const doodles = [
           ></button>
         </div>
       ))}
-      {doodles.map(({ icon: Icon, position }) => (
+      {doodles.map(({ icon: Icon, position, rotation }, index) => (
         <span
           class:list={[
             'pointer-events-none absolute text-action [&_svg]:h-auto [&_svg]:w-[clamp(18px,3cqw,36px)]',
@@ -105,7 +105,9 @@ const doodles = [
           data-footer-doodle
           aria-hidden="true"
         >
-          <Icon size={32} stroke-width={1.5} />
+          <span class:list={['footer-doodle-float block', rotation]} style={{ '--doodle-delay': `${index * -700}ms` }}>
+            <Icon size={32} stroke-width={1.5} />
+          </span>
         </span>
       ))}
     </div>
@@ -122,3 +124,17 @@ const doodles = [
     </div>
   </div>
 </footer>
+
+<style>
+  @media (prefers-reduced-motion: no-preference) {
+    .footer-doodle-float {
+      animation: footer-doodle-float 4s ease-in-out var(--doodle-delay) infinite alternate;
+    }
+  }
+
+  @keyframes footer-doodle-float {
+    to {
+      translate: 0 clamp(-12px, -1.2cqw, -5px);
+    }
+  }
+</style>
