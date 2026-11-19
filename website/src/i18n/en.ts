@@ -14,7 +14,7 @@ export const en = {
   },
   hero: {
     first: 'A little TV.',
-    second: 'For your Mac.',
+    second: 'A Bigger Story.',
     body: 'Find a channel, settle in. Keep your favorites close and your TV wherever you want it.',
     download: 'Download for macOS',
     soon: 'Coming soon',
@@ -78,8 +78,23 @@ export const en = {
     rights: 'Mumu plays third-party streams. Availability depends on the source, your region, and your connection. Use sources you are authorized to watch.',
     releases: 'GitHub Releases',
   },
+  faq: {
+    title: 'Questions, answered.',
+    body: 'The things people usually ask before tuning in.',
+    items: [
+      { q: 'Is Mumu free?', a: 'Yes. Mumu is free and open source under the MIT license. No subscription and no account.' },
+      { q: 'Which Macs does Mumu support?', a: 'macOS 13 or later on Apple Silicon. Intel Macs are not supported in v0.1. Windows, Linux, iPhone, iPad, and Apple TV are not available yet.' },
+      { q: 'Why does macOS warn me when I open Mumu?', a: 'The v0.1 build is unsigned and not notarized. Open it once, dismiss the warning, then allow it in System Settings > Privacy & Security > Open Anyway. The installation guide has the full steps.' },
+      { q: 'Where do the channels come from, and are they official?', a: 'Discover uses the iptv-org community catalog, which is labelled not verified. You can also import an M3U playlist from a URL or a local file, or add your own stream. A community catalog is not a license review. Only watch sources you are authorized to use, and expect Mumu not to bypass DRM or paywalls.' },
+      { q: 'Do I need an account? Where is my data stored?', a: 'No account, cloud sync, or backend. Favorites, recent channels, playlists, and settings are stored locally on your Mac with SQLite. Network access is only for catalogs, logos, and the streams you choose.' },
+      { q: 'Does Picture-in-Picture keep the same session?', a: 'Yes. PiP uses the same playback session in a native floating window. Returning to the main window keeps the pause state, and closing PiP stops playback.' },
+      { q: 'Can I record, time-shift, or use an EPG?', a: 'Not in v0.1. Recording, time-shift, and EPG are outside the first release. Ordinary live streams are not always seekable.' },
+      { q: 'A channel will not play. What can I do?', a: 'Try another channel, refresh the playlist, or import it again. Streams can go offline or change at any time, and not every M3U URL is online or compatible. If the problem repeats, open an issue on GitHub.' },
+    ],
+    more: { text: 'Still have questions?', link: 'Open an issue on GitHub' },
+  },
   footer: {
-    tagline: 'A little TV for your Mac.',
+    tagline: 'A little TV - A Bigger Story. Free and open source.',
     mascots: ['Make the left Mumu jump', 'Make the top Mumu jump', 'Make the right Mumu jump'],
     issues: 'Report an issue',
     license: 'MIT license',

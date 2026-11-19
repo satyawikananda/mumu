@@ -1,0 +1,50 @@
+---
+import type { Copy } from '../../i18n'
+import { ChevronDown } from '@lucide/astro'
+import { repository } from '../../data/site'
+
+interface Props {
+  copy: Copy
+}
+const { copy } = Astro.props
+---
+
+<section
+  id="faq"
+  class="mx-auto w-[min(1240px,calc(100%-96px))] py-section max-[1050px]:w-[calc(100%-64px)] max-[760px]:w-[calc(100%-40px)]"
+  aria-labelledby="faq-title"
+>
+  <div class="grid grid-cols-[minmax(0,0.66fr)_minmax(0,1.34fr)] items-start gap-[clamp(2rem,4.5vw,4.5rem)] max-[1050px]:grid-cols-1 max-[1050px]:gap-10">
+    <div class="sticky top-28 max-[1050px]:static" data-reveal>
+      <h2 id="faq-title" class="font-footer">
+        {copy.faq.title}
+      </h2>
+      <p class="mt-4 max-w-[42ch] text-[1.1875rem] text-secondary max-[760px]:text-lg">{copy.faq.body}</p>
+    </div>
+
+    <div>
+      <div class="border-t border-line divide-y divide-line">
+        {copy.faq.items.map((item) => (
+          <details class="group">
+            <summary class="group/summary flex min-h-14 cursor-pointer list-none items-center justify-between gap-6 py-5 text-[1.0625rem] leading-normal font-semibold [&::-webkit-details-marker]:hidden">
+              <span>{item.q}</span>
+              <ChevronDown
+                size={20}
+                aria-hidden="true"
+                class="shrink-0 text-secondary transition-[transform,color] duration-220 ease-[ease] group-open:rotate-180 group-open:text-action-text group-hover/summary:text-action-text"
+              />
+            </summary>
+            <p class="max-w-[72ch] pb-6 text-[1.0625rem] leading-[1.7] text-secondary">{item.a}</p>
+          </details>
+        ))}
+      </div>
+
+      <p class="mt-8 flex flex-wrap items-baseline gap-1.5 text-[0.9375rem] text-secondary">
+        <span>{copy.faq.more.text}</span>
+        <a class="font-semibold text-text underline underline-offset-[5px]" href={`${repository}/issues`}>
+          {copy.faq.more.link}
+        </a>
+      </p>
+    </div>
+  </div>
+</section>
