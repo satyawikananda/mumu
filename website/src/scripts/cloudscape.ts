@@ -74,6 +74,20 @@ interface Renderer {
   destroy: () => void
 }
 
+// Reads a CSS hex color of 3, 4, 6 or 8 digits into normalized RGB (0..1).
+// The build minifies `#ffffff` to `#fff`, so the previous 6-digit-only
+// parser misread the shorthand and fed a NaN blue channel into the shader.
+function parseHexColor(value: string): [number, number, number] | undefined {
+  const hex = value.trim().replace(/^#/, '')
+  if (hex.length === 3 || hex.length === 4) {
+    return [0, 1, 2].map(index => Number.parseInt(hex[index]! + hex[index]!, 16) / 255) as [number, number, number]
+  }
+  if (hex.length === 6 || hex.length === 8) {
+    return [0, 2, 4].map(offset => Number.parseInt(hex.slice(offset, offset + 2), 16) / 255) as [number, number, number]
+  }
+  return undefined
+}
+
 function createRenderer(host: HTMLElement, canvas: HTMLCanvasElement): Renderer | undefined {
   const gl = canvas.getContext('webgl', { alpha: false, antialias: false, depth: false })
   if (!gl)
@@ -143,9 +157,9 @@ function createRenderer(host: HTMLElement, canvas: HTMLCanvasElement): Renderer 
         ['mid', 'Mid'],
         ['top', 'Top'],
       ]) {
-        const hex = style.getPropertyValue(`--cloud-${token}`).trim().replace('#', '')
-        const rgb = [0, 2, 4].map(offset => Number.parseInt(hex.slice(offset, offset + 2), 16) / 255)
-        gl!.uniform3f(gl!.getUniformLocation(program, `u_color${uniform}`), rgb[0]!, rgb[1]!, rgb[2]!)
+        const rgb = parseHexColor(style.getPropertyValue(`--cloud-${token}`))
+        if (rgb)
+          gl!.uniform3f(gl!.getUniformLocation(program, `u_color${uniform}`), rgb[0], rgb[1], rgb[2])
       }
     }
     updateColors()
