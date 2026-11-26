@@ -6,8 +6,6 @@ package mpv
 
 import (
 	"unsafe"
-
-	"github.com/ebitengine/purego"
 )
 
 var (
@@ -15,7 +13,7 @@ var (
 )
 
 var create func() uintptr
-var apiVersion func() uint32
+var apiVersion func() apiVersionValue
 var name func(handle uintptr) string
 var id func(handle uintptr) int64
 var initialize func(handle uintptr) int
@@ -57,54 +55,52 @@ var memAlloc func(size uintptr) unsafe.Pointer
 var memFree func(p unsafe.Pointer)
 var setLocale func(category int, locale string) string
 
-func registerClientFuncs() {
-	purego.RegisterLibFunc(&create, libmpv, "mpv_create")
-	purego.RegisterLibFunc(&apiVersion, libmpv, "mpv_client_api_version")
-	purego.RegisterLibFunc(&name, libmpv, "mpv_client_name")
-	purego.RegisterLibFunc(&id, libmpv, "mpv_client_id")
-	purego.RegisterLibFunc(&initialize, libmpv, "mpv_initialize")
-	purego.RegisterLibFunc(&terminateDestroy, libmpv, "mpv_terminate_destroy")
-	purego.RegisterLibFunc(&destroy, libmpv, "mpv_destroy")
-	purego.RegisterLibFunc(&loadConfigFile, libmpv, "mpv_load_config_file")
-	purego.RegisterLibFunc(&timeUS, libmpv, "mpv_get_time_us")
-	purego.RegisterLibFunc(&timeNS, libmpv, "mpv_get_time_ns")
-	purego.RegisterLibFunc(&setOption, libmpv, "mpv_set_option")
-	purego.RegisterLibFunc(&setOptionString, libmpv, "mpv_set_option_string")
-	purego.RegisterLibFunc(&command, libmpv, "mpv_command")
-	purego.RegisterLibFunc(&commandString, libmpv, "mpv_command_string")
-	purego.RegisterLibFunc(&commandRet, libmpv, "mpv_command_ret")
-	purego.RegisterLibFunc(&commandAsync, libmpv, "mpv_command_async")
-	purego.RegisterLibFunc(&setProperty, libmpv, "mpv_set_property")
-	purego.RegisterLibFunc(&setPropertyString, libmpv, "mpv_set_property_string")
-	purego.RegisterLibFunc(&delProperty, libmpv, "mpv_del_property")
-	purego.RegisterLibFunc(&setPropertyAsync, libmpv, "mpv_set_property_async")
-	purego.RegisterLibFunc(&getProperty, libmpv, "mpv_get_property")
-	purego.RegisterLibFunc(&getPropertyString, libmpv, "mpv_get_property_string")
-	purego.RegisterLibFunc(&getPropertyOsdString, libmpv, "mpv_get_property_osd_string")
-	purego.RegisterLibFunc(&getPropertyAsync, libmpv, "mpv_get_property_async")
-	purego.RegisterLibFunc(&observeProperty, libmpv, "mpv_observe_property")
-	purego.RegisterLibFunc(&unobserveProperty, libmpv, "mpv_unobserve_property")
-	purego.RegisterLibFunc(&requestEvent, libmpv, "mpv_request_event")
-	purego.RegisterLibFunc(&requestLogMessages, libmpv, "mpv_request_log_messages")
-	purego.RegisterLibFunc(&hookAdd, libmpv, "mpv_hook_add")
-	purego.RegisterLibFunc(&hookContinue, libmpv, "mpv_hook_continue")
-	purego.RegisterLibFunc(&waitEvent, libmpv, "mpv_wait_event")
-	purego.RegisterLibFunc(&wakeup, libmpv, "mpv_wakeup")
-	purego.RegisterLibFunc(&wakeupPipe, libmpv, "mpv_get_wakeup_pipe")
-	purego.RegisterLibFunc(&waitAsyncRequests, libmpv, "mpv_wait_async_requests")
-	purego.RegisterLibFunc(&abortAsyncCommand, libmpv, "mpv_abort_async_command")
-	purego.RegisterLibFunc(&mpvFree, libmpv, "mpv_free")
-	purego.RegisterLibFunc(&commandNode, libmpv, "mpv_command_node")
-	purego.RegisterLibFunc(&commandNodeAsync, libmpv, "mpv_command_node_async")
-	purego.RegisterLibFunc(&freeNodeContents, libmpv, "mpv_free_node_contents")
+func registerClientFuncs(register func(any, uintptr, string)) {
+	register(&create, libmpv, "mpv_create")
+	register(&apiVersion, libmpv, "mpv_client_api_version")
+	register(&name, libmpv, "mpv_client_name")
+	register(&id, libmpv, "mpv_client_id")
+	register(&initialize, libmpv, "mpv_initialize")
+	register(&terminateDestroy, libmpv, "mpv_terminate_destroy")
+	register(&destroy, libmpv, "mpv_destroy")
+	register(&loadConfigFile, libmpv, "mpv_load_config_file")
+	register(&timeUS, libmpv, "mpv_get_time_us")
+	register(&timeNS, libmpv, "mpv_get_time_ns")
+	register(&setOption, libmpv, "mpv_set_option")
+	register(&setOptionString, libmpv, "mpv_set_option_string")
+	register(&command, libmpv, "mpv_command")
+	register(&commandString, libmpv, "mpv_command_string")
+	register(&commandRet, libmpv, "mpv_command_ret")
+	register(&commandAsync, libmpv, "mpv_command_async")
+	register(&setProperty, libmpv, "mpv_set_property")
+	register(&setPropertyString, libmpv, "mpv_set_property_string")
+	register(&delProperty, libmpv, "mpv_del_property")
+	register(&setPropertyAsync, libmpv, "mpv_set_property_async")
+	register(&getProperty, libmpv, "mpv_get_property")
+	register(&getPropertyString, libmpv, "mpv_get_property_string")
+	register(&getPropertyOsdString, libmpv, "mpv_get_property_osd_string")
+	register(&getPropertyAsync, libmpv, "mpv_get_property_async")
+	register(&observeProperty, libmpv, "mpv_observe_property")
+	register(&unobserveProperty, libmpv, "mpv_unobserve_property")
+	register(&requestEvent, libmpv, "mpv_request_event")
+	register(&requestLogMessages, libmpv, "mpv_request_log_messages")
+	register(&hookAdd, libmpv, "mpv_hook_add")
+	register(&hookContinue, libmpv, "mpv_hook_continue")
+	register(&waitEvent, libmpv, "mpv_wait_event")
+	register(&wakeup, libmpv, "mpv_wakeup")
+	register(&wakeupPipe, libmpv, "mpv_get_wakeup_pipe")
+	register(&waitAsyncRequests, libmpv, "mpv_wait_async_requests")
+	register(&abortAsyncCommand, libmpv, "mpv_abort_async_command")
+	register(&mpvFree, libmpv, "mpv_free")
+	register(&commandNode, libmpv, "mpv_command_node")
+	register(&commandNodeAsync, libmpv, "mpv_command_node_async")
+	register(&freeNodeContents, libmpv, "mpv_free_node_contents")
 
 	mem := memLibrary()
-	purego.RegisterLibFunc(&memAlloc, mem, "malloc")
-	purego.RegisterLibFunc(&memFree, mem, "free")
-	purego.RegisterLibFunc(&setLocale, mem, "setlocale")
+	register(&memAlloc, mem, "malloc")
+	register(&memFree, mem, "free")
+	register(&setLocale, mem, "setlocale")
 
-	cAlloc = func(size int) unsafe.Pointer { return memAlloc(uintptr(size)) }
-	cFree = memFree
 }
 
 // SetLocale wraps C setlocale. libmpv needs LC_NUMERIC "C"; after a GUI toolkit
@@ -125,7 +121,11 @@ func New() *Mpv {
 		return nil
 	}
 
-	return &Mpv{handle: create()}
+	handle := create()
+	if handle == 0 {
+		return nil
+	}
+	return &Mpv{handle: handle}
 }
 
 // APIVersion returns the client api version the mpv source has been compiled with.

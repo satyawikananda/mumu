@@ -25,12 +25,16 @@ const (
 func openLibrary(candidates []string) (uintptr, error) {
 	errs := make([]error, 0, len(candidates))
 	for _, candidate := range candidates {
+		if err := validateArchitecture(candidate); err != nil {
+			errs = append(errs, err)
+			continue
+		}
 		handle, err := purego.Dlopen(candidate, purego.RTLD_NOW|purego.RTLD_GLOBAL)
 		if err == nil {
 			return handle, nil
 		}
 
-		errs = append(errs, err)
+		errs = append(errs, errors.New("libmpv runtime or dependency could not be loaded"))
 	}
 
 	return 0, errors.Join(errs...)
@@ -40,3 +44,7 @@ func openLibrary(candidates []string) (uintptr, error) {
 func memLibrary() uintptr {
 	return libmpv
 }
+
+func closeLibrary(handle uintptr) error { return purego.Dlclose(handle) }
+
+func closeMemory() {}

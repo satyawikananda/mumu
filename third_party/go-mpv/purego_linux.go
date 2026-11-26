@@ -10,7 +10,7 @@ import (
 
 // libnames are the libmpv shared object names, tried in order when Load
 // receives no candidates.
-var libnames = []string{"libmpv.so", "libmpv.so.2"}
+var libnames = []string{"libmpv.so.2", "libmpv.so"}
 
 // Locale categories for SetLocale (glibc/musl values).
 const (
@@ -24,12 +24,16 @@ const (
 func openLibrary(candidates []string) (uintptr, error) {
 	errs := make([]error, 0, len(candidates))
 	for _, candidate := range candidates {
+		if err := validateArchitecture(candidate); err != nil {
+			errs = append(errs, err)
+			continue
+		}
 		handle, err := purego.Dlopen(candidate, purego.RTLD_NOW|purego.RTLD_GLOBAL)
 		if err == nil {
 			return handle, nil
 		}
 
-		errs = append(errs, err)
+		errs = append(errs, errors.New("libmpv runtime or dependency could not be loaded"))
 	}
 
 	return 0, errors.Join(errs...)
@@ -39,3 +43,7 @@ func openLibrary(candidates []string) (uintptr, error) {
 func memLibrary() uintptr {
 	return libmpv
 }
+
+func closeLibrary(handle uintptr) error { return purego.Dlclose(handle) }
+
+func closeMemory() {}

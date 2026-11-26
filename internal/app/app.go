@@ -119,7 +119,7 @@ func New() *App {
 	a := &App{
 		shell:          ui.NewShell(),
 		presentation:   video.PresentationMain,
-		newEngine:      newPlaybackEngine,
+		newEngine:      newWatchEngine,
 		quit:           mygo.App.Quit,
 		ctx:            ctx,
 		cancel:         cancel,

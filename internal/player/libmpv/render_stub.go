@@ -10,9 +10,9 @@ import (
 
 var _ player.Renderer = (*Engine)(nil)
 
-// NewRenderContext always reports ErrUnavailable: this build has no native
+// NewRenderContext always reports ErrRenderDisabled: this build has no native
 // renderer. The stub keeps callers that accept a player.Renderer compiling on
 // every platform.
 func (e *Engine) NewRenderContext(func(string) unsafe.Pointer) (player.FrameRenderer, error) {
-	return nil, ErrUnavailable
+	return nil, player.ErrRenderDisabled
 }

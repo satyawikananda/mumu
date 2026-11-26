@@ -86,6 +86,20 @@ type mediaState struct {
 const playbackUnavailableMessage = "Playback needs the libmpv runtime bundled with " + ui.ProductName +
 	". Reinstall " + ui.ProductName + ", or set MUMU_MPV_LIBRARY, then retry."
 
+// presentationUnavailableMessage separates a missing video surface from a
+// missing runtime. Headless engine builds must not pretend they can watch.
+const presentationUnavailableMessage = "Video presentation is not supported on this platform yet. " +
+	"Headless engine support does not enable watching channels."
+
+// newWatchEngine refuses audio-only playback in the product. Headless tests
+// use the libmpv engine directly, independently of presentation support.
+func newWatchEngine(output string, volume int) (player.Engine, error) {
+	if !video.Supported() {
+		return nil, video.ErrUnsupported
+	}
+	return newPlaybackEngine(output, volume)
+}
+
 // startWatch wires the Watch page and offers a resume.
 //
 // Playback is not opened here: the engine and its runtime are created on the
@@ -438,7 +452,11 @@ func (a *App) playRequest(
 		}
 
 		slog.Warn("native playback unavailable", "error", err)
-		a.failWatch(playbackUnavailableMessage)
+		if errors.Is(err, video.ErrUnsupported) {
+			a.failWatch(presentationUnavailableMessage)
+		} else {
+			a.failWatch(playbackUnavailableMessage)
+		}
 
 		return
 	}

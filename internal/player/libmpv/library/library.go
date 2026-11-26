@@ -1,7 +1,7 @@
 // Package library locates the libmpv runtime on disk.
 //
 // It decides which candidate to open and leaves loading to the caller, so the
-// search order is testable with injected functions and without a real dylib.
+// search order is testable with injected functions and without a real runtime.
 // The adapter that owns the runtime is internal/player/libmpv.
 package library
 
@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 )
@@ -17,18 +18,21 @@ import (
 // ErrNotFound reports that no candidate could be opened.
 var ErrNotFound = errors.New("libmpv runtime not found")
 
-// Names are the library file names, in preference order, as distributed by
-// Homebrew and the official mpv builds.
-var Names = []string{"libmpv.dylib", "libmpv.2.dylib"}
+// Names are the library file names, in preference order, for the running
+// platform: Homebrew's dylib names, the ELF sonames, or the DLL names used by
+// the official Windows mpv builds.
+var Names = platformNames(runtime.GOOS)
 
 // Dirs are the install locations searched after the dynamic loader's own
-// search path, in order.
-var Dirs = []string{"/opt/homebrew/lib", "/usr/local/lib"}
+// search path, in order. Windows has none: its loader must not search PATH or
+// the working directory, so only the executable's directory is used.
+var Dirs = platformDirs(runtime.GOOS)
 
-// EnvLibrary names a runtime chosen explicitly. Its value is a libmpv file, or
-// one or more ':'-separated directories that contain one. It exists because
-// the go command drops DYLD_LIBRARY_PATH from the environment of the binaries
-// it runs, so `go test` cannot use the loader's own search path.
+// EnvLibrary names a runtime chosen explicitly. Its value is a library file, or
+// one or more directories that contain one, separated by os.PathListSeparator
+// (':' on macOS and Linux, ';' on Windows). It exists because the go command
+// drops DYLD_LIBRARY_PATH from the environment of the binaries it runs, so
+// `go test` cannot use the loader's own search path.
 const EnvLibrary = "MUMU_MPV_LIBRARY"
 
 // Search describes one discovery attempt. The zero value is usable.
@@ -55,7 +59,8 @@ type Search struct {
 type NotFoundError struct {
 	// Tried lists the library names in search order, without directories.
 	Tried []string
-	// Detail is the loader's reason with absolute paths reduced to base names.
+	// Detail classifies the loader's reason without echoing native diagnostics,
+	// which can embed paths with spaces, drive letters or UNC names.
 	Detail string
 }
 
@@ -68,13 +73,16 @@ func (e *NotFoundError) Error() string {
 		message += " (tried " + strings.Join(tried, ", ") + ")"
 	}
 
-	name := Names[0]
+	name := "libmpv"
+	if len(Names) > 0 {
+		name = Names[0]
+	}
 	if len(tried) > 0 {
 		name = tried[0]
 	}
 
 	message += "; reinstall mumu, or set " + EnvLibrary +
-		" (or DYLD_LIBRARY_PATH) to the directory containing " + name
+		loaderHint() + " to the directory containing " + name
 
 	if e.Detail != "" {
 		message += ": " + e.Detail
@@ -92,7 +100,8 @@ func (e *NotFoundError) Unwrap() error { return ErrNotFound }
 // bundled copy before the dynamic-loader path and the installation
 // directories, so a Homebrew or system libmpv cannot shadow the build the
 // release verified. A dev build without a bundle keeps the loader-first order.
-// The Override always wins. It returns the candidate that loaded.
+// The Override always wins. On Windows every candidate must be absolute.
+// It returns the candidate that loaded.
 func Resolve(s Search) (string, error) {
 	if s.Open == nil {
 		return "", fmt.Errorf("%w: no loader given", ErrNotFound)
@@ -113,20 +122,29 @@ func Resolve(s Search) (string, error) {
 	}
 
 	bundle := joinCandidates(names, s.Bundle)
-	rest := append(append([]string{}, names...), joinCandidates(names, dirs)...)
+	rest := joinCandidates(names, dirs)
+	if runtime.GOOS != "windows" {
+		rest = slices.Concat(names, rest)
+	}
 
 	candidates := slices.Concat(s.Override, rest)
 	if anyCandidateExists(bundle, exists) {
 		candidates = slices.Concat(s.Override, bundle, rest)
 	}
 
-	var detail error
+	details := make([]string, 0, len(candidates))
 	for _, candidate := range candidates {
+		if runtime.GOOS == "windows" && !filepath.IsAbs(candidate) {
+			return "", &NotFoundError{Detail: "Windows runtime paths must be absolute; set " + EnvLibrary}
+		}
 		if filepath.IsAbs(candidate) && !exists(candidate) {
 			continue
 		}
 		if err := s.Open(candidate); err != nil {
-			detail = err
+			detail := safeDetail(err)
+			if !slices.Contains(details, detail) {
+				details = append(details, detail)
+			}
 
 			continue
 		}
@@ -135,9 +153,7 @@ func Resolve(s Search) (string, error) {
 	}
 
 	notFound := &NotFoundError{Tried: uniqueNames(candidates)}
-	if detail != nil {
-		notFound.Detail = compactPaths(detail.Error())
-	}
+	notFound.Detail = strings.Join(details, "; ")
 
 	return "", notFound
 }
@@ -166,7 +182,9 @@ func joinCandidates(names, dirs []string) []string {
 }
 
 // Candidates builds the default search order: bare loader names first, then
-// every installation directory, then the bundle directories.
+// every installation directory, then the bundle directories. Windows omits
+// bare names because its loader must not search PATH or the working directory;
+// only absolute bundle candidates are returned there.
 func Candidates(names, dirs, bundle []string) []string {
 	if len(names) == 0 {
 		names = Names
@@ -176,7 +194,9 @@ func Candidates(names, dirs, bundle []string) []string {
 	}
 
 	candidates := make([]string, 0, len(names)*(len(dirs)+len(bundle)+1))
-	candidates = append(candidates, names...)
+	if runtime.GOOS != "windows" {
+		candidates = append(candidates, names...)
+	}
 	candidates = append(candidates, joinCandidates(names, dirs)...)
 	candidates = append(candidates, joinCandidates(names, bundle)...)
 
@@ -201,7 +221,7 @@ func FromEnv(getenv func(string) string) []string {
 		if entry == "" {
 			continue
 		}
-		if fileExists(entry) {
+		if fileExists(entry) || isLibraryFile(entry) {
 			candidates = append(candidates, entry)
 
 			continue
@@ -238,44 +258,19 @@ func uniqueNames(candidates []string) []string {
 	return names
 }
 
-// pathBoundaries are the characters that can precede the first slash of a
-// path inside a loader message, such as the "(" in "dlopen(/opt/lib".
-const pathBoundaries = "('\"=`["
-
-// compactPaths rewrites absolute paths in a loader message to their base names,
-// so the reason can be shown without exposing where the app was launched from.
-func compactPaths(message string) string {
-	fields := strings.Fields(message)
-
-	for i, field := range fields {
-		start := pathStart(field)
-		if start < 0 {
-			continue
-		}
-
-		rest := field[start:]
-		trimmed := strings.TrimRight(rest, ",:;)\"'")
-		if trimmed == "" || trimmed == "/" {
-			continue
-		}
-		fields[i] = field[:start] + filepath.Base(trimmed) + rest[len(trimmed):]
+// safeDetail deliberately classifies loader errors instead of echoing arbitrary
+// native diagnostics. Paths can contain spaces, quotes, drive letters or UNC
+// names, so token-based path replacement cannot guarantee redaction.
+func safeDetail(err error) string {
+	message := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(message, "architecture"), strings.Contains(message, "wrong elf"), strings.Contains(message, "bad exe"):
+		return "runtime architecture does not match this application"
+	case strings.Contains(message, "client api"):
+		return "incompatible libmpv client API (requires major 2, minor 1 or newer)"
+	case strings.Contains(message, "symbol"), strings.Contains(message, "entry point"):
+		return "runtime is missing a required entry point"
+	default:
+		return "could not load runtime or one of its dependencies"
 	}
-
-	return strings.Join(fields, " ")
-}
-
-// pathStart returns the index where an absolute path begins in field, or -1.
-func pathStart(field string) int {
-	for i := range len(field) {
-		if field[i] != '/' {
-			continue
-		}
-		if i == 0 || strings.ContainsRune(pathBoundaries, rune(field[i-1])) {
-			return i
-		}
-
-		return -1
-	}
-
-	return -1
 }
