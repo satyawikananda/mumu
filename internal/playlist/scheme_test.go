@@ -4,6 +4,9 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -63,9 +66,15 @@ https://stream.example/public.m3u8
 // says: the file dialog is the consent for it.
 func TestParseLocalPathsIgnoreSchemeAllowlist(t *testing.T) {
 	dir := t.TempDir()
+	localFile := filepath.Join(dir, "local.m3u8")
+	urlPath := filepath.ToSlash(localFile)
+	if !strings.HasPrefix(urlPath, "/") {
+		urlPath = "/" + urlPath
+	}
+	fileURL := (&url.URL{Scheme: "file", Path: urlPath}).String()
 	body := `#EXTM3U
 #EXTINF:-1 tvg-id="local",Local
-file://` + dir + `/local.m3u8
+` + fileURL + `
 #EXTINF:-1 tvg-id="relative",Relative
 channels/relative.m3u8
 `

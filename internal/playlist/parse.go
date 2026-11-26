@@ -383,7 +383,7 @@ func normalizeStream(raw string, opts Options) (string, error) {
 				return "", netguard.ErrCredentials
 			}
 
-			return normalizeLocal(parsed.Path, opts)
+			return normalizeLocal(catalog.FileURLPath(parsed), opts)
 		case !catalog.SchemeAllowed(opts.AllowedSchemes, scheme):
 			return "", fmt.Errorf("%w: %q", netguard.ErrUnsupportedScheme, scheme)
 		default:

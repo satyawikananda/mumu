@@ -2,6 +2,8 @@ package catalog
 
 import (
 	"errors"
+	"net/url"
+	"path/filepath"
 	"testing"
 )
 
@@ -38,6 +40,11 @@ func TestProviderIDRejectsCredentials(t *testing.T) {
 }
 
 func TestCanonicalStreamURL(t *testing.T) {
+	fileWant, err := filepath.Abs(filepath.FromSlash("/tmp/list.m3u"))
+	if err != nil {
+		t.Fatalf("file path fixture: %v", err)
+	}
+
 	for _, tc := range []struct {
 		name    string
 		raw     string
@@ -47,7 +54,7 @@ func TestCanonicalStreamURL(t *testing.T) {
 		{name: "http", raw: "HTTP://Example.com/live", want: "http://example.com/live"},
 		{name: "query kept", raw: "https://example.com/live?token=1", want: "https://example.com/live?token=1"},
 		{name: "fragment dropped", raw: "https://example.com/live#x", want: "https://example.com/live"},
-		{name: "file url", raw: "file:///tmp/list.m3u", want: "/tmp/list.m3u"},
+		{name: "file url", raw: "file:///tmp/list.m3u", want: fileWant},
 		{name: "rtmp", raw: "rtmp://example.com/live", wantErr: ErrUnsupportedScheme},
 		{name: "empty host", raw: "https:///live", wantErr: ErrInvalid},
 		{name: "credentials", raw: "https://a:b@example.com/live", wantErr: ErrCredentials},
@@ -68,6 +75,26 @@ func TestCanonicalStreamURL(t *testing.T) {
 				t.Fatalf("got %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestFileURLPath(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		goos string
+		host string
+		path string
+		want string
+	}{
+		{name: "windows drive", goos: "windows", path: "/C:/tmp/list.m3u8", want: `C:\tmp\list.m3u8`},
+		{name: "windows drive host", goos: "windows", host: "C:", path: "/tmp/list.m3u8", want: `C:\tmp\list.m3u8`},
+		{name: "windows unc", goos: "windows", host: "server", path: "/share/list.m3u8", want: `\\server\share\list.m3u8`},
+		{name: "unix", goos: "linux", path: "/tmp/list.m3u8", want: "/tmp/list.m3u8"},
+	} {
+		got := fileURLPath(&url.URL{Host: tc.host, Path: tc.path}, tc.goos)
+		if got != tc.want {
+			t.Errorf("%s: path=%q, want %q", tc.name, got, tc.want)
+		}
 	}
 }
 
