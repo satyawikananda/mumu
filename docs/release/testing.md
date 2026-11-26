@@ -27,14 +27,23 @@ Silicon models, Intel Macs or other macOS versions.
 | Race tests | `go test -race ./...` |
 | Vet | `go vet ./...` |
 | MyGo lifetime vet | `go tool mygo vet .` |
-| Formatting | `gofmt -l ./cmd ./internal` |
+| Formatting | `gofmt -l ./cmd ./internal third_party/go-mpv` |
+| Vendored binding | `cd third_party/go-mpv && go vet ./... && go test ./...` |
 | Lint | `golangci-lint run ./cmd/... ./internal/...` |
+| Headless engine and loader | `MUMU_MPV_LIBRARY=<dir> MUMU_MPV_INCLUDE=<dir> bash packaging/qa/test-headless.sh` |
 | Bundle | `make package` |
 | Bundle gate | `packaging/macos/verify-app.sh` |
 | Cross-build | `GOOS=<os> GOARCH=<arch> CGO_ENABLED=0 go build ./...` |
 
 `golangci-lint` may be absent on a maintainer machine; CI runs it. A skipped
-integration test is not a passing result.
+integration test is not a passing result. `packaging/qa/test-headless.sh` fails
+when a required native test is skipped or does not run.
+
+The Linux AMD64 and Windows AMD64 headless jobs live in
+`.github/workflows/headless.yml`. They build the pinned LGPL runtime from source,
+verify its SHA-256 pins, run the required native tests and upload the evidence
+artifacts. The macOS ARM64 job runs in `.github/workflows/ci.yml` after
+`make package`.
 
 ## Manual QA
 
@@ -109,7 +118,9 @@ integration test is not a passing result.
 - [ ] `go test -race ./...`
 - [ ] `go vet ./...`
 - [ ] `go tool mygo vet .`
-- [ ] `gofmt -l ./cmd ./internal` prints nothing
+- [ ] `gofmt -l ./cmd ./internal third_party/go-mpv` prints nothing
+- [ ] `cd third_party/go-mpv && go vet ./... && go test ./...`
+- [ ] `MUMU_MPV_LIBRARY=<runtime> MUMU_MPV_INCLUDE=<headers> bash packaging/qa/test-headless.sh`
 - [ ] `golangci-lint run ./cmd/... ./internal/...`
 - [ ] `make package`
 - [ ] `packaging/macos/verify-app.sh` passes

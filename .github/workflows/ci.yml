@@ -36,7 +36,7 @@ jobs:
 
       - name: Check formatting
         run: |
-          out="$(gofmt -l ./cmd ./internal)"
+          out="$(gofmt -l ./cmd ./internal third_party/go-mpv)"
           if [ -n "$out" ]; then
             echo "gofmt needed:"
             echo "$out"
@@ -45,6 +45,12 @@ jobs:
 
       - name: Vet
         run: go vet ./...
+
+      - name: Vendored binding
+        run: |
+          cd third_party/go-mpv
+          go vet ./...
+          go test ./...
 
       - name: Test
         env:
@@ -56,7 +62,7 @@ jobs:
 
       - name: Cross build
         run: |
-          for target in darwin/arm64 darwin/amd64 linux/amd64 windows/amd64; do
+          for target in darwin/arm64 darwin/amd64 linux/amd64 windows/amd64 linux/arm64 windows/arm64; do
             echo "building $target"
             GOOS="${target%/*}" GOARCH="${target#*/}" CGO_ENABLED=0 go build ./...
           done
@@ -116,3 +122,19 @@ jobs:
 
       - name: Package and verify
         run: make package
+
+      - name: Native macOS headless evidence
+        env:
+          MUMU_MPV_LIBRARY: ${{ github.workspace }}/resources/darwin-arm64/libmpv
+          MUMU_MPV_INCLUDE: ${{ github.workspace }}/build/runtime/include
+        run: |
+          test -d "$MUMU_MPV_LIBRARY"
+          test -f "$MUMU_MPV_INCLUDE/mpv/client.h"
+          bash packaging/qa/test-headless.sh
+
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: headless-evidence-macos-arm64
+          path: build/native-evidence
+          if-no-files-found: warn

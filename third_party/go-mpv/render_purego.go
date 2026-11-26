@@ -43,13 +43,13 @@ var renderContextReportSwap func(ctx uintptr)
 var renderContextSetUpdateCallback func(ctx, cb, cbCtx uintptr)
 var renderContextFree func(ctx uintptr)
 
-func registerRenderFuncs() {
-	purego.RegisterLibFunc(&renderContextCreate, libmpv, "mpv_render_context_create")
-	purego.RegisterLibFunc(&renderContextRender, libmpv, "mpv_render_context_render")
-	purego.RegisterLibFunc(&renderContextUpdate, libmpv, "mpv_render_context_update")
-	purego.RegisterLibFunc(&renderContextReportSwap, libmpv, "mpv_render_context_report_swap")
-	purego.RegisterLibFunc(&renderContextSetUpdateCallback, libmpv, "mpv_render_context_set_update_callback")
-	purego.RegisterLibFunc(&renderContextFree, libmpv, "mpv_render_context_free")
+func registerRenderFuncs(register func(any, uintptr, string)) {
+	register(&renderContextCreate, libmpv, "mpv_render_context_create")
+	register(&renderContextRender, libmpv, "mpv_render_context_render")
+	register(&renderContextUpdate, libmpv, "mpv_render_context_update")
+	register(&renderContextReportSwap, libmpv, "mpv_render_context_report_swap")
+	register(&renderContextSetUpdateCallback, libmpv, "mpv_render_context_set_update_callback")
+	register(&renderContextFree, libmpv, "mpv_render_context_free")
 }
 
 // Created once; a single trampoline per callback dispatches by the token.

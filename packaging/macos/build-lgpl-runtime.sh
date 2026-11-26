@@ -31,7 +31,7 @@ if [[ $force -eq 1 ]]; then
   rm -rf "$src"/build-*
 fi
 
-if [[ -f "$out/libmpv.2.dylib" && $force -eq 0 ]]; then
+if [[ -f "$out/libmpv.2.dylib" && -f "$root/build/runtime/include/mpv/client.h" && $force -eq 0 ]]; then
   echo "runtime already built: $out (pass --force to rebuild)"
   exit 0
 fi
@@ -183,6 +183,8 @@ ninja -C "$src/build-mpv" install >/dev/null
 # name; prepare_runtime.py follows each dependency it rewrites.
 mkdir -p "$out"
 cp -R "$prefix/lib/"*.dylib "$out/"
+mkdir -p "$root/build/runtime/include"
+cp -R "$prefix/include/mpv" "$root/build/runtime/include/"
 
 strings "$prefix/lib/libavutil.61.1.102.dylib" | grep -q "LGPL version 2.1 or later" || {
   echo "FFmpeg is not an LGPL build" >&2

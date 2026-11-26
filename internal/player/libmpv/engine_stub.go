@@ -1,8 +1,9 @@
-//go:build !(darwin && arm64)
+//go:build !((darwin && arm64) || ((windows || linux) && amd64))
 
 // Package libmpv provides either the real libmpv adapter or a stub that
-// reports it is unavailable. The real adapter is built for darwin/arm64; every
-// other target keeps this stub so cross-builds stay free of native code.
+// reports it is unavailable. The real adapter supports darwin/arm64,
+// windows/amd64 and linux/amd64; other targets keep this stub. No build
+// requires a native runtime at link time.
 package libmpv
 
 import (

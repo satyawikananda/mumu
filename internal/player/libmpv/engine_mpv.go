@@ -1,4 +1,4 @@
-//go:build darwin && arm64
+//go:build (darwin && arm64) || ((windows || linux) && amd64)
 
 // Package libmpv implements the player engine with one libmpv client.
 //
@@ -12,8 +12,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -22,7 +20,6 @@ import (
 	mpv "github.com/gen2brain/go-mpv"
 
 	"mumu/internal/player"
-	"mumu/internal/player/libmpv/library"
 )
 
 type commandKind uint8
@@ -35,15 +32,6 @@ const (
 	commandPause
 	commandReadAhead
 )
-
-// bundleDir is where a packaged app may carry libmpv. The search only uses it
-// when it already exists; packaging and redistribution live in packaging/macos.
-const bundleDir = "Resources"
-
-// bundledLibraryDir is the subdirectory of bundleDir that ships the LGPL
-// libmpv runtime and its dependencies. Keeping them together leaves
-// Contents/Resources root for the app's icons and notices.
-const bundledLibraryDir = "libmpv"
 
 type command struct {
 	kind       commandKind
@@ -71,8 +59,11 @@ type Engine struct {
 
 	closeOnce sync.Once
 
-	renderMu sync.Mutex
-	render   *glRender
+	// renderMu and render are used by the darwin renderer in render_mpv.go.
+	// The Linux/Windows headless builds keep the same Engine type without a
+	// native surface, so the fields are intentionally unused there.
+	renderMu sync.Mutex           //nolint:unused // darwin-only renderer state
+	render   player.FrameRenderer //nolint:unused // darwin-only renderer state
 
 	mu                sync.Mutex
 	pendingGeneration uint64
@@ -184,38 +175,6 @@ func New(cfg Config) (*Engine, error) {
 	go engine.run()
 
 	return engine, nil
-}
-
-// openRuntime opens libmpv from the first location that works: the dynamic
-// loader's own search path (which honours DYLD_LIBRARY_PATH), the Homebrew
-// prefixes, then the app bundle. A failure reports the names it tried, never a
-// full path, so a log line cannot reveal where the app was launched from.
-func openRuntime() error {
-	candidate, err := library.Resolve(library.Search{
-		Override: library.FromEnv(os.Getenv),
-		Bundle:   bundleDirs(),
-		Open: func(candidate string) error {
-			return mpv.Load([]string{candidate})
-		},
-	})
-	if err != nil {
-		return fmt.Errorf("%w: %w", player.ErrRuntimeUnavailable, err)
-	}
-	slog.Debug("libmpv runtime ready", "library", filepath.Base(candidate))
-
-	return nil
-}
-
-// bundleDirs returns the directories a packaged app may carry libmpv in.
-func bundleDirs() []string {
-	executable, err := os.Executable()
-	if err != nil {
-		return nil
-	}
-
-	resources := filepath.Join(filepath.Dir(executable), "..", bundleDir)
-
-	return []string{filepath.Join(resources, bundledLibraryDir), resources}
 }
 
 // Load starts a source for generation. The actual result arrives as events.

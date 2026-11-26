@@ -216,6 +216,23 @@ func waitSnapshot(t *testing.T, controller *Controller, label string, done func(
 	return Snapshot{}
 }
 
+// waitEngineValue waits for a command that follows the snapshot update.
+// The controller publishes intent state before the engine call completes, so
+// checking the fake engine immediately after a snapshot is racy on Windows.
+func waitEngineValue[T comparable](t *testing.T, label string, want T, get func() T) {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if get() == want {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	t.Fatalf("timed out waiting for %s; got %v, want %v", label, get(), want)
+}
+
 func TestPlayTransitions(t *testing.T) {
 	controller, engine := newTestController(t)
 
@@ -365,9 +382,7 @@ func TestVolumeAndMute(t *testing.T) {
 	waitSnapshot(t, controller, "volume 0", func(snapshot Snapshot) bool {
 		return snapshot.Volume == 0
 	})
-	if got := engine.lastVolume(); got != 0 {
-		t.Fatalf("engine volume %d, want 0", got)
-	}
+	waitEngineValue(t, "engine volume", 0, engine.lastVolume)
 
 	if err := controller.SetVolume(150); err != nil {
 		t.Fatalf("SetVolume: %v", err)
@@ -382,9 +397,7 @@ func TestVolumeAndMute(t *testing.T) {
 	waitSnapshot(t, controller, "mute", func(snapshot Snapshot) bool {
 		return snapshot.Muted
 	})
-	if !engine.lastMute() {
-		t.Fatal("mute not applied")
-	}
+	waitEngineValue(t, "engine mute", true, engine.lastMute)
 }
 
 func TestSubscribeDeliversState(t *testing.T) {

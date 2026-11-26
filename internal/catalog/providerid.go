@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -79,7 +80,7 @@ func CanonicalStreamURL(raw string) (string, error) {
 				return "", invalid("url", CodeCredentials, ErrCredentials, "file URL embeds credentials")
 			}
 
-			return canonicalPath(parsed.Path)
+			return canonicalPath(FileURLPath(parsed))
 		default:
 			return "", invalid(
 				"url",
@@ -91,6 +92,39 @@ func CanonicalStreamURL(raw string) (string, error) {
 	}
 
 	return canonicalPath(raw)
+}
+
+// FileURLPath converts a parsed file URL to a host filesystem path. Windows
+// drive URLs use /C:/path and UNC URLs use a host, so both need conversion
+// before filepath.Abs sees them.
+func FileURLPath(location *url.URL) string {
+	return fileURLPath(location, runtime.GOOS)
+}
+
+func fileURLPath(location *url.URL, goos string) string {
+	if location == nil {
+		return ""
+	}
+
+	host, path := location.Host, location.Path
+	if goos == "windows" {
+		toWindowsPath := func(value string) string {
+			return strings.ReplaceAll(value, "/", `\`)
+		}
+		if len(host) == 2 && host[1] == ':' {
+			return toWindowsPath(host + path)
+		}
+		if host != "" {
+			return `\\` + host + toWindowsPath(path)
+		}
+		if len(path) >= 3 && path[0] == '/' && path[2] == ':' {
+			path = path[1:]
+		}
+
+		return toWindowsPath(path)
+	}
+
+	return path
 }
 
 func canonicalPath(path string) (string, error) {

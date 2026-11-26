@@ -196,7 +196,8 @@ list escaped with backslash. The option value is never logged.
 
 Whether those headers actually reach a server through libmpv is verified by
 `internal/player/libmpv/headers_integration_test.go`, gated by
-`MUMU_MPV_HEADER_TEST=1` on `darwin/arm64` with a libmpv runtime.
+`MUMU_MPV_HEADER_TEST=1` on every native engine target (`darwin/arm64`,
+`windows/amd64`, `linux/amd64`) with a libmpv runtime.
 
 ## Storage mapping
 

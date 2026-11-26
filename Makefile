@@ -14,16 +14,19 @@ build:
 
 test:
 	$(GO) test -race ./...
+	(cd third_party/go-mpv && $(GO) test ./...)
 
 vet:
 	$(GO) vet ./...
 	$(GO) tool mygo vet .
+	(cd third_party/go-mpv && $(GO) vet ./...)
 
 fmt:
 	$(GO) fmt ./cmd/... ./internal/...
+	gofmt -w third_party/go-mpv
 
 fmt-check:
-	@out="$$(gofmt -l ./cmd ./internal)"; \
+	@out="$$(gofmt -l ./cmd ./internal third_party/go-mpv)"; \
 	if [ -n "$$out" ]; then echo "gofmt needed:"; echo "$$out"; exit 1; fi
 
 lint:
