@@ -59,8 +59,11 @@ type Engine struct {
 
 	closeOnce sync.Once
 
-	renderMu sync.Mutex
-	render   player.FrameRenderer
+	// renderMu and render are used by the darwin renderer in render_mpv.go.
+	// The Linux/Windows headless builds keep the same Engine type without a
+	// native surface, so the fields are intentionally unused there.
+	renderMu sync.Mutex           //nolint:unused // darwin-only renderer state
+	render   player.FrameRenderer //nolint:unused // darwin-only renderer state
 
 	mu                sync.Mutex
 	pendingGeneration uint64
