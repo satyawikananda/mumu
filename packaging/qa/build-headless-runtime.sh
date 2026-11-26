@@ -27,6 +27,16 @@ fi
 python="$(command -v python3 || command -v python || true)"
 test -n "$python" || { echo "missing build tool: python3" >&2; exit 1; }
 mkdir -p "$src" "$prefix"
+venv="$work/venv"
+if [[ ! -x "$venv/bin/python" && ! -x "$venv/Scripts/python.exe" ]]; then
+  "$python" -m venv "$venv"
+fi
+venv_python="$venv/bin/python"
+if [[ ! -x "$venv_python" ]]; then
+  venv_python="$venv/Scripts/python.exe"
+fi
+"$venv_python" -m pip install --quiet --disable-pip-version-check jinja2
+python_site="$("$venv_python" -c 'import site; print(site.getsitepackages()[0])')"
 pkg_config_dir="$prefix/lib/pkgconfig"
 if [[ "$target" == windows ]]; then
   pkg_config_dir="$(cygpath -w "$pkg_config_dir")"
@@ -112,7 +122,7 @@ extract vulkan-headers.tar.gz Vulkan-Headers-1.4.363
 mkdir -p "$src/libplacebo-7.387.0/3rdparty/fast_float" "$src/libplacebo-7.387.0/3rdparty/Vulkan-Headers"
 cp -R "$src/fast_float-8.0.0/include" "$src/libplacebo-7.387.0/3rdparty/fast_float/"
 cp -R "$src/Vulkan-Headers-1.4.363/include" "$src/libplacebo-7.387.0/3rdparty/Vulkan-Headers/"
-meson_build libplacebo "$src/libplacebo-7.387.0" -Dauto_features=disabled \
+PYTHONPATH="$python_site" meson_build libplacebo "$src/libplacebo-7.387.0" -Dauto_features=disabled \
   -Dvulkan=disabled -Dopengl=disabled -Dd3d11=disabled -Dglslang=disabled \
   -Dshaderc=disabled -Dlcms=disabled -Ddovi=disabled -Dlibdovi=disabled \
   -Ddemos=false -Dtests=false -Dbench=false -Dfuzz=false
