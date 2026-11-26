@@ -1,0 +1,113 @@
+name: Headless libmpv
+
+on:
+  pull_request:
+    paths: ['internal/**', 'third_party/go-mpv/**', 'go.mod', 'go.sum', 'packaging/**', '.github/workflows/headless.yml']
+  push:
+    branches: [main]
+    paths: ['internal/**', 'third_party/go-mpv/**', 'go.mod', 'go.sum', 'packaging/**', '.github/workflows/headless.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: headless-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native:
+    name: headless (${{ matrix.os }}, amd64)
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            shell: bash
+            toolchain: gcc-13
+          - os: windows-2022
+            shell: msys2 {0}
+            toolchain: ucrt64
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Linux build tools
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build pkg-config nasm python3-venv xz-utils
+          python3 -m venv build/tools
+          build/tools/bin/pip install meson==1.12.1
+          echo "$PWD/build/tools/bin" >> "$GITHUB_PATH"
+      - uses: msys2/setup-msys2@v2
+        if: runner.os == 'Windows'
+        with:
+          msystem: UCRT64
+          update: true
+          path-type: inherit
+          install: >-
+            make diffutils tar patch curl xz
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-meson
+            mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-pkgconf
+            mingw-w64-ucrt-x86_64-nasm
+            mingw-w64-ucrt-x86_64-python
+      - name: Identify toolchain
+        id: compiler
+        run: |
+          gcc --version
+          meson --version
+          fingerprint="$( (gcc --version; meson --version; cmake --version) | sha256sum | cut -d' ' -f1)"
+          echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6
+        id: runtime
+        with:
+          path: build/headless-runtime
+          key: headless-${{ matrix.os }}-amd64-${{ matrix.toolchain }}-${{ steps.compiler.outputs.fingerprint }}-${{ hashFiles('packaging/macos/mpv-runtime.json', 'packaging/qa/build-headless-runtime.sh') }}
+      - name: Build pinned LGPL runtime
+        if: steps.runtime.outputs.cache-hit != 'true'
+        run: bash packaging/qa/build-headless-runtime.sh
+      - name: Native headless and loader tests
+        run: |
+          test -d "$PWD/build/headless-runtime/lib"
+          test -d "$PWD/build/headless-runtime/include/mpv"
+          export MUMU_MPV_LIBRARY="$PWD/build/headless-runtime/lib"
+          export MUMU_MPV_INCLUDE="$PWD/build/headless-runtime/include"
+          if [[ "${{ runner.os }}" == Windows ]]; then
+            export MUMU_MPV_LIBRARY="$(cygpath -w "$MUMU_MPV_LIBRARY")"
+            export MUMU_MPV_INCLUDE="$(cygpath -w "$MUMU_MPV_INCLUDE")"
+          else
+            export LD_LIBRARY_PATH="$PWD/build/headless-runtime/lib"
+          fi
+          bash packaging/qa/test-headless.sh
+      - name: Unit and race regressions
+        run: |
+          CGO_ENABLED=1 go test -race ./...
+          go vet ./...
+          go tool mygo vet .
+          out="$(gofmt -l ./cmd ./internal third_party/go-mpv)"
+          if [ -n "$out" ]; then
+            echo "gofmt needed:"
+            echo "$out"
+            exit 1
+          fi
+          cd third_party/go-mpv
+          go vet ./...
+          go test ./...
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: headless-evidence-${{ matrix.os }}-amd64
+          path: |
+            build/native-evidence
+            build/headless-runtime/source-manifest.json
+          if-no-files-found: warn

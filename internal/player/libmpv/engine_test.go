@@ -1,12 +1,10 @@
-//go:build darwin && arm64
+//go:build (darwin && arm64) || ((windows || linux) && amd64)
 
 package libmpv_test
 
 import (
 	"context"
-	"log/slog"
-	"net/http"
-	"net/http/httptest"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -17,70 +15,75 @@ import (
 
 const integrationGate = "MUMU_MPV_TEST"
 
-// TestIntegrationEngineCreateLoadStop proves that the default darwin/arm64
-// build creates a real libmpv client, loads a stream and stops it.
-//
-// It needs a machine with libmpv, which the loader discovers, and
-// MUMU_MPV_TEST=1. A skip is not a passing result.
+// TestIntegrationEngineCreateLoadStop exercises real decoding and client
+// control with an original synthetic HLS fixture. This proves headless only.
 func TestIntegrationEngineCreateLoadStop(t *testing.T) {
-	if os.Getenv(integrationGate) == "" {
-		t.Skip("set " + integrationGate + "=1 to run the libmpv engine test")
-	}
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
-		_, _ = w.Write([]byte("#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:2\n#EXTINF:2,\nsegment.ts\n"))
-	}))
-	t.Cleanup(server.Close)
-
-	engine, err := libmpv.New(libmpv.Config{
-		VideoOutput: "null",
-		AudioOutput: "null",
-		Muted:       true,
-		Logger:      slog.New(slog.DiscardHandler),
-	})
-	if err != nil {
-		t.Fatalf("libmpv.New: %v", err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	requireIntegration(t, integrationGate)
+	server := newSyntheticServer(t, nil)
+	engine := newHeadlessEngine(t)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
-
-	t.Cleanup(func() {
-		closeCtx, cancelClose := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancelClose()
-		if err := engine.Close(closeCtx); err != nil {
-			t.Errorf("engine.Close: %v", err)
-		}
-	})
-
-	if err := engine.Load(ctx, 1, player.Source{URL: server.URL + "/live.m3u8", Scheme: "http"}); err != nil {
-		t.Fatalf("Load: %v", err)
+	if err := engine.Load(ctx, 1, player.Source{URL: server.URL + "/live.m3u8", Scheme: "http", AllowPrivate: true}); err != nil {
+		t.Fatal(err)
 	}
-
-	deadline := time.After(15 * time.Second)
-	for {
-		select {
-		case event, ok := <-engine.Events():
-			if !ok {
-				t.Fatal("events closed before a load result")
-			}
-			if event.Generation != 1 {
-				continue
-			}
-			if event.Kind == player.EventFailed && event.Err != nil {
-				t.Fatalf("load failed: %v", event.Err)
-			}
-			if event.Kind == player.EventLoaded || event.Kind == player.EventStarted || event.Kind == player.EventPlaying {
-				if err := engine.Stop(ctx); err != nil {
-					t.Fatalf("Stop: %v", err)
-				}
-
-				return
-			}
-		case <-deadline:
-			t.Fatal("no load event from the real libmpv runtime")
+	event := waitEngineEvent(t, engine, func(event player.Event) bool {
+		return event.Kind == player.EventMetrics && event.Metrics.TimePos > 0 && event.Metadata.Width > 0
+	})
+	t.Logf("HEADLESS ONLY: video=%s audio=%s dimensions=%dx%d vo=%s ao=%s", event.Metadata.VideoCodec, event.Metadata.AudioCodec, event.Metadata.Width, event.Metadata.Height, event.Metadata.VideoOutput, event.Metadata.AudioOutput)
+	for _, volume := range []int{20, 0, 65} {
+		if err := engine.SetVolume(ctx, volume); err != nil {
+			t.Fatal(err)
 		}
+	}
+	for _, muted := range []bool{true, false} {
+		if err := engine.SetMuted(ctx, muted); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := engine.SetPaused(ctx, true); err != nil {
+		t.Fatal(err)
+	}
+	// libmpv applies pause asynchronously. Allow pending frames to settle, then
+	// require a held position for several consecutive telemetry samples.
+	held := time.Duration(-1)
+	stable := 0
+	deadline := time.Now().Add(3 * time.Second)
+	for stable < 4 && time.Now().Before(deadline) {
+		position := waitEngineEvent(t, engine, isMetrics).Metrics.TimePos
+		if position == held {
+			stable++
+		} else {
+			stable = 0
+			held = position
+		}
+	}
+	if stable < 4 {
+		t.Fatal("pause did not hold the playback position")
+	}
+	later := held
+
+	if err := engine.SetPaused(ctx, false); err != nil {
+		t.Fatal(err)
+	}
+	waitEngineEvent(t, engine, func(event player.Event) bool { return isMetrics(event) && event.Metrics.TimePos > later })
+	canceled, stop := context.WithCancel(ctx)
+	stop()
+	if err := engine.Load(canceled, 2, player.Source{URL: server.URL}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled load: %v", err)
+	}
+	if err := engine.Stop(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := engine.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := engine.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	for range engine.Events() {
+	}
+	if err := engine.SetVolume(ctx, 50); !errors.Is(err, player.ErrClosed) {
+		t.Fatalf("closed engine: %v", err)
 	}
 }
 
