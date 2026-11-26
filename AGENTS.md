@@ -22,7 +22,7 @@ Product principles:
 ### MUST
 
 - Use **Go** for the app and **MyGo native UI (`github.com/egoist/mygo/ui`)** for all screens and widgets.
-- Target **macOS first**, with Apple Silicon as the initial QA target. Keep future Windows/Linux adapters possible without claiming they work today.
+- Target **macOS first**, with Apple Silicon as the initial QA target. Keep Windows/Linux engine builds headless and testable, but do not claim video presentation or release support there without native evidence.
 - Use **libmpv** for playback (the initial Go binding candidate is `github.com/gen2brain/go-mpv`), subject to the playback validation.
 - Ensure Watch and PiP refer to a **single logical player session**.
 - Preserve the startup UX: fresh install opens **Discover with no country selected**; later launches offer **Home → Resume** when a valid recent channel exists; **never autoplay on launch**.
@@ -75,10 +75,11 @@ in `internal/`.
 | Design system | Semantic tokens and shared native components in `internal/ui` | Implemented: tokens, shell, Control Center and pages |
 | Fonts | Lexend display + Inter Tight body, bundled OFL faces | Implemented; no runtime download |
 | MyGo | `github.com/egoist/mygo` 0.9.0 | Pinned |
-| Playback engine | libmpv | Native child-surface path proven on the tested Mac |
-| Go mpv binding | `gen2brain/go-mpv` 0.4.0, patched in `third_party/go-mpv` | Default darwin/arm64 adapter; the runtime is opened explicitly, never in a package init |
-| libmpv runtime | Bundled LGPL build in `Contents/Resources/libmpv`; the packaged app prefers it, then `MUMU_MPV_LIBRARY`, the loader's own search path (`DYLD_LIBRARY_PATH`), `/opt/homebrew/lib`, `/usr/local/lib` | Implemented; a missing runtime is an actionable error, not a panic |
+| Playback engine | libmpv | macOS arm64 presentation proven; windows/amd64 and linux/amd64 headless adapter implemented, gated CI evidence required |
+| Go mpv binding | `gen2brain/go-mpv` 0.4.0, patched in `third_party/go-mpv` | Default adapter on darwin/arm64, windows/amd64 and linux/amd64; the runtime is opened explicitly, never in a package init |
+| libmpv runtime | Bundled LGPL build in `Contents/Resources/libmpv` on macOS; per-platform search order reuses `MUMU_MPV_LIBRARY` and bundle directories | Implemented; a missing, wrong-architecture or incompatible runtime is an actionable error, not a panic |
 | Renderer on macOS | MyGo Metal UI + separate native OpenGL video view | No direct Metal interop claim |
+| Renderer on Windows/Linux | None | Headless engine only; the app refuses Play instead of playing audio or pretending video works |
 | PiP | Floating native window with one retained view/session | Lifecycle/Spaces/stacking observed on the tested Mac |
 | Persistence | SQLite via the MyGo plugin and its native module, local only | Implemented; native module loader since MyGo 0.9 |
 | Built-in discovery | iptv-org as a labelled community list, not rights clearance | Implemented |
@@ -90,14 +91,25 @@ in `internal/`.
 
 ### libmpv runtime and the default build
 
-The real adapter is compiled by the default `darwin/arm64` build; every other
-target compiles a stub, so cross-builds need no native runtime. There is no
-build tag to remember, and the old `mumu_mpv` tag is no longer used (passing it
-is harmless). CGO is not required: the binding is purego.
+The real adapter is compiled for `darwin/arm64`, `windows/amd64` and
+`linux/amd64`; every other target compiles a stub, so cross-builds need no
+native runtime. There is no build tag to remember, and the old `mumu_mpv` tag is
+no longer used (passing it is harmless). CGO is not required: the binding is
+purego.
+
+Windows and Linux get the engine but no video presentation. There is no native
+surface adapter on those targets, so the app refuses a Play request with an
+actionable error before it opens a stream; it must not play audio or record
+history as if watching succeeded. Headless tests use `vo=null`/`ao=null` and
+prove decoding, control, headers and the media proxy. They do not prove a player
+window, resizing or PiP.
 
 The runtime is opened on the first Play, not at launch, so starting mumu on a
 machine without mpv stays silent and the Watch page only reports a missing
-runtime when the viewer asks to play. The search order is:
+runtime when the viewer asks to play. The packaged app prefers its bundled
+runtime over any system copy. The search order is:
+
+macOS:
 
 1. `MUMU_MPV_LIBRARY` (a dylib file or `:`-separated directories);
 2. `Contents/Resources/libmpv` and `Contents/Resources` next to the executable,
@@ -106,7 +118,28 @@ runtime when the viewer asks to play. The search order is:
 4. `/opt/homebrew/lib/libmpv.dylib`, then `/usr/local/lib/libmpv.dylib`
    (and the `.2.dylib` variant of each).
 
-The packaged app therefore uses the runtime the release verified, and a
+Linux (`libmpv.so.2`, then `libmpv.so`):
+
+1. `MUMU_MPV_LIBRARY` (a file or `:`-separated directories);
+2. `<executable-dir>/libmpv`, then the executable directory;
+3. the dynamic loader's own search path, which honours `LD_LIBRARY_PATH`;
+4. `/usr/local/lib`, `/usr/lib`, `/lib`.
+
+Windows (`libmpv-2.dll`, `libmpv.dll`, `mpv-2.dll`, `mpv-1.dll`):
+
+1. `MUMU_MPV_LIBRARY` (a file or `;`-separated directories); every entry must be
+   absolute, and a relative entry is rejected with a clear error;
+2. `<executable-dir>/libmpv`, then the executable directory.
+
+Windows loading uses `LoadLibraryExW` with
+`LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32`, so a DLL's
+dependencies come only from its own directory and System32. The loader never
+searches the working directory or `PATH`, and the process search path is not
+changed. The binding validates the binary architecture, requires every entry
+point it registers, and accepts only client API major 2 with minor 1 or newer.
+A failed registration releases the handle and can be retried.
+
+The packaged macOS app therefore uses the runtime the release verified, and a
 Homebrew or system copy cannot silently shadow it; a dev build without a bundle
 keeps the loader-first order.
 
@@ -174,6 +207,10 @@ keeps all pointer input. See [Video surface](docs/architecture/video-surface.md)
 - **Playback feasibility:** native embedding and single-session PiP must have a
   recorded GO, CONDITIONAL GO or NO-GO result before production UI depends on
   them.
+- **Headless engine (#54):** `windows/amd64` and `linux/amd64` must pass the
+  native loader, ABI, header and address-policy tests on their own runners
+  before the adapter is claimed. Headless success does not satisfy the macOS
+  presentation gate, and no Windows/Linux video presentation exists yet.
 - **Foundation:** bootstrap, native shell, playback controller and SQLite.
 - **Sources:** M3U parser, bounded network policy, community catalog and source
   management.
@@ -195,7 +232,7 @@ cmd/mumu/             # Application entry point: wiring and Run only
 internal/app/         # Composition root, window, cancellation, background jobs
 internal/ui/          # Native shell, semantic tokens, fonts, icons and shared components
 internal/player/      # Playback controller, state machine and Engine port
-internal/player/libmpv/  # libmpv adapter (default on darwin/arm64) and runtime discovery
+internal/player/libmpv/  # libmpv adapter (darwin/arm64, windows/amd64, linux/amd64) and runtime discovery
 internal/player/libmpv/library/  # libmpv search order, testable without a dylib
 third_party/go-mpv/   # pinned binding, patched for an explicit runtime loader
 internal/video/       # Native surface presentation boundary
@@ -288,11 +325,13 @@ Before claiming completion:
   - `go tool mygo dev` for a live-reloading native run.
   - `go test ./...`; use `go test -race ./...` before delivery (race needs cgo).
   - `go vet ./...` and `go tool mygo vet .` for MyGo UI lifetime checks.
-  - `gofmt -l ./cmd ./internal` (must print nothing).
+  - `gofmt -l ./cmd ./internal third_party/go-mpv` (must print nothing).
   - `golangci-lint run ./cmd/... ./internal/...` when the tool is installed, or `make lint`.
+  - `cd third_party/go-mpv && go vet ./... && go test ./...` because it is a separate module.
   - `make package` for the full release: LGPL runtime, `go tool mygo build`,
     and `packaging/macos/verify-app.sh`.
   - On a machine with libmpv, `MUMU_MPV_LIBRARY=<dir>` plus `MUMU_MPV_TEST=1`/`MUMU_MPV_HEADER_TEST=1` for the gated `internal/player/libmpv` integration tests. A skip is not a pass.
+  - `MUMU_MPV_LIBRARY=<dir> MUMU_MPV_INCLUDE=<dir> bash packaging/qa/test-headless.sh` for the loader, ABI, header and address-policy evidence. It fails when a required test is skipped.
 - For native media work, record **OS, architecture, MyGo/libmpv versions, command, observable output, and tested stream type**.
 - Report a clear summary: changed files, tests actually run, constraints met, unverified items, and follow-up risks.
 - Do not mark acceptance criteria complete based solely on static code review or compilation if runtime video/PiP is required.

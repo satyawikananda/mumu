@@ -110,26 +110,41 @@ thread.
 
 `internal/player/libmpv` uses pinned `gen2brain/go-mpv` 0.4.0 through the local
 patch in `third_party/go-mpv` (a `replace` in `go.mod`), and the real adapter is
-part of the **default `darwin/arm64` build**. `darwin/amd64`, `linux` and
-`windows` compile a stub that reports `player.ErrRuntimeUnavailable`, so
-cross-builds stay free of native code. No build tag is needed; the old
-`mumu_mpv` tag is accepted but has no effect. CGO is not required.
+part of the **`darwin/arm64`, `windows/amd64` and `linux/amd64` builds**.
+`darwin/amd64`, the ARM64 Windows/Linux targets and every other target compile a
+stub that reports `player.ErrRuntimeUnavailable`, so cross-builds stay free of
+native code. No build tag is needed; the old `mumu_mpv` tag is accepted but has
+no effect. CGO is not required.
+
+Windows and Linux get the engine but no native video surface. They are headless
+targets: `vo=null`/`ao=null` tests prove decode, metadata, control and the media
+proxy, while the app refuses Play before loading a stream. They do not prove a
+player window or PiP.
 
 Upstream 0.4.0 opens libmpv from a package `init()` and panics when the dylib is
 missing (`purego_darwin.go`), which would crash every launch on a machine
 without mpv. The patch replaces that init with `mpv.Load(candidates)`: it
-resolves the first working candidate, registers the entry points, checks
-`mpv_client_api_version` (major 2, minor 1 or newer) and returns an error
-instead of panicking. Loading is retryable, so installing mpv and pressing
+resolves the first working candidate, stages every entry point, checks
+`mpv_client_api_version` (major 2, minor 1 or newer), and returns an error
+instead of panicking. A failed registration releases the native handle and
+clears staged symbols. Loading is retryable, so installing mpv and pressing
 Retry works without restarting the app.
 
 `internal/player/libmpv/library` owns the search order, uses injected
-`Exists`/`Open` functions and is unit-tested without a dylib:
+`Exists`/`Open` functions and is unit-tested without a native library. The
+bundle wins when it exists, then:
 
-1. `MUMU_MPV_LIBRARY`, a dylib file or `:`-separated directories;
-2. the dynamic loader's own path, which honours `DYLD_LIBRARY_PATH`;
-3. `/opt/homebrew/lib`, then `/usr/local/lib`;
-4. `Contents/Resources` next to the executable, only when it already exists.
+- macOS: `MUMU_MPV_LIBRARY`, the dynamic loader path (`DYLD_LIBRARY_PATH`),
+  `/opt/homebrew/lib`, `/usr/local/lib`;
+- Linux: `MUMU_MPV_LIBRARY`, the dynamic loader path (`LD_LIBRARY_PATH`),
+  `/usr/local/lib`, `/usr/lib`, `/lib`;
+- Windows: `MUMU_MPV_LIBRARY` and the executable's `libmpv` directory, with
+  absolute paths only.
+
+The Windows loader uses `LoadLibraryExW` with
+`LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32`; it never
+searches `PATH` or the working directory. On every platform the binding checks
+the binary architecture before loading.
 
 `MUMU_MPV_LIBRARY` exists because the `go` command strips `DYLD_LIBRARY_PATH`
 from the binaries it runs, so `go test` cannot rely on the loader path. Errors
@@ -166,17 +181,24 @@ MUMU_HLS_TEST_URL=http://127.0.0.1:18765/index.m3u8 \
 ```
 
 `TestIntegrationEngineCreateLoadStop` (gated by `MUMU_MPV_TEST=1`) creates a
-real engine, loads a local playlist, receives a load event, stops and closes.
+real headless engine and serves the embedded synthetic MPEG-2/MP2 HLS fixture.
+It checks video/audio metadata and progress, volume, mute, a held pause position,
+resume progress, cancellation, stop, idempotent close and closed-engine errors.
 
 ```sh
 MUMU_MPV_LIBRARY=/private/tmp/mumu-runtime/lib MUMU_MPV_TEST=1 \
   go test -run TestIntegrationEngineCreateLoadStop -v ./internal/player/libmpv
 ```
 
-The HLS test verifies load, playing, pause, live-edge resume, volume, mute, stop
-and close over a synthetic H.264/AAC HLS stream. It does not render video and
-does not claim universal codec support, a zero network pause or hardware
-decoding.
+`TestIntegrationHLS` (gated by `MUMU_HLS_TEST_URL`) exercises the controller over
+an authorized HLS URL: load, playing, pause, live-edge resume, volume, mute, stop
+and close. The MPEG-2/MP2 fixture keeps the default test free of licensed
+content; it does not claim universal codec support, a zero network pause or
+hardware decoding.
+
+The complete gated set, including headers, address policy, loader recovery and
+the C ABI probe, runs from `packaging/qa/test-headless.sh`. It fails when a
+required test is skipped.
 
 ## Limitations
 

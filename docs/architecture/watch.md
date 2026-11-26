@@ -91,6 +91,17 @@ why it runs there.
   reload. Moving the view to PiP clears the main-window attachment flag, so the
   navigation path cannot knock the floating player's drawable out.
 
+## Platforms without a native surface
+
+`windows/amd64` and `linux/amd64` build the libmpv engine for headless tests, but
+they carry no native surface adapter. A Play request is refused before any
+stream is loaded, and Watch shows a `WatchError` that names the missing video
+presentation. It does not start audio, show a playing state, enter PiP or record
+the channel as watched. Retry cannot turn headless support into a player
+window; the message is a product limitation, not a missing runtime.
+
+The table below describes the macOS presentation path.
+
 ## State mapping
 
 | Player state | Watch state | Visible treatment | Native view |
@@ -222,8 +233,10 @@ Automated:
   `TestWatchBackReplaysPreviousChannel`.
 - `go test -race ./...`, `go vet ./...` and `go tool mygo vet .` pass locally;
   golangci-lint runs in CI, because it is not installed on the QA machine.
-- Cross-builds for linux/amd64 and darwin/amd64 stay green without the native
-  adapter.
+- Cross-builds for darwin/arm64, linux/amd64, windows/amd64 and the
+  darwin/amd64, linux/arm64, windows/arm64 stubs stay green without a native
+  runtime. Windows/Linux headless tests do not stand in for the macOS smoke
+  test.
 
 Native macOS smoke test:
 

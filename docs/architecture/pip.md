@@ -185,6 +185,7 @@ Automated:
   tests cover the local mute override, restoration and chrome states.
 - `go test -race ./...`, `go vet ./...` and `go tool mygo vet .` pass locally;
   golangci-lint runs in CI; linux/amd64 and darwin/amd64 cross-builds stay green.
+  Windows/Linux engine builds are headless and cannot exercise PiP.
 
 Native macOS smoke test with the current build:
 

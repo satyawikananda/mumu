@@ -124,6 +124,9 @@ and must not grow without a bound. Credentials are not stored; only sanitized
 - The app does not claim direct Metal interop, zero-copy rendering, hardware
   decoding, frame-perfect presentation or support for every codec or provider.
 - Windows and Linux adapters may compile, but they are not supported releases.
+  Their engine builds are headless: there is no native video surface, so the app
+  refuses Play instead of playing audio or claiming a picture. Headless
+  capability does not imply a supported desktop player.
 
 ## Related documents
 
