@@ -160,12 +160,22 @@ meson_build mpv "$src/mpv-0.42.0" -Dauto_features=disabled \
 
 if [[ "$target" == windows ]]; then
   # Keep transitive non-system dependencies beside libmpv. LoadLibraryEx never
-  # consults PATH, including when resolving these dependencies.
+  # consults PATH, including when resolving these dependencies. Built
+  # components land in prefix/bin; UCRT64 runtime DLLs are discovered from the
+  # PE import table instead of guessing a fixed list.
   for library in "$prefix/bin/"*.dll; do cp "$library" "$prefix/lib/"; done
-  for name in libgcc_s_seh-1.dll libstdc++-6.dll libwinpthread-1.dll; do
-    location="$(gcc -print-file-name="$name")"
-    if [[ -f "$location" ]]; then cp "$location" "$prefix/lib/"; fi
-  done
+  ucrt_bin="$(dirname "$(command -v gcc)")"
+  collect_runtime_dll() {
+    local file="$1" name
+    while IFS= read -r name; do
+      [[ -n "$name" ]] || continue
+      if [[ -f "$ucrt_bin/$name" && ! -f "$prefix/lib/$name" ]]; then
+        cp "$ucrt_bin/$name" "$prefix/lib/"
+        collect_runtime_dll "$ucrt_bin/$name"
+      fi
+    done < <(objdump -p "$file" | tr -d '\r' | awk '/DLL Name:/ {print $3}')
+  }
+  for library in "$prefix/lib/"*.dll; do collect_runtime_dll "$library"; done
 fi
 
 "$python" - "$manifest" "$target/amd64" "$prefix/source-manifest.json" <<'PY'
