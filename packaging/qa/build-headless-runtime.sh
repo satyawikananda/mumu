@@ -97,7 +97,8 @@ extract libass.tar.xz libass-0.17.5
 (
   cd "$src/libass-0.17.5"
   ./configure --prefix="$prefix" --libdir="$prefix/lib" --disable-static --enable-shared \
-    --disable-fontconfig --disable-coretext --disable-directwrite --disable-test --disable-compare
+    --disable-fontconfig --disable-coretext --disable-directwrite \
+    --disable-require-system-font-provider --disable-test --disable-compare
   make -j "$jobs"
   make install
 )
