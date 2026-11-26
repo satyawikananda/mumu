@@ -150,9 +150,13 @@ if [[ "$target" == windows ]]; then ffmpeg_platform=(--target-os=mingw32 --arch=
 
 fetch mpv mpv.tar.gz
 extract mpv.tar.gz mpv-0.42.0
+mpv_platform=()
+if [[ "$target" == windows ]]; then
+  mpv_platform=(-Dwin32-threads=enabled)
+fi
 meson_build mpv "$src/mpv-0.42.0" -Dauto_features=disabled \
   -Dgpl=false -Dlibmpv=true -Dcplayer=false -Dbuild-date=false \
-  -Dgl=disabled -Dplain-gl=disabled -Dvulkan=disabled
+  -Dgl=disabled -Dplain-gl=disabled -Dvulkan=disabled "${mpv_platform[@]}"
 
 if [[ "$target" == windows ]]; then
   # Keep transitive non-system dependencies beside libmpv. LoadLibraryEx never
