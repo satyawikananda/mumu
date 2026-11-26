@@ -76,6 +76,12 @@ jobs:
       - name: Build pinned LGPL runtime
         if: steps.runtime.outputs.cache-hit != 'true'
         run: bash packaging/qa/build-headless-runtime.sh
+      - name: Save runtime cache
+        if: success() && steps.runtime.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: build/headless-runtime
+          key: headless-${{ matrix.os }}-amd64-${{ matrix.toolchain }}-${{ steps.compiler.outputs.fingerprint }}-${{ hashFiles('packaging/macos/mpv-runtime.json', 'packaging/qa/build-headless-runtime.sh') }}
       - name: Native headless and loader tests
         run: |
           test -d "$PWD/build/headless-runtime/lib"
