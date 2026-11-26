@@ -124,7 +124,7 @@ func fileURLPath(location *url.URL, goos string) string {
 		return toWindowsPath(path)
 	}
 
-	return filepath.FromSlash(path)
+	return path
 }
 
 func canonicalPath(path string) (string, error) {
